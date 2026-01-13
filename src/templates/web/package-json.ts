@@ -1,0 +1,83 @@
+export function generateWebPackageJson(useWorkOS: boolean): string {
+	const authDeps = useWorkOS
+		? {
+				"@workos-inc/authkit-nextjs": "^2.13.0",
+			}
+		: {
+				"better-auth": "^1.4.11",
+				resend: "^4.0.0",
+			};
+
+	return `${JSON.stringify(
+		{
+			name: "web",
+			version: "0.0.1",
+			private: true,
+			scripts: {
+				dev: "next dev --turbopack",
+				build: "next build",
+				start: "next start",
+				lint: "biome check .",
+				test: "vitest run",
+				"test:watch": "vitest",
+				"test:ui": "vitest --ui",
+				"test:coverage": "vitest run --coverage",
+				"db:generate": "drizzle-kit generate",
+				"db:migrate": "drizzle-kit migrate",
+				"db:migrate:deploy": "drizzle-kit migrate",
+				"db:push": "drizzle-kit push",
+				"db:studio": "drizzle-kit studio",
+				eval: "evalite",
+				"eval:watch": "evalite watch",
+			},
+			dependencies: {
+				next: "^16.0.0",
+				react: "^19.0.0",
+				"react-dom": "^19.2.3",
+				...authDeps,
+				"drizzle-orm": "^0.45.1",
+				pg: "^8.13.0",
+				ai: "^6.0.0",
+				"@ai-sdk/openai": "^3.0.8",
+				"@ai-sdk/react": "^3.0.30",
+				workflow: "^4.0.1-beta.44",
+				"posthog-js": "^1.250.2",
+				"posthog-node": "^4.7.2",
+				"@posthog/ai": "^7.4.2",
+				zod: "^3.24.0",
+				"@repo/ui": "workspace:*",
+				"class-variance-authority": "^0.7.1",
+				"@radix-ui/react-slot": "^1.2.4",
+				"lucide-react": "^0.513.0",
+				"next-safe-action": "^7.10.1",
+				"server-only": "^0.0.1",
+			},
+			devDependencies: {
+				"@types/node": "^25.0.6",
+				"@types/pg": "^8.16.0",
+				"@types/react": "^19.2.8",
+				"@types/react-dom": "^19.2.3",
+				"drizzle-kit": "^0.31.8",
+				typescript: "^5.7.0",
+				tailwindcss: "^4.0.0",
+				"@tailwindcss/postcss": "^4.0.0",
+				postcss: "^8.5.0",
+				vitest: "^4.0.17",
+				"@vitejs/plugin-react": "^5.1.2",
+				"@testing-library/react": "^16.3.1",
+				"@testing-library/dom": "^10.4.0",
+				"@testing-library/jest-dom": "^6.6.4",
+				"@testing-library/user-event": "^14.5.2",
+				jsdom: "^27.4.0",
+				"vite-tsconfig-paths": "^6.0.4",
+				"@faker-js/faker": "^9.3.0",
+				evalite: "1.0.0-beta.15",
+				autoevals: "^0.0.67",
+				dotenv: "^16.4.7",
+			},
+		},
+		null,
+		2,
+	)}
+`;
+}

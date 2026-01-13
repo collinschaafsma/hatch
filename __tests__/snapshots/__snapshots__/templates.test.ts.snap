@@ -1,0 +1,3108 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`template snapshots > AI templates > generateChatRoute 1`] = `
+"import { convertToModelMessages, streamText, type UIMessage } from "ai";
+import { observedModel } from "@/lib/observed-model";
+
+export async function POST(req: Request) {
+	const { messages }: { messages: UIMessage[] } = await req.json();
+
+	const result = streamText({
+		model: observedModel("gpt-4o", { agent: "chat" }),
+		messages: await convertToModelMessages(messages),
+		system: "You are a helpful assistant.",
+	});
+
+	return result.toUIMessageStreamResponse();
+}
+"
+`;
+
+exports[`template snapshots > AI templates > generateObservedModel 1`] = `
+"import { openai } from "@ai-sdk/openai";
+import { withTracing } from "@posthog/ai";
+import type { LanguageModel } from "ai";
+import getPostHogClient from "@/lib/posthog";
+
+/**
+ * Creates an observed language model with automatic tracing.
+ *
+ * When running in Evalite context (EVALITE env var set), uses Evalite's AI SDK
+ * wrapper for automatic tracing and caching in the Evalite UI.
+ *
+ * Otherwise, uses PostHog for production observability (if configured).
+ *
+ * @param model - Model name (e.g., "gpt-4o", "gpt-4o-mini")
+ * @param posthogProperties - Optional properties to include in PostHog traces
+ */
+export function observedModel(
+	model: string,
+	posthogProperties: Record<string, unknown> = {},
+): LanguageModel {
+	const modelClient = openai(model);
+
+	// Detect if running in Evalite context
+	const isEvaliteContext = process.env.EVALITE === "true";
+
+	if (isEvaliteContext) {
+		// In eval context: use Evalite's AI SDK wrapper for tracing/caching
+		// Dynamic import to avoid requiring evalite in production
+		try {
+			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			const { wrapAISDKModel } = require("evalite/ai-sdk");
+			return wrapAISDKModel(modelClient);
+		} catch (error) {
+			// If evalite not available, fall back to unwrapped model
+			console.warn("Evalite not available, using unwrapped model:", error);
+			return modelClient;
+		}
+	}
+
+	// Production context: use PostHog tracing if configured
+	const posthogClient = getPostHogClient();
+	if (!posthogClient) {
+		// PostHog not configured, return unwrapped model
+		return modelClient;
+	}
+
+	const tracedModel = withTracing(modelClient, posthogClient, {
+		posthogProperties,
+	});
+
+	return tracedModel;
+}
+"
+`;
+
+exports[`template snapshots > UI package templates > generateUIIndex 1`] = `
+"// Re-export components from the web app
+// Components are installed in apps/web/components/ui via shadcn
+// This package serves as a shared reference point
+
+export {};
+"
+`;
+
+exports[`template snapshots > UI package templates > generateUIPackageJson 1`] = `
+"{
+  "name": "@repo/ui",
+  "version": "0.0.1",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "biome check ."
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  }
+}
+"
+`;
+
+exports[`template snapshots > UI package templates > generateUITsconfig 1`] = `
+"{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
+"
+`;
+
+exports[`template snapshots > analytics templates > generatePostHogProvider 1`] = `
+""use client";
+
+import posthog from "posthog-js";
+import { PostHogProvider as PHProvider } from "posthog-js/react";
+
+// Initialize PostHog at module load (client-side only)
+if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
+	posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
+		api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
+		capture_pageview: "history_change",
+		capture_exceptions: true,
+	});
+}
+
+export function PostHogProvider({ children }: { children: React.ReactNode }) {
+	return <PHProvider client={posthog}>{children}</PHProvider>;
+}
+"
+`;
+
+exports[`template snapshots > analytics templates > generatePostHogServer 1`] = `
+"import { PostHog } from "posthog-node";
+
+let posthogClient: PostHog | null = null;
+
+function getPostHogClient(): PostHog | null {
+	if (posthogClient) return posthogClient;
+
+	const apiKey = process.env.POSTHOG_API_KEY;
+	if (!apiKey) return null;
+
+	posthogClient = new PostHog(apiKey, {
+		host: process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
+		flushAt: 1,
+		flushInterval: 0,
+	});
+
+	return posthogClient;
+}
+
+export default getPostHogClient;
+
+export async function trackServerEvent(
+	distinctId: string,
+	event: string,
+	properties?: Record<string, unknown>,
+) {
+	const client = getPostHogClient();
+	if (!client) return;
+
+	client.capture({
+		distinctId,
+		event,
+		properties,
+	});
+	await client.flush();
+}
+"
+`;
+
+exports[`template snapshots > app templates > generateAppLayout 1`] = `
+"export default function AppLayout({
+	children,
+}: {
+	children: React.ReactNode;
+}) {
+	return <div className="min-h-screen">{children}</div>;
+}
+"
+`;
+
+exports[`template snapshots > auth templates - Better Auth > generateBetterAuthClient 1`] = `
+"import { createAuthClient } from "better-auth/react";
+import { emailOTPClient } from "better-auth/client/plugins";
+
+export const authClient = createAuthClient({
+	baseURL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+	plugins: [emailOTPClient()],
+});
+
+export const { signIn, signOut, useSession } = authClient;
+"
+`;
+
+exports[`template snapshots > auth templates - Better Auth > generateBetterAuthConfig 1`] = `
+"import { betterAuth } from "better-auth";
+import { emailOTP } from "better-auth/plugins";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { db } from "@/db";
+import { Resend } from "resend";
+
+// Lazily create Resend client to avoid build-time initialization
+let resendClient: Resend | null = null;
+function getResend(): Resend {
+	if (!resendClient) {
+		resendClient = new Resend(process.env.RESEND_API_KEY);
+	}
+	return resendClient;
+}
+
+export const auth = betterAuth({
+	database: drizzleAdapter(db, { provider: "pg" }),
+	emailAndPassword: {
+		enabled: false, // Using OTP only
+	},
+	plugins: [
+		emailOTP({
+			async sendVerificationOTP({ email, otp, type }) {
+				// In development, also log to console
+				if (process.env.NODE_ENV === "development") {
+					console.log(\`[DEV] OTP for \${email}: \${otp} (type: \${type})\`);
+				}
+
+				// Send email via Resend
+				try {
+					await getResend().emails.send({
+						from: "noreply@yourdomain.com", // Update with your domain
+						to: email,
+						subject: type === "sign-in"
+							? "Your sign-in code"
+							: type === "email-verification"
+								? "Verify your email"
+								: "Reset your password",
+						html: \`
+							<div style="font-family: sans-serif; max-width: 400px; margin: 0 auto;">
+								<h2>Your verification code</h2>
+								<p style="font-size: 32px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 20px; background: #f5f5f5; border-radius: 8px;">
+									\${otp}
+								</p>
+								<p style="color: #666; font-size: 14px;">
+									This code expires in 5 minutes. If you didn't request this, please ignore this email.
+								</p>
+							</div>
+						\`,
+					});
+				} catch (error) {
+					console.error("Failed to send OTP email:", error);
+					// In development, don't throw so we can still use console OTP
+					if (process.env.NODE_ENV !== "development") {
+						throw error;
+					}
+				}
+			},
+			otpLength: 6,
+			expiresIn: 300, // 5 minutes
+		}),
+	],
+});
+
+export type Session = typeof auth.$Infer.Session;
+"
+`;
+
+exports[`template snapshots > auth templates - Better Auth > generateBetterAuthProxy 1`] = `
+"import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+export async function proxy(request: NextRequest) {
+	// Get session from cookie
+	const sessionCookie = request.cookies.get("better-auth.session_token");
+	const hasSession = !!sessionCookie?.value;
+
+	const { pathname } = request.nextUrl;
+
+	// Protect dashboard routes
+	if (pathname.startsWith("/dashboard")) {
+		if (!hasSession) {
+			return NextResponse.redirect(new URL("/login", request.url));
+		}
+	}
+
+	// Redirect authenticated users away from auth pages
+	if (hasSession && (pathname === "/login" || pathname === "/verify-otp")) {
+		return NextResponse.redirect(new URL("/dashboard", request.url));
+	}
+
+	return NextResponse.next();
+}
+
+export const config = {
+	matcher: [
+		"/dashboard/:path*",
+		"/login",
+		"/verify-otp",
+		// Exclude workflow endpoints
+		"/((?!.well-known/workflow|api/workflow).*)",
+	],
+};
+"
+`;
+
+exports[`template snapshots > auth templates - Better Auth > generateBetterAuthRouteHandler 1`] = `
+"import { toNextJsHandler } from "better-auth/next-js";
+import { auth } from "@/lib/auth";
+
+export const { POST, GET } = toNextJsHandler(auth);
+"
+`;
+
+exports[`template snapshots > auth templates - Better Auth > generateLoginPage 1`] = `
+""use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+export default function LoginPage() {
+	const router = useRouter();
+	const [email, setEmail] = useState("");
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState("");
+
+	const handleSendOTP = async (e: React.FormEvent) => {
+		e.preventDefault();
+		setLoading(true);
+		setError("");
+
+		try {
+			const { error } = await authClient.emailOtp.sendVerificationOtp({
+				email,
+				type: "sign-in",
+			});
+
+			if (error) {
+				setError(error.message || "Failed to send code");
+				return;
+			}
+
+			// Store email for verification page
+			sessionStorage.setItem("pendingEmail", email);
+			router.push("/verify-otp");
+		} catch {
+			setError("An unexpected error occurred");
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	return (
+		<div className="flex min-h-screen items-center justify-center p-4">
+			<Card className="w-full max-w-md">
+				<CardHeader className="text-center">
+					<CardTitle className="text-2xl">Sign In</CardTitle>
+					<CardDescription>
+						Enter your email to receive a one-time code
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<form onSubmit={handleSendOTP} className="space-y-4">
+						<div className="space-y-2">
+							<Label htmlFor="email">Email</Label>
+							<Input
+								id="email"
+								type="email"
+								value={email}
+								onChange={(e) => setEmail(e.target.value)}
+								required
+								placeholder="you@example.com"
+							/>
+						</div>
+
+						{error && (
+							<p className="text-sm text-destructive">{error}</p>
+						)}
+
+						<Button type="submit" className="w-full" disabled={loading}>
+							{loading ? "Sending..." : "Send Code"}
+						</Button>
+					</form>
+				</CardContent>
+			</Card>
+		</div>
+	);
+}
+"
+`;
+
+exports[`template snapshots > auth templates - Better Auth > generateVerifyOTPPage 1`] = `
+""use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+export default function VerifyOTPPage() {
+	const router = useRouter();
+	const [otp, setOtp] = useState("");
+	const [email, setEmail] = useState("");
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState("");
+
+	useEffect(() => {
+		const pendingEmail = sessionStorage.getItem("pendingEmail");
+		if (!pendingEmail) {
+			router.push("/login");
+			return;
+		}
+		setEmail(pendingEmail);
+	}, [router]);
+
+	const handleVerify = async (e: React.FormEvent) => {
+		e.preventDefault();
+		setLoading(true);
+		setError("");
+
+		try {
+			const { error } = await authClient.signIn.emailOtp({
+				email,
+				otp,
+			});
+
+			if (error) {
+				setError(error.message || "Invalid code");
+				return;
+			}
+
+			sessionStorage.removeItem("pendingEmail");
+			router.push("/dashboard");
+		} catch {
+			setError("An unexpected error occurred");
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	const handleResend = async () => {
+		setLoading(true);
+		setError("");
+
+		try {
+			const { error } = await authClient.emailOtp.sendVerificationOtp({
+				email,
+				type: "sign-in",
+			});
+
+			if (error) {
+				setError(error.message || "Failed to resend code");
+			}
+		} catch {
+			setError("Failed to resend code");
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	return (
+		<div className="flex min-h-screen items-center justify-center p-4">
+			<Card className="w-full max-w-md">
+				<CardHeader className="text-center">
+					<CardTitle className="text-2xl">Enter Code</CardTitle>
+					<CardDescription>
+						We sent a code to {email}
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<form onSubmit={handleVerify} className="space-y-4">
+						<div className="space-y-2">
+							<Label htmlFor="otp">Verification Code</Label>
+							<Input
+								id="otp"
+								type="text"
+								value={otp}
+								onChange={(e) => setOtp(e.target.value)}
+								required
+								maxLength={6}
+								className="text-center text-2xl tracking-widest"
+								placeholder="000000"
+							/>
+						</div>
+
+						{error && (
+							<p className="text-sm text-destructive">{error}</p>
+						)}
+
+						<Button type="submit" className="w-full" disabled={loading}>
+							{loading ? "Verifying..." : "Verify"}
+						</Button>
+
+						<button
+							type="button"
+							onClick={handleResend}
+							className="w-full text-sm text-muted-foreground hover:underline"
+							disabled={loading}
+						>
+							Resend code
+						</button>
+					</form>
+				</CardContent>
+			</Card>
+		</div>
+	);
+}
+"
+`;
+
+exports[`template snapshots > auth templates - WorkOS > generateWorkOSCallback 1`] = `
+"import { handleAuth } from "@workos-inc/authkit-nextjs";
+
+export const GET = handleAuth();
+"
+`;
+
+exports[`template snapshots > auth templates - WorkOS > generateWorkOSLoginPage 1`] = `
+"import { getSignInUrl } from "@workos-inc/authkit-nextjs";
+import { redirect } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+export default function LoginPage() {
+	return (
+		<div className="flex min-h-screen items-center justify-center p-4">
+			<Card className="w-full max-w-md">
+				<CardHeader className="text-center">
+					<CardTitle className="text-2xl">Sign In</CardTitle>
+					<CardDescription>
+						Sign in to access your account
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<form
+						action={async () => {
+							"use server";
+							const signInUrl = await getSignInUrl();
+							redirect(signInUrl);
+						}}
+					>
+						<Button type="submit" className="w-full">
+							Sign In with WorkOS
+						</Button>
+					</form>
+				</CardContent>
+			</Card>
+		</div>
+	);
+}
+"
+`;
+
+exports[`template snapshots > auth templates - WorkOS > generateWorkOSProxy 1`] = `
+"import { authkitMiddleware } from "@workos-inc/authkit-nextjs";
+
+export default authkitMiddleware();
+
+export const config = {
+	matcher: [
+		"/dashboard/:path*",
+		// Exclude workflow endpoints from auth
+		"/((?!.well-known/workflow|api/workflow|callback).*)",
+	],
+};
+"
+`;
+
+exports[`template snapshots > dashboard templates > generateAITriggerButton 1`] = `
+""use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+export function AITriggerButton() {
+	const [loading, setLoading] = useState(false);
+	const [prompt, setPrompt] = useState("What are 3 interesting facts about TypeScript?");
+	const [result, setResult] = useState<string | null>(null);
+	const [error, setError] = useState<string | null>(null);
+
+	const handleTrigger = async () => {
+		setLoading(true);
+		setError(null);
+		setResult(null);
+
+		try {
+			const response = await fetch("/api/workflow", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ prompt }),
+			});
+
+			const data = await response.json();
+
+			if (!response.ok) {
+				throw new Error(data.error || "Failed to trigger workflow");
+			}
+
+			setResult(\`Workflow started! Run ID: \${data.runId}\`);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "An error occurred");
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	return (
+		<div className="space-y-4">
+			<div className="space-y-2">
+				<Label htmlFor="prompt">Prompt</Label>
+				<Input
+					id="prompt"
+					value={prompt}
+					onChange={(e) => setPrompt(e.target.value)}
+					placeholder="Enter a prompt for the AI agent..."
+				/>
+			</div>
+
+			<Button onClick={handleTrigger} disabled={loading || !prompt}>
+				{loading ? "Running..." : "Trigger AI Workflow"}
+			</Button>
+
+			{result && (
+				<div className="p-4 bg-green-50 text-green-800 rounded border border-green-200">
+					{result}
+				</div>
+			)}
+
+			{error && (
+				<div className="p-4 bg-red-50 text-red-800 rounded border border-red-200">
+					{error}
+				</div>
+			)}
+
+			<p className="text-sm text-muted-foreground">
+				View workflow runs with: <code className="bg-muted px-1 rounded">npx workflow web</code>
+			</p>
+		</div>
+	);
+}
+"
+`;
+
+exports[`template snapshots > dashboard templates > generateDashboardActions 1`] = `
+""use server";
+
+import { z } from "zod";
+import { authActionClient } from "@/lib/safe-action";
+
+/**
+ * Example authenticated server action
+ *
+ * This demonstrates using next-safe-action with:
+ * - Zod schema validation
+ * - Authentication middleware (ctx.userId available)
+ * - Type-safe input/output
+ */
+export const exampleAction = authActionClient
+	.schema(
+		z.object({
+			message: z.string().min(1, "Message is required"),
+		}),
+	)
+	.action(async ({ parsedInput, ctx }) => {
+		// ctx.userId and ctx.user are available from the auth middleware
+		console.log(\`User \${ctx.userId} sent: \${parsedInput.message}\`);
+
+		return {
+			success: true,
+			userId: ctx.userId,
+			echo: parsedInput.message,
+		};
+	});
+
+/**
+ * Example action with more complex input
+ */
+export const updateSettingsAction = authActionClient
+	.schema(
+		z.object({
+			notifications: z.boolean().optional(),
+			theme: z.enum(["light", "dark", "system"]).optional(),
+		}),
+	)
+	.action(async ({ parsedInput }) => {
+		// In a real app, you'd update the database here using ctx.userId
+		// await db.update(userSettings).set(parsedInput).where(eq(userSettings.userId, ctx.userId));
+
+		return {
+			success: true,
+			updatedSettings: parsedInput,
+		};
+	});
+"
+`;
+
+exports[`template snapshots > dashboard templates > generateDashboardPage (Better Auth) 1`] = `
+"import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { AITriggerButton } from "@/components/dashboard/ai-trigger";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { auth } from "@/lib/auth";
+
+export default async function DashboardPage() {
+	const session = await auth.api.getSession({
+		headers: await headers(),
+	});
+
+	if (!session?.user) {
+		redirect("/login");
+	}
+
+	const user = session.user;
+
+	return (
+		<div className="container mx-auto p-8">
+			<div className="flex items-center justify-between mb-8">
+				<div className="flex items-center gap-4">
+					<Avatar className="h-12 w-12">
+						<AvatarImage src={user?.image || undefined} />
+						<AvatarFallback>
+							{user?.name?.[0] || user?.email?.[0]?.toUpperCase() || "U"}
+						</AvatarFallback>
+					</Avatar>
+					<div>
+						<h1 className="text-2xl font-bold">Dashboard</h1>
+						<p className="text-muted-foreground">
+							Welcome back, {user?.name || user?.email || "User"}
+						</p>
+					</div>
+				</div>
+				<SignOutButton />
+			</div>
+
+			<Separator className="mb-8" />
+
+			<div className="grid gap-6">
+				<Card>
+					<CardHeader>
+						<CardTitle>AI Workflow Demo</CardTitle>
+						<CardDescription>
+							Click the button below to trigger an AI workflow that processes
+							your request using Vercel Workflow DevKit.
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<AITriggerButton />
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader>
+						<CardTitle>User Info</CardTitle>
+						<CardDescription>Your account details</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<pre className="bg-muted p-4 rounded text-sm overflow-auto">
+							{JSON.stringify(user, null, 2)}
+						</pre>
+					</CardContent>
+				</Card>
+			</div>
+		</div>
+	);
+}
+
+function SignOutButton() {
+	return (
+		<form
+			action={async () => {
+				"use server";
+				// Sign out is handled client-side with authClient
+			}}
+		>
+			<Button variant="outline" type="button" onClick={() => {
+				// This will be handled client-side
+			}}>
+				Sign Out
+			</Button>
+		</form>
+	);
+}
+"
+`;
+
+exports[`template snapshots > dashboard templates > generateDashboardPage (WorkOS) 1`] = `
+"import { signOut, withAuth } from "@workos-inc/authkit-nextjs";
+import { AITriggerButton } from "@/components/dashboard/ai-trigger";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+
+export default async function DashboardPage() {
+	const { user } = await withAuth({ ensureSignedIn: true });
+
+	return (
+		<div className="container mx-auto p-8">
+			<div className="flex items-center justify-between mb-8">
+				<div className="flex items-center gap-4">
+					<Avatar className="h-12 w-12">
+						<AvatarImage src={user?.profilePictureUrl || undefined} />
+						<AvatarFallback>
+							{user?.firstName?.[0] || user?.email?.[0]?.toUpperCase() || "U"}
+						</AvatarFallback>
+					</Avatar>
+					<div>
+						<h1 className="text-2xl font-bold">Dashboard</h1>
+						<p className="text-muted-foreground">
+							Welcome back, {user?.firstName || user?.email || "User"}
+						</p>
+					</div>
+				</div>
+				<form
+					action={async () => {
+						"use server";
+						await signOut();
+					}}
+				>
+					<Button variant="outline" type="submit">
+						Sign Out
+					</Button>
+				</form>
+			</div>
+
+			<Separator className="mb-8" />
+
+			<div className="grid gap-6">
+				<Card>
+					<CardHeader>
+						<CardTitle>AI Workflow Demo</CardTitle>
+						<CardDescription>
+							Click the button below to trigger an AI workflow that processes
+							your request using Vercel Workflow DevKit.
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<AITriggerButton />
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader>
+						<CardTitle>User Info</CardTitle>
+						<CardDescription>Your account details from WorkOS</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<pre className="bg-muted p-4 rounded text-sm overflow-auto">
+							{JSON.stringify(user, null, 2)}
+						</pre>
+					</CardContent>
+				</Card>
+			</div>
+		</div>
+	);
+}
+"
+`;
+
+exports[`template snapshots > database templates > generateDbIndex 1`] = `
+"import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
+import * as schema from "./schema";
+
+let dbInstance: NodePgDatabase<typeof schema> | null = null;
+
+export function getDb(): NodePgDatabase<typeof schema> {
+	if (dbInstance) return dbInstance;
+
+	if (!process.env.DATABASE_URL) {
+		throw new Error("DATABASE_URL environment variable is required");
+	}
+
+	dbInstance = drizzle(process.env.DATABASE_URL, { schema });
+	return dbInstance;
+}
+
+// Export a proxy that lazily initializes the db
+// This allows imports without throwing at build time
+export const db = new Proxy({} as NodePgDatabase<typeof schema>, {
+	get(_, prop) {
+		return getDb()[prop as keyof NodePgDatabase<typeof schema>];
+	},
+});
+"
+`;
+
+exports[`template snapshots > database templates > generateDbSchema 1`] = `
+"import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+
+// Example table - add your custom tables here
+export const posts = pgTable("posts", {
+	id: uuid("id").primaryKey().defaultRandom(),
+	title: text("title").notNull(),
+	content: text("content"),
+	authorId: text("author_id").notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Better Auth tables will be generated by running:
+// npx @better-auth/cli generate
+// This will add: user, session, account, verification tables
+"
+`;
+
+exports[`template snapshots > database templates > generateDrizzleConfig 1`] = `
+"import { defineConfig } from "drizzle-kit";
+
+if (!process.env.DATABASE_URL) {
+	throw new Error("DATABASE_URL environment variable is required");
+}
+
+export default defineConfig({
+	schema: "./db/schema.ts",
+	out: "./drizzle",
+	dialect: "postgresql",
+	dbCredentials: {
+		url: process.env.DATABASE_URL,
+	},
+});
+"
+`;
+
+exports[`template snapshots > docker templates > generateDockerCompose 1`] = `
+"services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    container_name: undefined-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: undefined
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-test:
+    image: pgvector/pgvector:pg18
+    container_name: undefined-postgres-test
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: undefined_test
+    ports:
+      - '5434:5432'
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  postgres_test_data:
+"
+`;
+
+exports[`template snapshots > evals templates > generateChatQualityEval 1`] = `
+"import { openai } from "@ai-sdk/openai";
+import { generateText, type LanguageModel } from "ai";
+import { evalite } from "evalite";
+import { wrapAISDKModel } from "evalite/ai-sdk";
+import { Levenshtein } from "autoevals";
+
+// Wrap the model for automatic tracing and caching
+// Type assertion needed for AI SDK v6 compatibility with evalite
+const model = wrapAISDKModel(openai("gpt-4o-mini") as unknown as Parameters<typeof wrapAISDKModel>[0]) as LanguageModel;
+
+/**
+ * Chat Quality Evaluation
+ *
+ * Tests basic chat response quality using similarity scoring.
+ * Run with: pnpm eval or pnpm eval:watch
+ */
+evalite("Chat Quality", {
+	data: async () => [
+		{
+			input: "What is TypeScript?",
+			expected:
+				"TypeScript is a strongly typed programming language that builds on JavaScript.",
+		},
+		{
+			input: "What is React?",
+			expected: "React is a JavaScript library for building user interfaces.",
+		},
+		{
+			input: "What is Next.js?",
+			expected:
+				"Next.js is a React framework for building full-stack web applications.",
+		},
+	],
+	task: async (input) => {
+		const result = await generateText({
+			model,
+			system: "You are a helpful assistant. Answer concisely in one sentence.",
+			prompt: input,
+		});
+		return result.text;
+	},
+	scorers: [Levenshtein],
+});
+"
+`;
+
+exports[`template snapshots > evals templates > generateEvaliteConfig 1`] = `
+"import { defineConfig } from "evalite/config";
+
+export default defineConfig({
+	// Run evals sequentially to avoid rate limits
+	maxConcurrency: 1,
+	// 5 minute timeout for long-running evals
+	testTimeout: 300000,
+});
+"
+`;
+
+exports[`template snapshots > evals templates > generateEvalsSetup 1`] = `
+"/**
+ * Evalite Setup
+ *
+ * This file runs before all evals to configure the environment.
+ */
+import path from "node:path";
+import { config } from "dotenv";
+
+// Load .env.local file
+config({ path: path.resolve(__dirname, "../.env.local") });
+
+// Ensure EVALITE flag is set
+process.env.EVALITE = "true";
+"
+`;
+
+exports[`template snapshots > evals templates > generateStructuredOutputEval 1`] = `
+"import { openai } from "@ai-sdk/openai";
+import { generateObject, type LanguageModel } from "ai";
+import { evalite } from "evalite";
+import { wrapAISDKModel } from "evalite/ai-sdk";
+import { z } from "zod";
+
+// Wrap the model for automatic tracing and caching
+// Type assertion needed for AI SDK v6 compatibility with evalite
+const model = wrapAISDKModel(openai("gpt-4o-mini") as unknown as Parameters<typeof wrapAISDKModel>[0]) as LanguageModel;
+
+// Define the schema for structured output
+const TaskSchema = z.object({
+	title: z.string().describe("A short title for the task"),
+	priority: z.enum(["low", "medium", "high"]).describe("Task priority level"),
+	tags: z.array(z.string()).describe("Relevant tags for the task"),
+});
+
+type Task = z.infer<typeof TaskSchema>;
+
+/**
+ * Structured Output Evaluation
+ *
+ * Tests the model's ability to extract structured data from natural language.
+ * Validates schema conformance and field accuracy.
+ * Run with: pnpm eval or pnpm eval:watch
+ */
+evalite<string, Task, Task>("Structured Output - Task Extraction", {
+	data: async () => [
+		{
+			input: "I need to finish the quarterly report by Friday, it's really important",
+			expected: {
+				title: "Finish quarterly report",
+				priority: "high",
+				tags: ["report", "quarterly"],
+			},
+		},
+		{
+			input: "Maybe update the docs sometime next week, not urgent",
+			expected: {
+				title: "Update documentation",
+				priority: "low",
+				tags: ["documentation"],
+			},
+		},
+		{
+			input: "Fix the login bug today, users are complaining",
+			expected: {
+				title: "Fix login bug",
+				priority: "high",
+				tags: ["bug", "login"],
+			},
+		},
+	],
+	task: async (input) => {
+		const result = await generateObject({
+			model,
+			schema: TaskSchema,
+			system: "Extract task information from the user's message.",
+			prompt: input,
+		});
+		return result.object;
+	},
+	scorers: [
+		{
+			name: "Schema Valid",
+			scorer: ({ output }) => {
+				const result = TaskSchema.safeParse(output);
+				return result.success ? 1 : 0;
+			},
+		},
+		{
+			name: "Priority Match",
+			scorer: ({ output, expected }) => {
+				return output.priority === expected.priority ? 1 : 0;
+			},
+		},
+		{
+			name: "Has Tags",
+			scorer: ({ output }) => {
+				return output.tags && output.tags.length > 0 ? 1 : 0;
+			},
+		},
+	],
+});
+"
+`;
+
+exports[`template snapshots > lib templates > generateClientLogger 1`] = `
+"import posthog from "posthog-js";
+
+type LogLevel = "debug" | "info" | "warn" | "error";
+
+interface LogContext {
+	[key: string]: unknown;
+}
+
+class ClientLogger {
+	/**
+	 * Log a debug message
+	 */
+	debug(message: string, context?: LogContext): void {
+		this.log("debug", message, context);
+	}
+
+	/**
+	 * Log an info message
+	 */
+	info(message: string, context?: LogContext): void {
+		this.log("info", message, context);
+	}
+
+	/**
+	 * Log a warning message
+	 */
+	warn(message: string, context?: LogContext): void {
+		this.log("warn", message, context);
+	}
+
+	/**
+	 * Log an error and send it to PostHog error tracking
+	 */
+	error(message: string, error?: Error | unknown, context?: LogContext): void {
+		this.log("error", message, context);
+
+		// Send to PostHog error tracking
+		this.captureError(message, error, context);
+	}
+
+	/**
+	 * Capture error to PostHog client-side
+	 */
+	private captureError(
+		message: string,
+		error?: Error | unknown,
+		context?: LogContext,
+	): void {
+		try {
+			if (!posthog.__loaded) return;
+
+			if (error instanceof Error) {
+				posthog.captureException(error, {
+					...context,
+					message,
+				});
+			} else if (error) {
+				const errorObj = new Error(message);
+				posthog.captureException(errorObj, {
+					...context,
+					originalError: error,
+				});
+			} else {
+				const errorObj = new Error(message);
+				posthog.captureException(errorObj, context);
+			}
+		} catch (err) {
+			// Fail silently if PostHog tracking fails
+			console.error("Failed to send error to PostHog:", err);
+		}
+	}
+
+	/**
+	 * Internal logging method
+	 */
+	private log(level: LogLevel, message: string, context?: LogContext): void {
+		const timestamp = new Date().toISOString();
+		const prefix = \`[\${timestamp}] [\${level.toUpperCase()}]\`;
+
+		if (context && Object.keys(context).length > 0) {
+			console[level](\`\${prefix} \${message}\`, context);
+		} else {
+			console[level](\`\${prefix} \${message}\`);
+		}
+	}
+}
+
+// Export a singleton instance
+export const logger = new ClientLogger();
+"
+`;
+
+exports[`template snapshots > lib templates > generateSafeAction 1`] = `
+""use server";
+
+import { createSafeActionClient } from "next-safe-action";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+
+/**
+ * Base action client without authentication
+ * Use this for public actions that don't require auth
+ */
+export const actionClient = createSafeActionClient();
+
+/**
+ * Authenticated action client
+ * Automatically validates the user is logged in and provides userId in context
+ *
+ * Usage:
+ * \`\`\`ts
+ * export const myAction = authActionClient
+ *   .inputSchema(z.object({ ... }))
+ *   .action(async ({ parsedInput, ctx }) => {
+ *     // ctx.userId is available here
+ *     return { success: true };
+ *   });
+ * \`\`\`
+ */
+export const authActionClient = actionClient.use(async ({ next }) => {
+	const session = await auth.api.getSession({
+		headers: await headers(),
+	});
+
+	if (!session?.user) {
+		throw new Error("Unauthorized: Authentication required");
+	}
+
+	return next({
+		ctx: {
+			userId: session.user.id,
+			user: {
+				id: session.user.id,
+				email: session.user.email,
+				name: session.user.name,
+			},
+		},
+	});
+});
+"
+`;
+
+exports[`template snapshots > lib templates > generateServerLogger 1`] = `
+"import "server-only";
+import getPostHogClient from "@/lib/posthog";
+
+type LogLevel = "debug" | "info" | "warn" | "error";
+
+interface LogContext {
+	[key: string]: unknown;
+}
+
+class ServerLogger {
+	/**
+	 * Log a debug message
+	 */
+	debug(message: string, context?: LogContext): void {
+		this.log("debug", message, context);
+	}
+
+	/**
+	 * Log an info message
+	 */
+	info(message: string, context?: LogContext): void {
+		this.log("info", message, context);
+	}
+
+	/**
+	 * Log a warning message
+	 */
+	warn(message: string, context?: LogContext): void {
+		this.log("warn", message, context);
+	}
+
+	/**
+	 * Log an error and send it to PostHog
+	 * @param message - Error message
+	 * @param error - Error object or unknown error
+	 * @param context - Additional context to attach to the error
+	 * @param distinctId - Optional PostHog distinct_id to associate the error with a user
+	 */
+	error(
+		message: string,
+		error?: Error | unknown,
+		context?: LogContext,
+		distinctId?: string,
+	): void {
+		this.log("error", message, context);
+
+		// Send to PostHog (fire-and-forget)
+		this.captureError(message, error, context, distinctId).catch((err) => {
+			console.error("Error in captureError:", err);
+		});
+	}
+
+	/**
+	 * Capture error to PostHog server-side
+	 */
+	private async captureError(
+		message: string,
+		error?: Error | unknown,
+		context?: LogContext,
+		distinctId?: string,
+	): Promise<void> {
+		const posthog = getPostHogClient();
+		if (!posthog) return;
+
+		try {
+			const errorMessage = error instanceof Error ? error.message : message;
+			const errorStack = error instanceof Error ? error.stack : undefined;
+
+			posthog.capture({
+				distinctId: distinctId || "server",
+				event: "error",
+				properties: {
+					...context,
+					message,
+					errorMessage,
+					errorStack,
+					source: "logger",
+				},
+			});
+
+			await posthog.flush();
+		} catch (err) {
+			// Fail silently if PostHog tracking fails
+			console.error("Failed to send error to PostHog:", err);
+		}
+	}
+
+	/**
+	 * Internal logging method
+	 */
+	private log(level: LogLevel, message: string, context?: LogContext): void {
+		const timestamp = new Date().toISOString();
+		const prefix = \`[\${timestamp}] [\${level.toUpperCase()}]\`;
+
+		if (context && Object.keys(context).length > 0) {
+			console[level](\`\${prefix} \${message}\`, context);
+		} else {
+			console[level](\`\${prefix} \${message}\`);
+		}
+	}
+}
+
+// Export a singleton instance
+export const logger = new ServerLogger();
+"
+`;
+
+exports[`template snapshots > marketing templates > generateFooter 1`] = `
+"export function Footer() {
+	return (
+		<footer className="border-t py-6 text-center text-sm text-muted-foreground">
+			<p>&copy; {new Date().getFullYear()} Your Company. All rights reserved.</p>
+		</footer>
+	);
+}
+"
+`;
+
+exports[`template snapshots > marketing templates > generateHero 1`] = `
+"import Link from "next/link";
+import { Button } from "@/components/ui/button";
+
+export function Hero() {
+	return (
+		<section className="flex-1 flex flex-col items-center justify-center gap-6 p-8 text-center">
+			<h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+				Welcome to Your App
+			</h1>
+			<p className="text-lg text-muted-foreground max-w-md">
+				Built with Next.js, Turborepo, and Hatch
+			</p>
+			<Button asChild size="lg">
+				<Link href="/login">Sign In</Link>
+			</Button>
+		</section>
+	);
+}
+"
+`;
+
+exports[`template snapshots > marketing templates > generateMarketingPage 1`] = `
+"import { Hero } from "./_components/hero";
+import { Footer } from "./_components/footer";
+
+export default function HomePage() {
+	return (
+		<main className="min-h-screen flex flex-col">
+			<Hero />
+			<Footer />
+		</main>
+	);
+}
+"
+`;
+
+exports[`template snapshots > root templates > generateBiomeJson 1`] = `
+"{
+  "$schema": "https://biomejs.dev/schemas/2.0.0/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": false,
+    "includes": [
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.js",
+      "**/*.jsx",
+      "**/*.json",
+      "!node_modules/**",
+      "!.next/**",
+      "!dist/**",
+      "!drizzle/**"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": {
+          "level": "off"
+        }
+      }
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always"
+    }
+  }
+}
+"
+`;
+
+exports[`template snapshots > root templates > generateGitignore 1`] = `
+"# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build
+.next/
+dist/
+.turbo/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+
+# Drizzle
+drizzle/
+"
+`;
+
+exports[`template snapshots > root templates > generatePnpmWorkspace 1`] = `
+"packages:
+  - "apps/*"
+  - "packages/*"
+"
+`;
+
+exports[`template snapshots > root templates > generateRootPackageJson 1`] = `
+"{
+  "name": "test-app",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "test:ui": "pnpm --filter web test:ui",
+    "format": "biome format --write .",
+    "check": "biome check .",
+    "db:generate": "pnpm --filter web db:generate",
+    "db:migrate": "pnpm --filter web db:migrate",
+    "db:studio": "pnpm --filter web db:studio",
+    "docker:up": "docker compose up -d postgres",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "docker:up:test": "docker compose up -d postgres-test",
+    "docker:down:all": "docker compose down -v",
+    "docker:reset": "docker compose down -v && docker compose up -d postgres"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.11",
+    "turbo": "^2.7.0",
+    "typescript": "^5.7.0"
+  },
+  "packageManager": "pnpm@10.0.0"
+}
+"
+`;
+
+exports[`template snapshots > root templates > generateTurboJson 1`] = `
+"{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "dist/**"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "test": {
+      "dependsOn": [
+        "^build"
+      ],
+      "env": [
+        "TEST_DATABASE_URL"
+      ]
+    },
+    "db:generate": {
+      "cache": false
+    },
+    "db:migrate": {
+      "cache": false
+    },
+    "db:studio": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}
+"
+`;
+
+exports[`template snapshots > scripts templates > generateBuildSandbox 1`] = `
+"#!/usr/bin/env bash
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_NAME="$(basename "$PROJECT_ROOT")"
+IMAGE_NAME="\${PROJECT_NAME}-claude-sandbox"
+
+echo "Building custom Claude sandbox image for project: $PROJECT_NAME"
+docker build -t "$IMAGE_NAME" "$SCRIPT_DIR"
+echo "Done! Image tagged as: $IMAGE_NAME"
+"
+`;
+
+exports[`template snapshots > scripts templates > generateSandboxDockerfile 1`] = `
+"FROM docker/sandbox-templates:claude-code
+
+# Clear NPM_CONFIG_PREFIX from base image - it conflicts with nvm
+# Setting to empty string effectively unsets it at the image level
+ENV NPM_CONFIG_PREFIX=""
+
+# Set proper terminal type for color support
+# Note: Shift+Enter doesn't work in Docker sandbox - use \\ + Enter for newlines
+ENV TERM=xterm-256color
+
+# Install nvm and Node.js LTS (jod = v22)
+ENV NVM_DIR="/home/agent/.nvm"
+RUN unset NPM_CONFIG_PREFIX \\
+    && curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash \\
+    && . "$NVM_DIR/nvm.sh" \\
+    && nvm install lts/jod \\
+    && nvm alias default lts/jod \\
+    && nvm use default
+
+# Enable Corepack and install pnpm
+RUN unset NPM_CONFIG_PREFIX \\
+    && . "$NVM_DIR/nvm.sh" \\
+    && corepack enable \\
+    && corepack prepare pnpm@latest --activate
+
+# Add nvm to shell startup
+RUN echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.bashrc \\
+    && echo '[ -s "$NVM_DIR/nvm.sh" ] && \\. "$NVM_DIR/nvm.sh"' >> ~/.bashrc \\
+    && echo '[ -s "$NVM_DIR/bash_completion" ] && \\. "$NVM_DIR/bash_completion"' >> ~/.bashrc
+"
+`;
+
+exports[`template snapshots > scripts templates > generateSandboxSettings 1`] = `
+"{
+	"permissions": {
+		"disableBypassPermissionsMode": "disable",
+		"allow": [
+			"Bash(pnpm lint:*)",
+			"Bash(ls:*)",
+			"Bash(pnpm test:*)",
+			"Bash(pnpm typecheck:*)",
+			"Bash(cat:*)",
+			"Bash(pnpm --filter web typecheck:*)",
+			"Bash(pnpm --filter web lint:*)",
+			"Bash(pnpm --filter web test)",
+			"Bash(nvm use)",
+			"Bash(pnpm db:generate:*)",
+			"Bash(find:*)",
+			"Bash(xargs cat:*)",
+			"Bash(pnpm --filter web test:*)",
+			"Bash(node -e:*)",
+			"Bash(node --input-type=module -e:*)",
+			"Bash(grep:*)",
+			"Bash(wc:*)",
+			"Bash(paste:*)",
+			"Bash(sort:*)",
+			"Bash(git status:*)",
+			"Bash(git diff:*)",
+			"Bash(git log:*)",
+			"Bash(git branch:*)",
+			"Bash(git show:*)",
+			"WebSearch"
+		],
+		"deny": [],
+		"ask": [
+			"Bash(git commit:*)",
+			"Bash(git push:*)",
+			"Bash(git merge:*)",
+			"Bash(git rebase:*)",
+			"Bash(git reset:*)",
+			"Bash(git stash:*)",
+			"Bash(git cherry-pick:*)"
+		]
+	}
+}"
+`;
+
+exports[`template snapshots > scripts templates > generateWorktreeInclude 1`] = `
+"apps/web/.vercel
+apps/web/.env.local
+"
+`;
+
+exports[`template snapshots > scripts templates > generateWtcsScript 1`] = `
+"#!/usr/bin/env bash
+set -e
+
+worktree_path=$(pwd)
+git_dir=$(git rev-parse --git-dir 2>/dev/null)
+
+if [[ ! "$git_dir" == *".git/worktrees"* ]]; then
+  echo "Error: Not in a git worktree"
+  exit 1
+fi
+
+branch_name=$(git branch --show-current)
+safe_branch_name="\${branch_name//\\//-}"
+repo_name=$(basename "$(git rev-parse --git-common-dir | sed 's/\\/.git$//')")
+compose_project="\${repo_name}-\${safe_branch_name}"
+main_repo=$(git rev-parse --git-common-dir | sed 's/\\/.git$//')
+
+echo "This will:"
+echo "  - Stop Docker Sandbox for: $compose_project (if exists)"
+echo "  - Stop containers and delete volumes for: $compose_project"
+echo "  - Remove worktree at: $worktree_path"
+echo "  - Delete local branch: $branch_name"
+echo ""
+read -p "Are you sure? (y/N) " confirm
+
+if [[ "$confirm" != [yY] ]]; then
+  echo "Aborted"
+  exit 0
+fi
+
+# Remove Docker Sandbox if it exists (search by name)
+# Note: docker sandbox ls doesn't support --format, so we parse the table output
+# Format: SANDBOX ID | TEMPLATE | NAME | WORKSPACE | STATUS | CREATED
+sandbox_id=$(docker sandbox ls --no-trunc 2>/dev/null | awk -v name="$compose_project" '$3 == name {print $1}')
+if [[ -n "$sandbox_id" ]]; then
+  echo "Removing Docker Sandbox: $sandbox_id ($compose_project)"
+  docker sandbox rm "$sandbox_id" 2>/dev/null || true
+else
+  echo "No Docker Sandbox found with name: $compose_project"
+fi
+
+# Stop containers and remove volumes
+COMPOSE_PROJECT_NAME="$compose_project" docker compose down -v
+
+cd "$main_repo"
+git worktree remove "$worktree_path" --force
+git branch -D "$branch_name"
+
+cd ..
+
+echo "Cleaned up worktree, sandbox, containers, volumes, and branch '$branch_name'"
+"
+`;
+
+exports[`template snapshots > scripts templates > generateWtsScript 1`] = `
+"#!/usr/bin/env bash
+set -e
+
+# Load nvm if available
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \\. "$NVM_DIR/nvm.sh"
+
+if [[ -z "$1" ]]; then
+  echo "Usage: ./scripts/wts <branch-name>"
+  exit 1
+fi
+
+branch_name="$1"
+original_dir=$(pwd)
+repo_name=$(basename "$original_dir")
+safe_branch_name="\${branch_name//\\//-}"
+worktree_path="../\${repo_name}-\${safe_branch_name}"
+sandbox_image="\${repo_name}-claude-sandbox"
+
+# Check if custom sandbox image exists, build if not
+if ! docker image inspect "$sandbox_image" &>/dev/null; then
+  echo "Custom sandbox image not found. Building $sandbox_image..."
+  "$original_dir/scripts/sandbox/build-sandbox"
+fi
+
+env_file="apps/web/.env.local"
+
+# Parse DATABASE_URL from .env.local
+db_url=$(grep -E "^DATABASE_URL=" "$env_file" | cut -d '=' -f2- | tr -d '"')
+
+if [[ -z "$db_url" ]]; then
+  echo "Error: DATABASE_URL not found in $env_file"
+  exit 1
+fi
+
+# Parse: postgresql://user:password@host:port/database
+db_user=$(echo "$db_url" | sed -E 's|postgresql://([^:]+):.*|\\1|')
+db_password=$(echo "$db_url" | sed -E 's|postgresql://[^:]+:([^@]+)@.*|\\1|')
+db_host=$(echo "$db_url" | sed -E 's|postgresql://[^@]+@([^:]+):.*|\\1|')
+source_db_port=$(echo "$db_url" | sed -E 's|postgresql://[^@]+@[^:]+:([0-9]+)/.*|\\1|')
+db_name=$(echo "$db_url" | sed -E 's|postgresql://[^/]+/(.+)|\\1|')
+
+echo "Parsed database config from $env_file:"
+echo "   Name: $db_name"
+echo "   Host: $db_host"
+echo "   Port: $source_db_port"
+echo "   User: $db_user"
+echo ""
+
+# Calculate unique ports
+# Start at +10 to avoid main repo's test db (typically at +2)
+# Use spacing of 4 ports per worktree (db, db_test, plus buffer)
+worktree_count=$(git worktree list | wc -l)
+new_db_port=$((source_db_port + 10 + (worktree_count * 4)))
+new_db_test_port=$((new_db_port + 2))
+
+compose_project="\${repo_name}-\${safe_branch_name}"
+
+git fetch origin main
+
+if ! git worktree add -b "$branch_name" "$worktree_path" origin/main; then
+  echo "Failed to create worktree"
+  exit 1
+fi
+
+# Copy .worktreeinclude files
+if [[ -f ".worktreeinclude" ]]; then
+  while IFS= read -r file || [[ -n "$file" ]]; do
+    [[ -z "$file" || "$file" =~ ^# ]] && continue
+    file="\${file%/}"
+    if [[ -e "$file" ]]; then
+      mkdir -p "$worktree_path/$(dirname "$file")"
+      cp -r "$file" "$worktree_path/$file"
+      echo "Copied: $file"
+    fi
+  done < ".worktreeinclude"
+fi
+
+# Copy sandbox Claude settings (disables dangerous mode, blocks destructive git commands)
+if [[ -f ".claude/sandbox.settings.local.json" ]]; then
+  mkdir -p "$worktree_path/.claude"
+  cp ".claude/sandbox.settings.local.json" "$worktree_path/.claude/settings.local.json"
+  echo "Copied: sandbox settings -> .claude/settings.local.json"
+fi
+
+# Create worktree-specific docker-compose
+cat > "$worktree_path/docker-compose.yml" << EOF
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    container_name: \${compose_project}-postgres
+    environment:
+      POSTGRES_USER: \${db_user}
+      POSTGRES_PASSWORD: \${db_password}
+      POSTGRES_DB: \${db_name}
+    ports:
+      - '\${new_db_port}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U \${db_user}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-test:
+    image: pgvector/pgvector:pg18
+    container_name: \${compose_project}-postgres-test
+    environment:
+      POSTGRES_USER: \${db_user}
+      POSTGRES_PASSWORD: \${db_password}
+      POSTGRES_DB: \${db_name}_test
+    ports:
+      - '\${new_db_test_port}:5432'
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U \${db_user}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  postgres_test_data:
+EOF
+
+# Update .env.local in worktree with new DATABASE_URL
+worktree_env_file="$worktree_path/$env_file"
+
+sed -i '' "s|DATABASE_URL=.*|DATABASE_URL=\\"postgresql://\${db_user}:\${db_password}@localhost:\${new_db_port}/\${db_name}\\"|" "$worktree_env_file"
+
+# Add or update DATABASE_TEST_URL
+if grep -q "^DATABASE_TEST_URL=" "$worktree_env_file"; then
+  sed -i '' "s|DATABASE_TEST_URL=.*|DATABASE_TEST_URL=\\"postgresql://\${db_user}:\${db_password}@localhost:\${new_db_test_port}/\${db_name}_test\\"|" "$worktree_env_file"
+else
+  echo "DATABASE_TEST_URL=\\"postgresql://\${db_user}:\${db_password}@localhost:\${new_db_test_port}/\${db_name}_test\\"" >> "$worktree_env_file"
+fi
+
+cd "$worktree_path"
+
+# Ignore local changes to docker-compose.yml in this worktree
+git update-index --assume-unchanged docker-compose.yml
+
+echo "Installing dependencies..."
+if command -v nvm &> /dev/null; then
+  nvm use 2>/dev/null || true
+fi
+pnpm i
+
+echo "Starting worktree database containers..."
+COMPOSE_PROJECT_NAME="$compose_project" docker compose up -d
+
+echo "Waiting for postgres to be ready..."
+max_attempts=30
+attempt=0
+
+until PGPASSWORD="$db_password" psql -h localhost -p "$new_db_port" -U "$db_user" -d postgres -c '\\q' 2>&1; do
+  attempt=$((attempt + 1))
+  if [[ $attempt -ge $max_attempts ]]; then
+    echo "Postgres failed to start after \${max_attempts} seconds"
+    echo "Check logs: COMPOSE_PROJECT_NAME=\\"$compose_project\\" docker compose logs postgres"
+    exit 1
+  fi
+  echo "   Attempt $attempt/$max_attempts..."
+  sleep 1
+done
+
+echo "Postgres is ready!"
+
+echo "Running database migrations..."
+cd apps/web && pnpm db:migrate
+cd ../..
+
+echo "Copying data from source (port \${source_db_port}) to worktree (port \${new_db_port})..."
+
+PGPASSWORD="$db_password" pg_dump \\
+  -h "$db_host" \\
+  -p "$source_db_port" \\
+  -U "$db_user" \\
+  -d "$db_name" \\
+  --data-only \\
+  --disable-triggers \\
+  --no-owner \\
+  --no-privileges \\
+  | PGPASSWORD="$db_password" psql \\
+    -h localhost \\
+    -p "$new_db_port" \\
+    -U "$db_user" \\
+    -d "$db_name" \\
+    -q
+
+echo "Database cloned successfully!"
+
+git push -u origin "$branch_name"
+
+echo ""
+echo "Worktree ready!"
+echo "   Path:          $(pwd)"
+echo "   Branch:        $branch_name"
+echo "   DB:            \${db_name} on port \${new_db_port}"
+echo "   Test DB:       \${db_name}_test on port \${new_db_test_port}"
+echo ""
+echo "   DATABASE_URL:      postgresql://\${db_user}:\${db_password}@localhost:\${new_db_port}/\${db_name}"
+echo "   DATABASE_TEST_URL: postgresql://\${db_user}:\${db_password}@localhost:\${new_db_test_port}/\${db_name}_test"
+echo ""
+
+# Launch iTerm2 with 3-pane layout
+sandbox_name="\${compose_project}"
+worktree_dir="$(pwd)"
+
+echo "Launching iTerm2 with Claude Code sandbox and dev terminals..."
+
+osascript <<APPLESCRIPT
+tell application "iTerm2"
+    create window with default profile
+    tell current window
+        tell current session
+            set name to "Claude Sandbox"
+            write text "cd '$worktree_dir' && docker sandbox run --template '$sandbox_image' --name '$sandbox_name' --mount-docker-socket -v '$HOME/.claude:/home/agent/.claude' -v '$HOME/.claude.json:/home/agent/.claude.json' -w '$worktree_dir' claude"
+
+            -- Split vertically to create right pane
+            set rightPane to (split vertically with default profile)
+            tell rightPane
+                set name to "Dev Terminal"
+                write text "cd '$worktree_dir' && nvm use 2>/dev/null; echo 'Dev terminal ready'"
+
+                -- Split horizontally to create bottom-right pane
+                set bottomPane to (split horizontally with default profile)
+                tell bottomPane
+                    set name to "Terminal 2"
+                    write text "cd '$worktree_dir' && nvm use 2>/dev/null; echo 'Terminal 2 ready'"
+                end tell
+            end tell
+        end tell
+    end tell
+end tell
+APPLESCRIPT
+
+echo "iTerm2 launched with 3-pane layout"
+"
+`;
+
+exports[`template snapshots > services templates > generateServicesIndex 1`] = `
+"export * from "./user";
+"
+`;
+
+exports[`template snapshots > services templates > generateUserService 1`] = `
+"import { cache } from "react";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
+// Uncomment when adding database queries:
+// import { db } from "@/db";
+// import { eq } from "drizzle-orm";
+// import { users } from "@/db/schema";
+
+/**
+ * Get the current session
+ *
+ * Uses React cache() to deduplicate requests within a single render.
+ */
+export const getSession = cache(async () => {
+	const session = await auth.api.getSession({
+		headers: await headers(),
+	});
+	return session;
+});
+
+/**
+ * Get the current authenticated user's ID
+ *
+ * Returns null if not authenticated.
+ */
+export const getCurrentUserId = cache(async (): Promise<string | null> => {
+	const session = await getSession();
+	return session?.user?.id ?? null;
+});
+
+/**
+ * Get the current authenticated user
+ *
+ * Returns the user object from the session.
+ */
+export const getCurrentUser = cache(async () => {
+	const session = await getSession();
+	if (!session?.user) return null;
+
+	return {
+		id: session.user.id,
+		email: session.user.email,
+		name: session.user.name,
+		image: session.user.image,
+	};
+});
+
+/**
+ * Example: Get a user by ID from the database
+ * Uncomment and modify once you have a users table in your schema
+ */
+// export async function getUserById(id: string) {
+//   const result = await db
+//     .select()
+//     .from(users)
+//     .where(eq(users.id, id))
+//     .limit(1);
+//   return result[0] || null;
+// }
+"
+`;
+
+exports[`template snapshots > test templates > generateAiTriggerTest 1`] = `
+"import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { render } from "../utils/render";
+import { mockFetch, resetFetchMock } from "../utils/mocks";
+import { AITriggerButton } from "@/components/dashboard/ai-trigger";
+
+describe("AITriggerButton", () => {
+	beforeEach(() => {
+		mockFetch({
+			"/api/workflow": { runId: "test-run-123" },
+		});
+	});
+
+	afterEach(() => {
+		resetFetchMock();
+	});
+
+	it("renders with default prompt", () => {
+		render(<AITriggerButton />);
+
+		expect(screen.getByLabelText("Prompt")).toHaveValue(
+			"What are 3 interesting facts about TypeScript?",
+		);
+		expect(
+			screen.getByRole("button", { name: /trigger ai workflow/i }),
+		).toBeInTheDocument();
+	});
+
+	it("allows editing the prompt", async () => {
+		const user = userEvent.setup();
+		render(<AITriggerButton />);
+
+		const input = screen.getByLabelText("Prompt");
+		await user.clear(input);
+		await user.type(input, "New prompt");
+
+		expect(input).toHaveValue("New prompt");
+	});
+
+	it("disables button when prompt is empty", async () => {
+		const user = userEvent.setup();
+		render(<AITriggerButton />);
+
+		const input = screen.getByLabelText("Prompt");
+		await user.clear(input);
+
+		expect(
+			screen.getByRole("button", { name: /trigger ai workflow/i }),
+		).toBeDisabled();
+	});
+
+	it("shows loading state when triggered", async () => {
+		// Use a delayed mock to capture the loading state
+		global.fetch = vi.fn(
+			() =>
+				new Promise((resolve) =>
+					setTimeout(
+						() =>
+							resolve({
+								ok: true,
+								json: () => Promise.resolve({ runId: "test-run-123" }),
+							} as Response),
+						100,
+					),
+				),
+		);
+
+		const user = userEvent.setup();
+		render(<AITriggerButton />);
+
+		const button = screen.getByRole("button", { name: /trigger ai workflow/i });
+		await user.click(button);
+
+		// Check loading state appears
+		expect(screen.getByRole("button", { name: /running/i })).toBeInTheDocument();
+
+		// Wait for completion
+		await waitFor(() => {
+			expect(
+				screen.getByText(/workflow started.*test-run-123/i),
+			).toBeInTheDocument();
+		});
+	});
+
+	it("displays success message with run ID", async () => {
+		const user = userEvent.setup();
+		render(<AITriggerButton />);
+
+		const button = screen.getByRole("button", { name: /trigger ai workflow/i });
+		await user.click(button);
+
+		await waitFor(() => {
+			expect(
+				screen.getByText(/workflow started.*test-run-123/i),
+			).toBeInTheDocument();
+		});
+	});
+
+	it("displays error message on failure", async () => {
+		mockFetch({
+			"/api/workflow": { ok: false, error: "Something went wrong" },
+		});
+
+		const user = userEvent.setup();
+		render(<AITriggerButton />);
+
+		await user.click(
+			screen.getByRole("button", { name: /trigger ai workflow/i }),
+		);
+
+		await waitFor(() => {
+			expect(screen.getByText(/something went wrong/i)).toBeInTheDocument();
+		});
+	});
+});
+"
+`;
+
+exports[`template snapshots > test templates > generateDbTest 1`] = `
+"import {
+	describe,
+	it,
+	expect,
+	beforeAll,
+	beforeEach,
+	afterAll,
+} from "vitest";
+import { eq } from "drizzle-orm";
+import {
+	getTestDb,
+	resetTestDb,
+	seedTestDb,
+	closeTestDb,
+} from "../utils/test-db";
+import * as schema from "@/db/schema";
+
+describe("Database Integration Tests", () => {
+	beforeAll(async () => {
+		await getTestDb();
+	});
+
+	beforeEach(async () => {
+		await resetTestDb();
+	});
+
+	afterAll(async () => {
+		await closeTestDb();
+	});
+
+	describe("posts table", () => {
+		it("can create a post", async () => {
+			const db = await getTestDb();
+
+			const [post] = await db
+				.insert(schema.posts)
+				.values({
+					title: "Test Post",
+					content: "Test content",
+					authorId: "user-123",
+				})
+				.returning();
+
+			expect(post.id).toBeDefined();
+			expect(post.title).toBe("Test Post");
+			expect(post.content).toBe("Test content");
+			expect(post.authorId).toBe("user-123");
+			expect(post.createdAt).toBeInstanceOf(Date);
+		});
+
+		it("can query posts by author", async () => {
+			const db = await getTestDb();
+
+			await db.insert(schema.posts).values([
+				{ title: "Post 1", content: "Content 1", authorId: "user-1" },
+				{ title: "Post 2", content: "Content 2", authorId: "user-2" },
+				{ title: "Post 3", content: "Content 3", authorId: "user-1" },
+			]);
+
+			const userPosts = await db
+				.select()
+				.from(schema.posts)
+				.where(eq(schema.posts.authorId, "user-1"));
+
+			expect(userPosts).toHaveLength(2);
+			expect(userPosts.map((p) => p.title)).toContain("Post 1");
+			expect(userPosts.map((p) => p.title)).toContain("Post 3");
+		});
+
+		it("can update a post", async () => {
+			const db = await getTestDb();
+
+			const [post] = await db
+				.insert(schema.posts)
+				.values({ title: "Original", content: "Content", authorId: "user-1" })
+				.returning();
+
+			const [updated] = await db
+				.update(schema.posts)
+				.set({ title: "Updated" })
+				.where(eq(schema.posts.id, post.id))
+				.returning();
+
+			expect(updated.title).toBe("Updated");
+		});
+
+		it("can delete a post", async () => {
+			const db = await getTestDb();
+
+			const [post] = await db
+				.insert(schema.posts)
+				.values({ title: "To Delete", content: "Content", authorId: "user-1" })
+				.returning();
+
+			await db.delete(schema.posts).where(eq(schema.posts.id, post.id));
+
+			const remaining = await db.select().from(schema.posts);
+			expect(remaining).toHaveLength(0);
+		});
+
+		it("seeds test data correctly", async () => {
+			await seedTestDb();
+
+			const db = await getTestDb();
+			const posts = await db.select().from(schema.posts);
+
+			expect(posts).toHaveLength(2);
+			expect(posts[0].authorId).toBe("test-user-1");
+		});
+	});
+});
+"
+`;
+
+exports[`template snapshots > test templates > generateFactoriesIndex 1`] = `
+"export * from "./user";
+"
+`;
+
+exports[`template snapshots > test templates > generateTestDbUtils 1`] = `
+"import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import * as schema from "../../db/schema";
+import { sql } from "drizzle-orm";
+
+const TEST_DATABASE_URL =
+	process.env.TEST_DATABASE_URL ||
+	"postgresql://postgres:postgres@localhost:5434/undefined_test";
+
+let pool: Pool | null = null;
+let testDb: ReturnType<typeof drizzle<typeof schema>> | null = null;
+
+export async function getTestDb() {
+	if (!testDb) {
+		pool = new Pool({ connectionString: TEST_DATABASE_URL });
+		testDb = drizzle(pool, { schema });
+	}
+	return testDb;
+}
+
+export async function resetTestDb() {
+	const db = await getTestDb();
+	// Truncate all tables (add more tables as your schema grows)
+	await db.execute(sql\`TRUNCATE TABLE posts RESTART IDENTITY CASCADE\`);
+}
+
+export async function seedTestDb() {
+	const db = await getTestDb();
+	await db.insert(schema.posts).values([
+		{
+			title: "Test Post 1",
+			content: "Test content 1",
+			authorId: "test-user-1",
+		},
+		{
+			title: "Test Post 2",
+			content: "Test content 2",
+			authorId: "test-user-1",
+		},
+	]);
+}
+
+export async function closeTestDb() {
+	if (pool) {
+		await pool.end();
+		pool = null;
+		testDb = null;
+	}
+}
+"
+`;
+
+exports[`template snapshots > test templates > generateTestMocks 1`] = `
+"import { vi } from "vitest";
+
+export function createFetchMock(responses: Record<string, unknown> = {}) {
+	return vi.fn((url: string) => {
+		const response = responses[url] || { ok: true, data: {} };
+		return Promise.resolve({
+			ok: true,
+			json: () => Promise.resolve(response),
+			text: () => Promise.resolve(JSON.stringify(response)),
+			...response,
+		});
+	});
+}
+
+export function mockFetch(responses: Record<string, unknown> = {}) {
+	const mock = createFetchMock(responses);
+	global.fetch = mock as unknown as typeof fetch;
+	return mock;
+}
+
+export function resetFetchMock() {
+	vi.restoreAllMocks();
+}
+"
+`;
+
+exports[`template snapshots > test templates > generateTestRenderUtils 1`] = `
+"import { render, type RenderOptions } from "@testing-library/react";
+import type { ReactElement, ReactNode } from "react";
+
+interface ProvidersProps {
+	children: ReactNode;
+}
+
+function Providers({ children }: ProvidersProps) {
+	// Add providers here as needed (e.g., ThemeProvider, QueryClientProvider)
+	return <>{children}</>;
+}
+
+function customRender(
+	ui: ReactElement,
+	options?: Omit<RenderOptions, "wrapper">,
+) {
+	return render(ui, { wrapper: Providers, ...options });
+}
+
+export * from "@testing-library/react";
+export { customRender as render };
+"
+`;
+
+exports[`template snapshots > test templates > generateUserFactory 1`] = `
+"import { faker } from "@faker-js/faker";
+
+// User type matching your auth schema
+// Update this interface to match your actual user schema
+interface User {
+	id: string;
+	email: string;
+	name: string | null;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+/**
+ * Create a fake user for testing
+ * @param overrides - Optional fields to override the generated values
+ */
+export function createUser(overrides?: Partial<User>): User {
+	return {
+		id: faker.string.uuid(),
+		email: faker.internet.email(),
+		name: faker.person.fullName(),
+		createdAt: faker.date.past(),
+		updatedAt: faker.date.recent(),
+		...overrides,
+	};
+}
+
+/**
+ * Create user input data (for service functions that don't need id/timestamps)
+ * @param overrides - Optional fields to override the generated values
+ */
+export function createUserInput(overrides?: {
+	email?: string;
+	name?: string | null;
+}) {
+	return {
+		email: faker.internet.email(),
+		name: faker.person.fullName(),
+		...overrides,
+	};
+}
+"
+`;
+
+exports[`template snapshots > test templates > generateUtilsTest 1`] = `
+"import { describe, it, expect } from "vitest";
+import { cn } from "@/lib/utils";
+
+describe("cn utility", () => {
+	it("merges class names correctly", () => {
+		expect(cn("foo", "bar")).toBe("foo bar");
+	});
+
+	it("handles conditional classes", () => {
+		expect(cn("base", false && "hidden", true && "visible")).toBe(
+			"base visible",
+		);
+	});
+
+	it("merges tailwind classes correctly", () => {
+		expect(cn("px-4 py-2", "px-6")).toBe("py-2 px-6");
+	});
+
+	it("handles undefined and null", () => {
+		expect(cn("base", undefined, null, "end")).toBe("base end");
+	});
+});
+"
+`;
+
+exports[`template snapshots > test templates > generateVitestConfig 1`] = `
+"import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
+import tsconfigPaths from "vite-tsconfig-paths";
+
+export default defineConfig({
+	plugins: [tsconfigPaths(), react()],
+	test: {
+		environment: "jsdom",
+		setupFiles: ["./vitest.setup.ts"],
+		include: ["__tests__/**/*.{test,spec}.{ts,tsx}"],
+		globals: true,
+		coverage: {
+			provider: "v8",
+			reporter: ["text", "json", "html"],
+			exclude: ["node_modules/", "__tests__/", "*.config.*"],
+		},
+	},
+});
+"
+`;
+
+exports[`template snapshots > test templates > generateVitestSetup 1`] = `
+"import "@testing-library/jest-dom/vitest";
+import { cleanup } from "@testing-library/react";
+import { afterEach, vi } from "vitest";
+
+// Cleanup after each test
+afterEach(() => {
+	cleanup();
+});
+
+// Mock Next.js router
+vi.mock("next/navigation", () => ({
+	useRouter: () => ({
+		push: vi.fn(),
+		replace: vi.fn(),
+		back: vi.fn(),
+		forward: vi.fn(),
+		refresh: vi.fn(),
+		prefetch: vi.fn(),
+	}),
+	usePathname: () => "/",
+	useSearchParams: () => new URLSearchParams(),
+}));
+"
+`;
+
+exports[`template snapshots > web templates > generateComponentsJson 1`] = `
+"{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "default",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": {
+    "config": "tailwind.config.ts",
+    "css": "app/globals.css",
+    "baseColor": "slate",
+    "cssVariables": true
+  },
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils"
+  }
+}
+"
+`;
+
+exports[`template snapshots > web templates > generateEnvExample 1`] = `
+"# Database
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/undefined
+
+# Test Database (for running tests)
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5434/undefined_test
+
+# Better Auth
+BETTER_AUTH_SECRET=  # Generate with: openssl rand -base64 32
+BETTER_AUTH_URL=http://localhost:3000
+
+# Resend (for email OTP)
+RESEND_API_KEY=
+
+# AI
+AI_GATEWAY_API_KEY=  # Vercel AI Gateway key
+OPENAI_API_KEY=      # Or direct OpenAI key
+
+# PostHog Analytics
+NEXT_PUBLIC_POSTHOG_KEY=  # PostHog project API key
+NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com  # or https://eu.i.posthog.com
+POSTHOG_API_KEY=  # Server-side key (often same as NEXT_PUBLIC_POSTHOG_KEY)
+
+# App
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+"
+`;
+
+exports[`template snapshots > web templates > generateGlobalsCss 1`] = `
+"@import "tailwindcss";
+
+:root {
+	--background: hsl(0 0% 100%);
+	--foreground: hsl(222.2 84% 4.9%);
+	--card: hsl(0 0% 100%);
+	--card-foreground: hsl(222.2 84% 4.9%);
+	--popover: hsl(0 0% 100%);
+	--popover-foreground: hsl(222.2 84% 4.9%);
+	--primary: hsl(222.2 47.4% 11.2%);
+	--primary-foreground: hsl(210 40% 98%);
+	--secondary: hsl(210 40% 96.1%);
+	--secondary-foreground: hsl(222.2 47.4% 11.2%);
+	--muted: hsl(210 40% 96.1%);
+	--muted-foreground: hsl(215.4 16.3% 46.9%);
+	--accent: hsl(210 40% 96.1%);
+	--accent-foreground: hsl(222.2 47.4% 11.2%);
+	--destructive: hsl(0 84.2% 60.2%);
+	--destructive-foreground: hsl(210 40% 98%);
+	--border: hsl(214.3 31.8% 91.4%);
+	--input: hsl(214.3 31.8% 91.4%);
+	--ring: hsl(222.2 84% 4.9%);
+	--radius: 0.5rem;
+}
+
+.dark {
+	--background: hsl(222.2 84% 4.9%);
+	--foreground: hsl(210 40% 98%);
+	--card: hsl(222.2 84% 4.9%);
+	--card-foreground: hsl(210 40% 98%);
+	--popover: hsl(222.2 84% 4.9%);
+	--popover-foreground: hsl(210 40% 98%);
+	--primary: hsl(210 40% 98%);
+	--primary-foreground: hsl(222.2 47.4% 11.2%);
+	--secondary: hsl(217.2 32.6% 17.5%);
+	--secondary-foreground: hsl(210 40% 98%);
+	--muted: hsl(217.2 32.6% 17.5%);
+	--muted-foreground: hsl(215 20.2% 65.1%);
+	--accent: hsl(217.2 32.6% 17.5%);
+	--accent-foreground: hsl(210 40% 98%);
+	--destructive: hsl(0 62.8% 30.6%);
+	--destructive-foreground: hsl(210 40% 98%);
+	--border: hsl(217.2 32.6% 17.5%);
+	--input: hsl(217.2 32.6% 17.5%);
+	--ring: hsl(212.7 26.8% 83.9%);
+}
+
+@theme inline {
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-destructive: var(--destructive);
+	--color-destructive-foreground: var(--destructive-foreground);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+	* {
+		border-color: var(--color-border);
+	}
+	body {
+		background-color: var(--color-background);
+		color: var(--color-foreground);
+	}
+}
+"
+`;
+
+exports[`template snapshots > web templates > generateHomePage 1`] = `
+"import Link from "next/link";
+import { Button } from "@/components/ui/button";
+
+export default function HomePage() {
+	return (
+		<div className="flex min-h-screen flex-col items-center justify-center gap-8 p-8">
+			<div className="text-center">
+				<h1 className="text-4xl font-bold mb-4">Welcome to Your App</h1>
+				<p className="text-muted-foreground text-lg">
+					Built with Next.js, Turborepo, and Hatch
+				</p>
+			</div>
+
+			<div className="flex gap-4">
+				<Button asChild>
+					<Link href="/login">Get Started</Link>
+				</Button>
+				<Button variant="outline" asChild>
+					<Link href="/dashboard">Dashboard</Link>
+				</Button>
+			</div>
+		</div>
+	);
+}
+"
+`;
+
+exports[`template snapshots > web templates > generateLibUtils 1`] = `
+"import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+	return twMerge(clsx(inputs));
+}
+"
+`;
+
+exports[`template snapshots > web templates > generateNextConfig 1`] = `
+"import { withWorkflow } from "workflow/next";
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+	transpilePackages: ["@repo/ui"],
+};
+
+export default withWorkflow(nextConfig);
+"
+`;
+
+exports[`template snapshots > web templates > generatePostcssConfig 1`] = `
+"/** @type {import('postcss-load-config').Config} */
+const config = {
+	plugins: {
+		"@tailwindcss/postcss": {},
+	},
+};
+
+export default config;
+"
+`;
+
+exports[`template snapshots > web templates > generateRootLayout 1`] = `
+"import type { Metadata } from "next";
+import { PostHogProvider } from "@/components/providers/posthog";
+import "./globals.css";
+
+export const metadata: Metadata = {
+	title: "My App",
+	description: "Built with Hatch",
+};
+
+export default function RootLayout({
+	children,
+}: {
+	children: React.ReactNode;
+}) {
+	return (
+		<html lang="en">
+			<body>
+				<PostHogProvider>{children}</PostHogProvider>
+			</body>
+		</html>
+	);
+}
+"
+`;
+
+exports[`template snapshots > web templates > generateTailwindConfig 1`] = `
+"import type { Config } from "tailwindcss";
+
+const config: Config = {
+	darkMode: "class",
+	content: [
+		"./pages/**/*.{js,ts,jsx,tsx,mdx}",
+		"./components/**/*.{js,ts,jsx,tsx,mdx}",
+		"./app/**/*.{js,ts,jsx,tsx,mdx}",
+	],
+	theme: {
+		extend: {
+			colors: {
+				background: "hsl(var(--background))",
+				foreground: "hsl(var(--foreground))",
+				card: {
+					DEFAULT: "hsl(var(--card))",
+					foreground: "hsl(var(--card-foreground))",
+				},
+				popover: {
+					DEFAULT: "hsl(var(--popover))",
+					foreground: "hsl(var(--popover-foreground))",
+				},
+				primary: {
+					DEFAULT: "hsl(var(--primary))",
+					foreground: "hsl(var(--primary-foreground))",
+				},
+				secondary: {
+					DEFAULT: "hsl(var(--secondary))",
+					foreground: "hsl(var(--secondary-foreground))",
+				},
+				muted: {
+					DEFAULT: "hsl(var(--muted))",
+					foreground: "hsl(var(--muted-foreground))",
+				},
+				accent: {
+					DEFAULT: "hsl(var(--accent))",
+					foreground: "hsl(var(--accent-foreground))",
+				},
+				destructive: {
+					DEFAULT: "hsl(var(--destructive))",
+					foreground: "hsl(var(--destructive-foreground))",
+				},
+				border: "hsl(var(--border))",
+				input: "hsl(var(--input))",
+				ring: "hsl(var(--ring))",
+			},
+			borderRadius: {
+				lg: "var(--radius)",
+				md: "calc(var(--radius) - 2px)",
+				sm: "calc(var(--radius) - 4px)",
+			},
+		},
+	},
+	plugins: [],
+};
+
+export default config;
+"
+`;
+
+exports[`template snapshots > web templates > generateWebPackageJson (Better Auth) 1`] = `
+"{
+  "name": "web",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "biome check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "eval": "evalite",
+    "eval:watch": "evalite watch"
+  },
+  "dependencies": {
+    "next": "^16.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.2.3",
+    "better-auth": "^1.4.11",
+    "resend": "^4.0.0",
+    "drizzle-orm": "^0.45.1",
+    "pg": "^8.13.0",
+    "ai": "^6.0.0",
+    "@ai-sdk/openai": "^3.0.8",
+    "@ai-sdk/react": "^3.0.30",
+    "workflow": "^4.0.1-beta.44",
+    "posthog-js": "^1.250.2",
+    "posthog-node": "^4.7.2",
+    "@posthog/ai": "^7.4.2",
+    "zod": "^3.24.0",
+    "@repo/ui": "workspace:*",
+    "class-variance-authority": "^0.7.1",
+    "@radix-ui/react-slot": "^1.2.4",
+    "lucide-react": "^0.513.0",
+    "next-safe-action": "^7.10.1",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.6",
+    "@types/pg": "^8.16.0",
+    "@types/react": "^19.2.8",
+    "@types/react-dom": "^19.2.3",
+    "drizzle-kit": "^0.31.8",
+    "typescript": "^5.7.0",
+    "tailwindcss": "^4.0.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "postcss": "^8.5.0",
+    "vitest": "^4.0.17",
+    "@vitejs/plugin-react": "^5.1.2",
+    "@testing-library/react": "^16.3.1",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.4",
+    "@testing-library/user-event": "^14.5.2",
+    "jsdom": "^27.4.0",
+    "vite-tsconfig-paths": "^6.0.4",
+    "@faker-js/faker": "^9.3.0",
+    "evalite": "1.0.0-beta.15",
+    "autoevals": "^0.0.67",
+    "dotenv": "^16.4.7"
+  }
+}
+"
+`;
+
+exports[`template snapshots > web templates > generateWebPackageJson (WorkOS) 1`] = `
+"{
+  "name": "web",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "biome check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "eval": "evalite",
+    "eval:watch": "evalite watch"
+  },
+  "dependencies": {
+    "next": "^16.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.2.3",
+    "@workos-inc/authkit-nextjs": "^2.13.0",
+    "drizzle-orm": "^0.45.1",
+    "pg": "^8.13.0",
+    "ai": "^6.0.0",
+    "@ai-sdk/openai": "^3.0.8",
+    "@ai-sdk/react": "^3.0.30",
+    "workflow": "^4.0.1-beta.44",
+    "posthog-js": "^1.250.2",
+    "posthog-node": "^4.7.2",
+    "@posthog/ai": "^7.4.2",
+    "zod": "^3.24.0",
+    "@repo/ui": "workspace:*",
+    "class-variance-authority": "^0.7.1",
+    "@radix-ui/react-slot": "^1.2.4",
+    "lucide-react": "^0.513.0",
+    "next-safe-action": "^7.10.1",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.6",
+    "@types/pg": "^8.16.0",
+    "@types/react": "^19.2.8",
+    "@types/react-dom": "^19.2.3",
+    "drizzle-kit": "^0.31.8",
+    "typescript": "^5.7.0",
+    "tailwindcss": "^4.0.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "postcss": "^8.5.0",
+    "vitest": "^4.0.17",
+    "@vitejs/plugin-react": "^5.1.2",
+    "@testing-library/react": "^16.3.1",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.4",
+    "@testing-library/user-event": "^14.5.2",
+    "jsdom": "^27.4.0",
+    "vite-tsconfig-paths": "^6.0.4",
+    "@faker-js/faker": "^9.3.0",
+    "evalite": "1.0.0-beta.15",
+    "autoevals": "^0.0.67",
+    "dotenv": "^16.4.7"
+  }
+}
+"
+`;
+
+exports[`template snapshots > web templates > generateWebTsconfig 1`] = `
+"{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
+"
+`;
+
+exports[`template snapshots > workflow templates > generateExampleWorkflow 1`] = `
+""use workflow";
+
+import { openai } from "@ai-sdk/openai";
+import { generateText } from "ai";
+import { sleep } from "workflow";
+
+export async function aiAgentWorkflow(prompt: string) {
+	"use workflow";
+
+	// Step 1: Process the prompt
+	const processedPrompt = await processPrompt(prompt);
+
+	// Step 2: Call AI agent
+	const response = await callAIAgent(processedPrompt);
+
+	// Step 3: Simulate post-processing delay
+	await sleep("2s");
+
+	return response;
+}
+
+async function processPrompt(prompt: string): Promise<string> {
+	"use step";
+	// Add any preprocessing logic here
+	return \`User request: \${prompt}\`;
+}
+
+async function callAIAgent(prompt: string): Promise<string> {
+	"use step";
+
+	const result = await generateText({
+		model: openai("gpt-4o"),
+		prompt,
+		system: "You are a helpful AI assistant. Be concise and helpful.",
+	});
+
+	return result.text;
+}
+"
+`;
+
+exports[`template snapshots > workflow templates > generateWorkflowRoute 1`] = `
+"import { NextResponse } from "next/server";
+import { start } from "workflow/api";
+import { aiAgentWorkflow } from "@/workflows/ai-agent";
+
+export async function POST(req: Request) {
+	try {
+		const { prompt } = await req.json();
+
+		if (!prompt) {
+			return NextResponse.json(
+				{ error: "Prompt is required" },
+				{ status: 400 },
+			);
+		}
+
+		const result = await start(aiAgentWorkflow, [prompt]);
+
+		return NextResponse.json({
+			result,
+			status: "started",
+		});
+	} catch (error) {
+		console.error("Workflow error:", error);
+		return NextResponse.json(
+			{ error: "Failed to start workflow" },
+			{ status: 500 },
+		);
+	}
+}
+"
+`;

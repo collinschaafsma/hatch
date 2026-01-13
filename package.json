@@ -1,0 +1,51 @@
+{
+	"name": "create-hatch",
+	"version": "0.1.0",
+	"description": "Scaffold a production-ready Turborepo monorepo",
+	"type": "module",
+	"main": "./dist/index.js",
+	"bin": {
+		"create-hatch": "./bin/hatch.js"
+	},
+	"scripts": {
+		"dev": "tsx src/index.ts",
+		"build": "tsup src/index.ts --format esm --dts",
+		"lint": "biome check .",
+		"format": "biome format --write .",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:ui": "vitest --ui",
+		"test:coverage": "vitest run --coverage",
+		"test:e2e": "vitest run --config vitest.config.e2e.ts",
+		"test:all": "pnpm test && pnpm test:e2e",
+		"test:update-snapshots": "vitest run -u",
+		"update-deps": "tsx scripts/update-deps.ts",
+		"update-deps:dry": "tsx scripts/update-deps.ts --dry-run"
+	},
+	"keywords": ["cli", "scaffold", "turborepo", "nextjs", "monorepo"],
+	"author": "",
+	"license": "MIT",
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.0",
+		"@types/fs-extra": "^11.0.4",
+		"@types/node": "^22.0.0",
+		"@types/prompts": "^2.4.9",
+		"@types/validate-npm-package-name": "^4.0.2",
+		"@vitest/coverage-v8": "^3.0.0",
+		"@vitest/ui": "^3.0.0",
+		"tsup": "^8.0.0",
+		"tsx": "^4.19.0",
+		"typescript": "^5.6.0",
+		"vitest": "^3.0.0"
+	},
+	"dependencies": {
+		"commander": "^12.0.0",
+		"execa": "^9.5.0",
+		"fs-extra": "^11.2.0",
+		"kleur": "^4.1.5",
+		"ora": "^8.1.0",
+		"prompts": "^2.4.2",
+		"validate-npm-package-name": "^7.0.2",
+		"zod": "^3.23.0"
+	}
+}
