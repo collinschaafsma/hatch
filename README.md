@@ -30,7 +30,7 @@ pnpm dlx create-hatch my-app
 npx create-hatch my-app
 ```
 
-Then follow the prompts or run `pnpm setup` for automated configuration.
+Then follow the prompts or run `pnpm app:setup` for automated configuration.
 
 ## CLI Options
 

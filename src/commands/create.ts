@@ -279,12 +279,12 @@ export const createCommand = new Command()
 					await ensureDir(
 						path.join(webPath, "app", "(marketing)", "_components"),
 					);
-					await ensureDir(path.join(webPath, "app", "(app)", "dashboard"));
+					await ensureDir(
+						path.join(webPath, "app", "(app)", "dashboard", "_components"),
+					);
 					await ensureDir(path.join(webPath, "app", "api", "auth", "[...all]"));
 					await ensureDir(path.join(webPath, "app", "api", "chat"));
 					await ensureDir(path.join(webPath, "app", "api", "workflow"));
-					await ensureDir(path.join(webPath, "components", "ui"));
-					await ensureDir(path.join(webPath, "components", "dashboard"));
 					await ensureDir(path.join(webPath, "components", "providers"));
 					await ensureDir(path.join(webPath, "lib"));
 					await ensureDir(path.join(webPath, "db"));
@@ -310,10 +310,6 @@ export const createCommand = new Command()
 					await writeFile(
 						path.join(webPath, "postcss.config.mjs"),
 						templates.generatePostcssConfig(),
-					);
-					await writeFile(
-						path.join(webPath, "components.json"),
-						templates.generateComponentsJson(),
 					);
 					await writeFile(
 						path.join(webPath, ".env.local.example"),
@@ -358,12 +354,6 @@ export const createCommand = new Command()
 					await writeFile(
 						path.join(webPath, "app", "(app)", "layout.tsx"),
 						templates.generateAppLayout(),
-					);
-
-					// Lib files
-					await writeFile(
-						path.join(webPath, "lib", "utils.ts"),
-						templates.generateLibUtils(),
 					);
 				});
 
@@ -444,39 +434,6 @@ export const createCommand = new Command()
 					);
 				});
 
-				// Generate LLM observability and evals
-				await withSpinner("Setting up LLM observability", async () => {
-					await ensureDir(path.join(webPath, "evals"));
-
-					// Observed model for AI tracing
-					await writeFile(
-						path.join(webPath, "lib", "observed-model.ts"),
-						templates.generateObservedModel(),
-					);
-
-					// Evalite configuration
-					await writeFile(
-						path.join(webPath, "evalite.config.ts"),
-						templates.generateEvaliteConfig(),
-					);
-
-					// Evals setup file
-					await writeFile(
-						path.join(webPath, "evals", "setup.ts"),
-						templates.generateEvalsSetup(),
-					);
-
-					// Example evals
-					await writeFile(
-						path.join(webPath, "evals", "chat-quality.eval.ts"),
-						templates.generateChatQualityEval(),
-					);
-					await writeFile(
-						path.join(webPath, "evals", "structured-output.eval.ts"),
-						templates.generateStructuredOutputEval(),
-					);
-				});
-
 				// Generate analytics files
 				await withSpinner("Setting up PostHog analytics", async () => {
 					await writeFile(
@@ -496,9 +453,29 @@ export const createCommand = new Command()
 						templates.generateDashboardPage(useWorkOS),
 					);
 					await writeFile(
-						path.join(webPath, "components", "dashboard", "ai-trigger.tsx"),
+						path.join(
+							webPath,
+							"app",
+							"(app)",
+							"dashboard",
+							"_components",
+							"ai-trigger.tsx",
+						),
 						templates.generateAITriggerButton(),
 					);
+					if (!useWorkOS) {
+						await writeFile(
+							path.join(
+								webPath,
+								"app",
+								"(app)",
+								"dashboard",
+								"_components",
+								"sign-out-button.tsx",
+							),
+							templates.generateSignOutButton(),
+						);
+					}
 				});
 
 				// Generate test setup
@@ -619,6 +596,9 @@ export const createCommand = new Command()
 
 				await withSpinner("Setting up UI package", async () => {
 					await ensureDir(path.join(uiPath, "src"));
+					await ensureDir(path.join(uiPath, "src", "components"));
+					await ensureDir(path.join(uiPath, "src", "lib"));
+					await ensureDir(path.join(uiPath, "src", "hooks"));
 
 					await writeFile(
 						path.join(uiPath, "package.json"),
@@ -632,6 +612,14 @@ export const createCommand = new Command()
 						path.join(uiPath, "src", "index.ts"),
 						templates.generateUIIndex(),
 					);
+					await writeFile(
+						path.join(uiPath, "components.json"),
+						templates.generateUIComponentsJson(),
+					);
+					await writeFile(
+						path.join(uiPath, "src", "lib", "utils.ts"),
+						templates.generateUILibUtils(),
+					);
 				});
 
 				// Install dependencies
@@ -642,21 +630,17 @@ export const createCommand = new Command()
 					},
 				);
 
-				// Initialize shadcn
+				// Initialize shadcn in packages/ui
 				await withSpinner("Initializing shadcn/ui", async () => {
 					try {
-						await pnpmDlx(
-							"shadcn@latest",
-							["init", "-y", "-c", "apps/web"],
-							projectPath,
-						);
+						await pnpmDlx("shadcn@latest", ["init", "-y"], uiPath);
 					} catch (error) {
 						// shadcn init might fail if components.json already exists, that's ok
 						log.warn("shadcn init skipped (components.json already exists)");
 					}
 				});
 
-				// Add shadcn components
+				// Add shadcn components to packages/ui
 				await withSpinner("Adding shadcn components", async () => {
 					const components = [
 						"button",
@@ -671,26 +655,13 @@ export const createCommand = new Command()
 					try {
 						await pnpmDlx(
 							"shadcn@latest",
-							["add", ...components, "-y", "-c", "apps/web"],
-							projectPath,
+							["add", ...components, "-y"],
+							uiPath,
 						);
 					} catch (error) {
 						log.warn(
 							"Some shadcn components may not have been added. You can add them manually.",
 						);
-					}
-				});
-
-				// Add clsx and tailwind-merge for the utils.ts
-				await withSpinner("Adding utility dependencies", async () => {
-					try {
-						await pnpmDlx(
-							"pnpm",
-							["--filter", "web", "add", "clsx", "tailwind-merge"],
-							projectPath,
-						);
-					} catch {
-						// Ignore if it fails, might be already installed
 					}
 				});
 
@@ -739,46 +710,21 @@ export const createCommand = new Command()
 				log.success(`Project "${name}" created successfully!`);
 				log.blank();
 				log.info("Next steps:");
-				log.step(`cd ${name}`);
-				log.blank();
-
-				log.info("Option A: Automated setup (recommended)");
+				log.step(`cd ${projectPath}`);
 				log.step(
-					"pnpm setup  # Creates GitHub repo, Vercel project, and Supabase database",
+					"pnpm app:setup  # Creates GitHub repo, Vercel project, and database",
 				);
 				log.blank();
 
-				log.info("Option B: Manual setup");
-				log.step("cp apps/web/.env.local.example apps/web/.env.local");
-				log.step("# Fill in environment variables in apps/web/.env.local");
-
-				if (useDocker) {
-					log.step("pnpm docker:up");
-					log.step("pnpm db:generate && pnpm db:migrate");
+				log.info("Required environment variables:");
+				if (useWorkOS) {
+					log.step("WORKOS_CLIENT_ID      # From WorkOS dashboard");
+					log.step("WORKOS_API_KEY        # From WorkOS dashboard");
 				} else {
-					log.step(
-						"# Create a Supabase project at https://supabase.com/dashboard",
-					);
-					log.step(
-						"pnpm supabase:setup  # Link project and create dev branches",
-					);
+					log.step("RESEND_API_KEY        # From resend.com (for email OTP)");
 				}
-				log.step("pnpm dev");
+				log.step("AI_GATEWAY_API_KEY    # From Vercel AI Gateway");
 				log.blank();
-
-				log.info("To run tests:");
-				log.step("pnpm docker:up:test  # Tests always use Docker PostgreSQL");
-				log.step("pnpm test");
-				log.blank();
-
-				if (!useDocker) {
-					log.info("For production (Vercel):");
-					log.step(
-						"# Add DATABASE_URL from Supabase dashboard to Vercel env vars",
-					);
-					log.step("# Migrations run automatically during build");
-					log.blank();
-				}
 			} catch (error) {
 				log.error(
 					`Failed to create project: ${error instanceof Error ? error.message : error}`,

@@ -29,9 +29,8 @@ TEST_DATABASE_URL=
 
 ${authEnv}
 
-# AI
-AI_GATEWAY_API_KEY=  # Vercel AI Gateway key
-OPENAI_API_KEY=      # Or direct OpenAI key
+# Vercel AI Gateway (https://vercel.com/docs/ai-gateway)
+AI_GATEWAY_API_KEY=
 
 # PostHog Analytics
 NEXT_PUBLIC_POSTHOG_KEY=  # PostHog project API key

@@ -13,7 +13,7 @@ export function generateWebTsconfig(): string {
 				moduleResolution: "bundler",
 				resolveJsonModule: true,
 				isolatedModules: true,
-				jsx: "preserve",
+				jsx: "react-jsx",
 				incremental: true,
 				plugins: [
 					{
@@ -22,9 +22,16 @@ export function generateWebTsconfig(): string {
 				],
 				paths: {
 					"@/*": ["./*"],
+					"@workspace/ui/*": ["../../packages/ui/src/*"],
 				},
 			},
-			include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+			include: [
+				"next-env.d.ts",
+				"**/*.ts",
+				"**/*.tsx",
+				".next/types/**/*.ts",
+				".next/dev/types/**/*.ts",
+			],
 			exclude: ["node_modules"],
 		},
 		null,

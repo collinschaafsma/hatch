@@ -24,6 +24,11 @@ RUN unset NPM_CONFIG_PREFIX \\
     && corepack enable \\
     && corepack prepare pnpm@latest --activate
 
+# Install biome globally for linting (node_modules may be from different platform)
+RUN unset NPM_CONFIG_PREFIX \\
+    && . "$NVM_DIR/nvm.sh" \\
+    && pnpm add -g @biomejs/biome
+
 # Add nvm to shell startup
 RUN echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.bashrc \\
     && echo '[ -s "$NVM_DIR/nvm.sh" ] && \\. "$NVM_DIR/nvm.sh"' >> ~/.bashrc \\

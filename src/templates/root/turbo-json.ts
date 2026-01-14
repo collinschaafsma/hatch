@@ -14,6 +14,9 @@ export function generateTurboJson(): string {
 				lint: {
 					dependsOn: ["^build"],
 				},
+				typecheck: {
+					dependsOn: ["^build"],
+				},
 				test: {
 					dependsOn: ["^build"],
 					env: ["TEST_DATABASE_URL"],

@@ -1,7 +1,8 @@
 export function generateExampleWorkflow(): string {
 	return `"use workflow";
 
-import { openai } from "@ai-sdk/openai";
+globalThis.fetch = fetch;
+
 import { generateText } from "ai";
 import { sleep } from "workflow";
 
@@ -30,7 +31,7 @@ async function callAIAgent(prompt: string): Promise<string> {
 	"use step";
 
 	const result = await generateText({
-		model: openai("gpt-4o"),
+		model: "openai/gpt-5",
 		prompt,
 		system: "You are a helpful AI assistant. Be concise and helpful.",
 	});

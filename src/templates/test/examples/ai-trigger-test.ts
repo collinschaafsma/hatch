@@ -4,7 +4,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { render } from "../utils/render";
 import { mockFetch, resetFetchMock } from "../utils/mocks";
-import { AITriggerButton } from "@/components/dashboard/ai-trigger";
+import { AITriggerButton } from "@/app/(app)/dashboard/_components/ai-trigger";
 
 describe("AITriggerButton", () => {
 	beforeEach(() => {
@@ -53,18 +53,17 @@ describe("AITriggerButton", () => {
 
 	it("shows loading state when triggered", async () => {
 		// Use a delayed mock to capture the loading state
-		global.fetch = vi.fn(
-			() =>
-				new Promise((resolve) =>
-					setTimeout(
-						() =>
-							resolve({
-								ok: true,
-								json: () => Promise.resolve({ runId: "test-run-123" }),
-							} as Response),
-						100,
-					),
+		global.fetch = vi.fn<typeof fetch>(() =>
+			new Promise((resolve) =>
+				setTimeout(
+					() =>
+						resolve({
+							ok: true,
+							json: () => Promise.resolve({ runId: "test-run-123" }),
+						} as Response),
+					100,
 				),
+			),
 		);
 
 		const user = userEvent.setup();

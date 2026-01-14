@@ -386,37 +386,60 @@ create_new_supabase_project() {
     exit 1
   fi
 
-  # Get region
-  echo ""
-  echo "Available regions:"
-  echo "  us-east-1      (N. Virginia)"
-  echo "  us-west-1      (N. California)"
-  echo "  eu-west-1      (Ireland)"
-  echo "  eu-west-2      (London)"
-  echo "  eu-central-1   (Frankfurt)"
-  echo "  ap-southeast-1 (Singapore)"
-  echo "  ap-southeast-2 (Sydney)"
-  echo "  ap-northeast-1 (Tokyo)"
-  echo ""
-  read -p "Enter region (default: us-east-1): " region
-  region=\${region:-us-east-1}
-
   # Generate a secure database password
   local db_password=\$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 20)
 
-  # Create project
+  # Create project - try interactive mode first (lets CLI handle region selection)
   echo ""
   print_step "Creating project (this may take 1-2 minutes)..."
+  echo ""
+  echo "  The Supabase CLI will prompt you to select a region."
+  echo ""
 
-  if supabase projects create "\$proj_name" --org-id "\$org_id" --region "\$region" --db-password "\$db_password" 2>/dev/null; then
+  # Try interactive create (without --region flag to let CLI prompt)
+  # This avoids the empty region list bug
+  local create_output
+  create_output=\$(supabase projects create "\$proj_name" --org-id "\$org_id" --db-password "\$db_password" 2>&1)
+  local create_exit_code=\$?
+
+  echo "\$create_output"
+
+  if [[ \$create_exit_code -eq 0 ]]; then
     print_success "Supabase project created"
 
-    # Wait for project to be ready
-    print_step "Waiting for project to be ready..."
-    sleep 30
+    # Try to parse project reference from the output
+    # The CLI outputs a URL like: https://supabase.com/dashboard/project/<ref>
+    PROJECT_REF=\$(echo "\$create_output" | grep -oE "project/[a-z0-9]+" | head -1 | cut -d'/' -f2)
 
-    # Get project ref
-    PROJECT_REF=\$(supabase projects list --json 2>/dev/null | jq -r ".[] | select(.name == \\"\$proj_name\\") | .id" 2>/dev/null || echo "")
+    # If not found in URL, try to find in the table output (REFERENCE ID column)
+    if [[ -z "\$PROJECT_REF" ]]; then
+      # Look for a 20-character alphanumeric ID in the output
+      PROJECT_REF=\$(echo "\$create_output" | grep -oE "[a-z]{20}" | head -1)
+    fi
+
+    if [[ -n "\$PROJECT_REF" ]]; then
+      print_success "Got project reference: \$PROJECT_REF"
+    else
+      # Fallback: Wait and poll for the project to appear
+      print_step "Waiting for project to be ready (this can take up to 5 minutes)..."
+
+      local max_attempts=10
+      local attempt=0
+
+      while [[ \$attempt -lt \$max_attempts ]]; do
+        attempt=\$((attempt + 1))
+        echo "  Checking project status (attempt \$attempt/\$max_attempts)..."
+
+        PROJECT_REF=\$(supabase projects list --json 2>/dev/null | jq -r ".[] | select(.name == \\"\$proj_name\\") | .id" 2>/dev/null || echo "")
+
+        if [[ -n "\$PROJECT_REF" ]]; then
+          print_success "Project is ready: \$PROJECT_REF"
+          break
+        fi
+
+        sleep 30
+      done
+    fi
 
     if [[ -z "\$PROJECT_REF" ]]; then
       print_warning "Could not automatically get project reference"
@@ -426,14 +449,28 @@ create_new_supabase_project() {
       read -p "Enter project reference: " PROJECT_REF
     fi
   else
-    print_warning "Could not create project automatically"
+    print_warning "Could not create project via CLI"
     echo ""
-    echo "This might happen if:"
-    echo "  - You've reached your project limit"
-    echo "  - The project name is already taken"
-    echo "  - Invalid organization or region"
+    echo "This can happen if:"
+    echo "  - The Supabase CLI has issues fetching available regions"
+    echo "  - Project name contains invalid characters (use lowercase, numbers, hyphens only)"
+    echo "  - You've reached your project limit for this organization"
     echo ""
-    echo "Please create a project manually at: https://supabase.com/dashboard"
+    echo "Let's create the project via the dashboard instead."
+    echo ""
+
+    # Open dashboard
+    open "https://supabase.com/dashboard/new/\$org_id" 2>/dev/null || echo "  Open: https://supabase.com/dashboard/new/\$org_id"
+
+    echo ""
+    echo "  Steps:"
+    echo "    1. Name your project: \$proj_name"
+    echo "    2. Generate or enter a database password"
+    echo "    3. Select a region close to your users"
+    echo "    4. Click 'Create new project'"
+    echo "    5. Wait for the project to be ready"
+    echo "    6. Go to Project Settings > General > Reference ID"
+    echo ""
     read -p "Enter the project reference ID: " PROJECT_REF
   fi
 
@@ -487,15 +524,25 @@ run_migrations() {
 
   local project_ref=\$(cat .supabase/.project-ref)
 
-  print_step "Pushing schema to Supabase..."
+  print_step "Fetching production database URL..."
+  local prod_db_url=\$(supabase db url --project-ref "\$project_ref" 2>/dev/null || echo "")
 
-  # Use drizzle-kit push to apply schema
+  if [[ -z "\$prod_db_url" ]]; then
+    print_warning "Could not fetch DATABASE_URL - skipping migrations"
+    echo "  You'll need to run migrations manually later:"
+    echo "  cd apps/web && pnpm db:push"
+    return 0
+  fi
+
+  print_step "Pushing schema to production database..."
+
+  # Use drizzle-kit push with the production URL directly
   cd apps/web
-  if pnpm db:push 2>/dev/null; then
+  if DATABASE_URL="\$prod_db_url" pnpm db:push 2>/dev/null; then
     print_success "Database schema pushed successfully"
   else
     print_warning "Database push failed - you may need to run it manually"
-    echo "  cd apps/web && pnpm db:push"
+    echo "  cd apps/web && DATABASE_URL='<your-url>' pnpm db:push"
   fi
   cd ../..
 }
@@ -507,8 +554,8 @@ run_migrations() {
 setup_vercel() {
   print_header "Vercel Project Setup"
 
-  # Check if already linked
-  if [[ -f ".vercel/project.json" ]]; then
+  # Check if already linked (in apps/web where the Next.js app lives)
+  if [[ -f "apps/web/.vercel/project.json" ]]; then
     print_success "Already linked to a Vercel project"
     return 0
   fi
@@ -520,17 +567,17 @@ setup_vercel() {
 
   print_step "Setting up Vercel project..."
   echo ""
-  echo "Vercel will prompt you to link or create a project."
-  echo "Choose 'Set up and deploy' and follow the prompts."
+  echo "Linking Vercel to apps/web (where your Next.js app lives)."
   echo ""
 
-  # Use vercel link without --yes to let user control decisions
-  # This handles existing projects gracefully
+  # Run vercel link from apps/web so Vercel correctly identifies the root
+  cd apps/web
   vercel link
+  cd ../..
 
-  if [[ -f ".vercel/project.json" ]]; then
+  if [[ -f "apps/web/.vercel/project.json" ]]; then
     mark_completed "vercel_project"
-    print_success "Vercel project linked"
+    print_success "Vercel project linked to apps/web"
   else
     print_warning "Vercel project may not be fully configured"
   fi
@@ -543,14 +590,14 @@ setup_vercel() {
 pull_vercel_env() {
   print_header "Pulling Vercel Environment Variables"
 
-  if [[ ! -f ".vercel/project.json" ]]; then
+  if [[ ! -f "apps/web/.vercel/project.json" ]]; then
     print_warning "Vercel project not linked, skipping env pull"
     return 0
   fi
 
   print_step "Pulling environment variables from Vercel..."
 
-  # Pull to apps/web/.env.local
+  # Pull to apps/web/.env.local (run from apps/web where .vercel config lives)
   cd apps/web
   vercel env pull .env.local --yes 2>/dev/null || true
   cd ../..
@@ -559,16 +606,16 @@ pull_vercel_env() {
 }
 
 # =============================================================================
-# Step 11: Populate .env.local with Supabase Credentials (skipped if USE_DOCKER=true)
+# Step 11: Configure Database Environments (skipped if USE_DOCKER=true)
 # =============================================================================
 
-populate_supabase_env() {
+configure_database_environments() {
   if [[ "\$USE_DOCKER" == "true" ]]; then
     print_step "Skipping Supabase env configuration (Docker mode)"
     return 0
   fi
 
-  print_header "Configuring Database Environment"
+  print_header "Configuring Database Environments"
 
   if [[ ! -f ".supabase/.project-ref" ]]; then
     print_warning "No Supabase project configured, skipping"
@@ -588,26 +635,225 @@ populate_supabase_env() {
     fi
   fi
 
-  print_step "Fetching Supabase connection string..."
+  # -------------------------------------------------------------------------
+  # Step 11a: Get Production Database URL (main branch)
+  # -------------------------------------------------------------------------
+  print_step "Fetching production database URL..."
+  local prod_db_url=\$(supabase db url --project-ref "\$project_ref" 2>/dev/null || echo "")
 
-  # Get connection string from Supabase (uses the pooler connection)
-  local db_url=\$(supabase db url --project-ref "\$project_ref" 2>/dev/null || echo "")
-
-  if [[ -n "\$db_url" ]]; then
-    # Update DATABASE_URL in .env.local
-    if grep -q "^DATABASE_URL=" "\$env_file" 2>/dev/null; then
-      # macOS sed syntax
-      sed -i '' "s|^DATABASE_URL=.*|DATABASE_URL=\\"\$db_url\\"|" "\$env_file"
-    else
-      echo "DATABASE_URL=\\"\$db_url\\"" >> "\$env_file"
-    fi
-    print_success "DATABASE_URL configured"
-  else
-    print_warning "Could not fetch DATABASE_URL automatically"
-    echo ""
-    echo "Please add DATABASE_URL manually from:"
+  if [[ -z "\$prod_db_url" ]]; then
+    print_warning "Could not fetch production DATABASE_URL"
+    echo "You'll need to add it manually from:"
     echo "  https://supabase.com/dashboard/project/\$project_ref/settings/database"
-    echo "  Use the 'Transaction' pooler connection string for serverless."
+  else
+    print_success "Got production DATABASE_URL"
+  fi
+
+  # -------------------------------------------------------------------------
+  # Step 11b: Create Development Branches (dev, dev-test, preview)
+  # -------------------------------------------------------------------------
+  print_step "Setting up database branches..."
+  echo ""
+
+  # Check if branching is enabled
+  local branching_enabled=true
+  if ! supabase branches list --project-ref "\$project_ref" &> /dev/null 2>&1; then
+    print_warning "Branching not enabled for this project"
+    echo ""
+    echo "To enable branching (requires Pro plan):"
+    echo "  https://supabase.com/dashboard/project/\$project_ref/settings/branching"
+    echo ""
+    read -p "Continue without branching? (y/N) " skip_branching
+    if [[ "\$skip_branching" != [yY] ]]; then
+      exit 1
+    fi
+    branching_enabled=false
+  fi
+
+  local dev_db_url=""
+  local dev_test_db_url=""
+  local preview_db_url=""
+
+  if [[ "\$branching_enabled" == "true" ]]; then
+    # Create dev branch
+    echo "  Creating 'dev' branch (for local development)..."
+    if supabase branches create dev --persistent --project-ref "\$project_ref" 2>/dev/null; then
+      print_success "  dev branch created"
+    else
+      echo -e "    \${YELLOW}⚠ dev branch may already exist\${NC}"
+    fi
+
+    # Create dev-test branch
+    echo "  Creating 'dev-test' branch (for local tests)..."
+    if supabase branches create dev-test --persistent --project-ref "\$project_ref" 2>/dev/null; then
+      print_success "  dev-test branch created"
+    else
+      echo -e "    \${YELLOW}⚠ dev-test branch may already exist\${NC}"
+    fi
+
+    # Note: Preview branches are created dynamically per PR via Supabase Vercel Integration
+
+    # Wait for branches to provision
+    echo ""
+    print_step "Waiting for branches to provision (30 seconds)..."
+    sleep 30
+
+    # Fetch branch credentials
+    print_step "Fetching branch credentials..."
+
+    # Get dev branch URL
+    if eval "\$(supabase branches get dev --project-ref "\$project_ref" -o env 2>/dev/null)"; then
+      if [[ -n "\$POSTGRES_URL" ]]; then
+        dev_db_url="\$POSTGRES_URL"
+        print_success "  Got dev branch URL"
+      fi
+    fi
+
+    # Get dev-test branch URL
+    if eval "\$(supabase branches get dev-test --project-ref "\$project_ref" -o env 2>/dev/null)"; then
+      if [[ -n "\$POSTGRES_URL" ]]; then
+        dev_test_db_url="\$POSTGRES_URL"
+        print_success "  Got dev-test branch URL"
+      fi
+    fi
+
+    # Apply migrations to branches
+    echo ""
+    print_step "Applying schema to branches..."
+
+    if [[ -n "\$dev_db_url" ]]; then
+      echo "  Pushing schema to dev branch..."
+      DATABASE_URL="\$dev_db_url" pnpm --filter web db:push 2>/dev/null && print_success "  Schema pushed to dev" || echo -e "    \${YELLOW}⚠ Schema push to dev failed\${NC}"
+    fi
+
+    if [[ -n "\$dev_test_db_url" ]]; then
+      echo "  Pushing schema to dev-test branch..."
+      DATABASE_URL="\$dev_test_db_url" pnpm --filter web db:push 2>/dev/null && print_success "  Schema pushed to dev-test" || echo -e "    \${YELLOW}⚠ Schema push to dev-test failed\${NC}"
+    fi
+  fi
+
+  # -------------------------------------------------------------------------
+  # Step 11c: Configure Vercel Environment Variables
+  # -------------------------------------------------------------------------
+  if [[ -f "apps/web/.vercel/project.json" ]]; then
+    echo ""
+    print_step "Configuring Vercel environment variables..."
+
+    # Set production DATABASE_URL
+    if [[ -n "\$prod_db_url" ]]; then
+      echo "  Setting DATABASE_URL for production..."
+      if printf '%s' "\$prod_db_url" | vercel env add DATABASE_URL production --cwd apps/web 2>/dev/null; then
+        print_success "  Production DATABASE_URL set"
+      else
+        echo -e "    \${YELLOW}⚠ Could not set production DATABASE_URL (may already exist)\${NC}"
+      fi
+    fi
+
+    # Note: Preview DATABASE_URL is handled by Supabase Vercel Integration
+  else
+    print_warning "Vercel not linked, skipping env var configuration"
+  fi
+
+  # -------------------------------------------------------------------------
+  # Step 11d: Setup Supabase Vercel Integration (for preview branches)
+  # -------------------------------------------------------------------------
+  if [[ "\$branching_enabled" == "true" ]] && [[ -f "apps/web/.vercel/project.json" ]]; then
+    echo ""
+    print_step "Supabase Vercel Integration Setup"
+    echo ""
+    echo "  The Supabase Vercel Integration automatically creates database branches"
+    echo "  for each Vercel preview deployment. This requires connecting your"
+    echo "  Supabase and Vercel accounts via the dashboard."
+    echo ""
+    read -p "  Open browser to set up integration now? (Y/n) " setup_integration
+    setup_integration=\${setup_integration:-Y}
+
+    if [[ "\$setup_integration" == [yY] ]]; then
+      echo ""
+      echo "  Opening Vercel Integrations page..."
+      echo ""
+      echo "  Steps to complete:"
+      echo "    1. Click 'Browse Marketplace' or find 'Supabase'"
+      echo "    2. Click 'Add Integration' or 'Manage'"
+      echo "    3. Select your Vercel project"
+      echo "    4. Connect to your existing Supabase project: \$project_ref"
+      echo "    5. Enable 'Preview Branches' option"
+      echo ""
+
+      # Get Vercel project info
+      local vercel_project_id=""
+      if [[ -f "apps/web/.vercel/project.json" ]]; then
+        vercel_project_id=\$(jq -r '.projectId // empty' apps/web/.vercel/project.json 2>/dev/null || echo "")
+      fi
+
+      # Open Vercel integrations page
+      if [[ -n "\$vercel_project_id" ]]; then
+        open "https://vercel.com/~/integrations" 2>/dev/null || echo "  URL: https://vercel.com/~/integrations"
+      else
+        open "https://vercel.com/integrations/supabase" 2>/dev/null || echo "  URL: https://vercel.com/integrations/supabase"
+      fi
+
+      echo ""
+      read -p "  Press Enter when you've completed the integration setup..." _
+      print_success "Integration setup acknowledged"
+    else
+      echo ""
+      print_step "Skipping integration setup"
+      echo ""
+      echo "  To set up later, go to your Vercel project:"
+      echo "    Settings → Integrations → Browse Marketplace → Supabase"
+      echo ""
+      echo "  Or visit: https://vercel.com/integrations/supabase"
+    fi
+  fi
+
+  # -------------------------------------------------------------------------
+  # Step 11e: Configure Local .env.local
+  # -------------------------------------------------------------------------
+  echo ""
+  print_step "Configuring local .env.local..."
+
+  # Use dev branch URL for local development, fallback to production
+  local local_db_url="\${dev_db_url:-\$prod_db_url}"
+  local local_test_db_url="\${dev_test_db_url:-}"
+
+  if [[ -n "\$local_db_url" ]]; then
+    update_env_var "\$env_file" "DATABASE_URL" "\$local_db_url"
+    print_success "DATABASE_URL configured for local development"
+  else
+    print_warning "Could not configure DATABASE_URL"
+  fi
+
+  if [[ -n "\$local_test_db_url" ]]; then
+    update_env_var "\$env_file" "TEST_DATABASE_URL" "\$local_test_db_url"
+    print_success "TEST_DATABASE_URL configured for local tests"
+  fi
+
+  echo ""
+  print_success "Database environments configured!"
+  echo ""
+  echo "  Production (Vercel):  Main Supabase database"
+  if [[ "\$branching_enabled" == "true" ]]; then
+    echo "  Preview (Vercel):     Auto-created per PR (via Supabase Integration)"
+    echo "  Development (local):  'dev' branch"
+    echo "  Tests (local):        'dev-test' branch"
+    echo "  Worktrees (wts):      Per-branch databases created on demand"
+  else
+    echo "  Preview (Vercel):     Main database (no branching)"
+    echo "  Development (local):  Main database (no branching)"
+  fi
+}
+
+# Helper to update or add env var
+update_env_var() {
+  local file="\$1"
+  local key="\$2"
+  local value="\$3"
+
+  if grep -q "^\$key=" "\$file" 2>/dev/null; then
+    sed -i '' "s|^\$key=.*|\$key=\\"\$value\\"|" "\$file"
+  else
+    echo "\$key=\\"\$value\\"" >> "\$file"
   fi
 }
 
@@ -628,8 +874,8 @@ print_summary() {
   fi
 
   # Vercel status
-  if [[ -f ".vercel/project.json" ]]; then
-    echo -e "  \${GREEN}✓\${NC} Vercel: Project linked"
+  if [[ -f "apps/web/.vercel/project.json" ]]; then
+    echo -e "  \${GREEN}✓\${NC} Vercel: Project linked (apps/web)"
   fi
 
   # Supabase status (only if not Docker mode)
@@ -668,8 +914,13 @@ print_summary() {
   fi
 
   echo ""
-  echo "  For deployment, configure environment variables in Vercel:"
-  echo "     vercel env add DATABASE_URL"
+  if [[ "\$USE_DOCKER" != "true" ]]; then
+    echo "  Vercel DATABASE_URL has been configured automatically."
+    echo "  Add any additional env vars in the Vercel dashboard."
+  else
+    echo "  For deployment, configure DATABASE_URL in Vercel:"
+    echo "     vercel env add DATABASE_URL production"
+  fi
   echo ""
 }
 
@@ -701,7 +952,7 @@ main() {
   run_migrations
   setup_vercel
   pull_vercel_env
-  populate_supabase_env
+  configure_database_environments
   print_summary
 }
 

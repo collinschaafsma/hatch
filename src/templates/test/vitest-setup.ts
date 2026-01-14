@@ -1,5 +1,8 @@
 export function generateVitestSetup(): string {
-	return `import "@testing-library/jest-dom/vitest";
+	return `import { config } from "dotenv";
+config({ path: ".env.local" });
+
+import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 

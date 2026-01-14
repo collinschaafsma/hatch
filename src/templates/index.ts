@@ -52,9 +52,6 @@ export * from "./lib/index.js";
 // Services templates
 export * from "./services/index.js";
 
-// Evals templates
-export * from "./evals/index.js";
-
 // GitHub workflows templates
 export * from "./github/index.js";
 

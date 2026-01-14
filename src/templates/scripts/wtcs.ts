@@ -118,14 +118,14 @@ if [[ -n "\$PROJECT_REF" ]]; then
   echo "Deleting Supabase branches..."
 
   echo "  Deleting '\$supabase_branch_name'..."
-  if supabase branches delete "\$supabase_branch_name" --project-ref "\$PROJECT_REF" --confirm 2>/dev/null; then
+  if supabase branches delete "\$supabase_branch_name" --project-ref "\$PROJECT_REF" --yes 2>/dev/null; then
     echo -e "  \${GREEN}✓ \$supabase_branch_name deleted\${NC}"
   else
     echo -e "  \${YELLOW}⚠ \$supabase_branch_name may not exist or failed to delete\${NC}"
   fi
 
   echo "  Deleting '\$supabase_test_branch'..."
-  if supabase branches delete "\$supabase_test_branch" --project-ref "\$PROJECT_REF" --confirm 2>/dev/null; then
+  if supabase branches delete "\$supabase_test_branch" --project-ref "\$PROJECT_REF" --yes 2>/dev/null; then
     echo -e "  \${GREEN}✓ \$supabase_test_branch deleted\${NC}"
   else
     echo -e "  \${YELLOW}⚠ \$supabase_test_branch may not exist or failed to delete\${NC}"

@@ -1,5 +1,5 @@
 export function generateDbIndex(): string {
-	return `import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
+	return `import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "./schema";
 
 let dbInstance: NodePgDatabase<typeof schema> | null = null;
@@ -11,8 +11,7 @@ export function getDb(): NodePgDatabase<typeof schema> {
 		throw new Error("DATABASE_URL environment variable is required");
 	}
 
-	// prepare: false is required for Supabase connection pooling (pgbouncer)
-	dbInstance = drizzle(process.env.DATABASE_URL, { schema, prepare: false });
+	dbInstance = drizzle(process.env.DATABASE_URL, { schema });
 	return dbInstance;
 }
 

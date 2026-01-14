@@ -51,7 +51,7 @@ ${useDocker ? "" : "- [Supabase CLI](https://supabase.com/docs/guides/cli) (for 
 Run the interactive setup script to configure GitHub, Vercel, and ${useDocker ? "local Docker database" : "Supabase"}:
 
 \`\`\`bash
-pnpm setup
+pnpm app:setup
 \`\`\`
 
 This will:
@@ -107,6 +107,7 @@ ${projectName}/
 | \`pnpm dev\` | Start Next.js development server (with Turbopack) |
 | \`pnpm build\` | Build all packages for production |
 | \`pnpm lint\` | Run Biome linting |
+| \`pnpm typecheck\` | Run TypeScript type checking |
 | \`pnpm format\` | Auto-format code with Biome |
 | \`pnpm check\` | Run all Biome checks |
 | \`pnpm test\` | Run Vitest tests |
@@ -163,14 +164,19 @@ pnpm --filter web test:coverage
 
 ---
 
-## Worktree Scripts (Claude Code Sandbox)
+## Agent Sandbox (Claude Code)
 
-These scripts create isolated development environments with separate databases, perfect for feature development with Claude Code.
+Create isolated development environments with separate databases, perfect for feature development with Claude Code.
 
-### Create a Worktree
+| Command | Description |
+|---------|-------------|
+| \`pnpm agent <branch>\` | Create sandbox with isolated database |
+| \`pnpm agent:clean\` | Clean up sandbox (run from within worktree) |
+
+### Create a Sandbox
 
 \`\`\`bash
-./scripts/wts <branch-name>
+pnpm agent <branch-name>
 \`\`\`
 
 This will:
@@ -185,12 +191,12 @@ This will:
    - **Pane 2:** Development terminal
    - **Pane 3:** Additional terminal
 
-### Clean Up a Worktree
+### Clean Up a Sandbox
 
-From within the worktree directory:
+From within the sandbox directory:
 
 \`\`\`bash
-./scripts/wtcs
+pnpm agent:clean
 \`\`\`
 
 This will:
@@ -213,11 +219,10 @@ Copy \`apps/web/.env.local.example\` to \`apps/web/.env.local\` and configure:
 ${useDocker ? "Better Auth (Email OTP):" : "Better Auth (Email OTP) or WorkOS:"}
 - \`BETTER_AUTH_SECRET\` - Auth encryption secret
 - \`BETTER_AUTH_URL\` - Auth callback URL
-- \`RESEND_API_KEY\` - Email service for OTP
+- \`RESEND_API_KEY\` - Email service for OTP (get your key at [resend.com](https://resend.com))
 
 ### AI
-- \`AI_GATEWAY_API_KEY\` - Vercel AI Gateway key
-- \`OPENAI_API_KEY\` - OpenAI API key
+- \`AI_GATEWAY_API_KEY\` - Vercel AI Gateway key (get your key at [vercel.com/ai-gateway](https://vercel.com/dashboard/~/ai))
 
 ### Analytics
 - \`NEXT_PUBLIC_POSTHOG_KEY\` - PostHog public key
@@ -242,6 +247,40 @@ Mention \`@claude\` in any issue or PR comment to get AI assistance:
 - Bug analysis
 - Implementation suggestions
 - Review feedback
+
+---
+
+## Database Environments
+
+${
+	useDocker
+		? "This project uses Docker PostgreSQL for local development. For production, configure a PostgreSQL database in Vercel."
+		: `This project uses Supabase with database branching for isolated environments:
+
+| Environment | Database | Purpose |
+|-------------|----------|---------|
+| **Production** | Main Supabase database | Live application |
+| **Preview** | Auto-created per PR | Vercel preview deployments (via Supabase Integration) |
+| **Development** | \`dev\` branch | Local development (\`.env.local\`) |
+| **Tests** | \`dev-test\` branch | Local test runs |
+| **Worktrees** | Per-branch databases | Created by \`./scripts/wts\` |
+
+### Preview Deployments
+
+The Supabase Vercel Integration automatically:
+1. Creates a database branch when Vercel builds a preview
+2. Injects the correct \`DATABASE_URL\` into that deployment
+3. Cleans up the branch when the preview is deleted
+
+This means each PR gets its own isolated database - no conflicts between concurrent feature development.
+
+To set up the integration (if not done during setup):
+\`\`\`bash
+supabase integrations create vercel
+\`\`\`
+
+Or configure it at: \`https://supabase.com/dashboard/project/<ref>/settings/integrations\``
+}
 
 ---
 

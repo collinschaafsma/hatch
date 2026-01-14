@@ -3,7 +3,7 @@ export function generateNextConfig(): string {
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-	transpilePackages: ["@repo/ui"],
+	transpilePackages: ["@workspace/ui"],
 };
 
 export default withWorkflow(nextConfig);

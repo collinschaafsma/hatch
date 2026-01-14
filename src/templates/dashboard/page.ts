@@ -1,11 +1,11 @@
 export function generateDashboardPage(useWorkOS: boolean): string {
 	if (useWorkOS) {
 		return `import { signOut, withAuth } from "@workos-inc/authkit-nextjs";
-import { AITriggerButton } from "@/components/dashboard/ai-trigger";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { AITriggerButton } from "./_components/ai-trigger";
+import { Avatar, AvatarFallback, AvatarImage } from "@workspace/ui/components/avatar";
+import { Button } from "@workspace/ui/components/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@workspace/ui/components/card";
+import { Separator } from "@workspace/ui/components/separator";
 
 export default async function DashboardPage() {
 	const { user } = await withAuth({ ensureSignedIn: true });
@@ -75,11 +75,11 @@ export default async function DashboardPage() {
 
 	return `import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { AITriggerButton } from "@/components/dashboard/ai-trigger";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { AITriggerButton } from "./_components/ai-trigger";
+import { SignOutButton } from "./_components/sign-out-button";
+import { Avatar, AvatarFallback, AvatarImage } from "@workspace/ui/components/avatar";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@workspace/ui/components/card";
+import { Separator } from "@workspace/ui/components/separator";
 import { auth } from "@/lib/auth";
 
 export default async function DashboardPage() {
@@ -142,23 +142,6 @@ export default async function DashboardPage() {
 				</Card>
 			</div>
 		</div>
-	);
-}
-
-function SignOutButton() {
-	return (
-		<form
-			action={async () => {
-				"use server";
-				// Sign out is handled client-side with authClient
-			}}
-		>
-			<Button variant="outline" type="button" onClick={() => {
-				// This will be handled client-side
-			}}>
-				Sign Out
-			</Button>
-		</form>
 	);
 }
 `;

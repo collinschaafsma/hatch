@@ -1,6 +1,6 @@
 export function generateHero(): string {
 	return `import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button } from "@workspace/ui/components/button";
 
 export function Hero() {
 	return (

@@ -12,7 +12,7 @@ export function generateVSCodeSettings(): string {
 				"source.organizeImports.biome": "explicit",
 				"source.fixAll.biome": "explicit",
 			},
-			"biome.lspBin": "./node_modules/@biomejs/biome/bin/biome",
+			"biome.lsp.bin": "./node_modules/@biomejs/biome/bin/biome",
 			"[javascript]": { "editor.defaultFormatter": "biomejs.biome" },
 			"[typescript]": { "editor.defaultFormatter": "biomejs.biome" },
 			"[typescriptreact]": { "editor.defaultFormatter": "biomejs.biome" },

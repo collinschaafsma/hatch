@@ -1,8 +1,8 @@
 export function generateWorkOSLoginPage(): string {
 	return `import { getSignInUrl } from "@workos-inc/authkit-nextjs";
 import { redirect } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@workspace/ui/components/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@workspace/ui/components/card";
 
 export default function LoginPage() {
 	return (

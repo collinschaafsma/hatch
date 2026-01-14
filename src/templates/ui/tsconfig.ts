@@ -14,6 +14,11 @@ export function generateUITsconfig(): string {
 				resolveJsonModule: true,
 				isolatedModules: true,
 				jsx: "react-jsx",
+				baseUrl: ".",
+				paths: {
+					"@workspace/ui/*": ["./src/*"],
+					"@/*": ["./src/*"],
+				},
 			},
 			include: ["src/**/*"],
 			exclude: ["node_modules"],

@@ -1,6 +1,8 @@
 export function generateGlobalsCss(): string {
 	return `@import "tailwindcss";
 
+@source "../../packages/ui/src/**/*.{ts,tsx}";
+
 :root {
 	--background: hsl(0 0% 100%);
 	--foreground: hsl(222.2 84% 4.9%);

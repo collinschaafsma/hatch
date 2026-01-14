@@ -19,6 +19,7 @@ export function generateBiomeJson(): string {
 					"!.next/**",
 					"!dist/**",
 					"!drizzle/**",
+					"!packages/ui/src/components/**",
 				],
 			},
 			formatter: {

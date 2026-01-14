@@ -4,10 +4,10 @@ export function generateLoginPage(): string {
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@workspace/ui/components/button";
+import { Input } from "@workspace/ui/components/input";
+import { Label } from "@workspace/ui/components/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@workspace/ui/components/card";
 
 export default function LoginPage() {
 	const router = useRouter();
@@ -58,7 +58,7 @@ export default function LoginPage() {
 								id="email"
 								type="email"
 								value={email}
-								onChange={(e) => setEmail(e.target.value)}
+								onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
 								required
 								placeholder="you@example.com"
 							/>
