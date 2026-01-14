@@ -23,11 +23,13 @@ Plus automated setup scripts for GitHub, Vercel, and Supabase.
 ## Quick Start
 
 ```bash
-# Create a new project
-pnpm dlx create-hatch my-app
+# Clone and install
+git clone https://github.com/collinschaafsma/hatch.git
+cd hatch
+pnpm install
 
-# Or with npx
-npx create-hatch my-app
+# Create a new project
+pnpm dev create my-app
 ```
 
 Then follow the prompts or run `pnpm app:setup` for automated configuration.
@@ -35,7 +37,7 @@ Then follow the prompts or run `pnpm app:setup` for automated configuration.
 ## CLI Options
 
 ```bash
-create-hatch [project-name] [options]
+pnpm dev create [project-name] [options]
 ```
 
 | Option | Description |
@@ -48,16 +50,16 @@ create-hatch [project-name] [options]
 
 ```bash
 # Default: Better Auth + Supabase
-pnpm dlx create-hatch my-app
+pnpm dev create my-app
 
 # Enterprise SSO with WorkOS
-pnpm dlx create-hatch my-app --workos
+pnpm dev create my-app --workos
 
 # Local development with Docker PostgreSQL
-pnpm dlx create-hatch my-app --docker
+pnpm dev create my-app --docker
 
 # WorkOS + Docker (no cloud dependencies)
-pnpm dlx create-hatch my-app --workos --docker
+pnpm dev create my-app --workos --docker
 ```
 
 ## Generated Project Structure
@@ -71,22 +73,27 @@ my-app/
 │       │   ├── (marketing)/  # Landing page
 │       │   ├── (app)/        # Protected dashboard
 │       │   └── api/          # API routes (auth, chat, workflow)
-│       ├── components/       # React components + shadcn/ui
+│       ├── components/       # React components
+│       ├── hooks/            # Custom React hooks
 │       ├── db/               # Drizzle schema and client
-│       ├── lib/              # Auth, utils, safe-action, logger
+│       ├── lib/              # Auth, safe-action, logger, utils
 │       ├── services/         # Business logic layer
 │       ├── workflows/        # Vercel Workflow DevKit
-│       ├── evals/            # LLM evaluation tests
-│       └── __tests__/        # Vitest tests
+│       └── __tests__/        # Vitest tests and factories
 ├── packages/
-│   └── ui/                   # Shared UI components
+│   └── ui/                   # Shared shadcn/ui components
 ├── scripts/
 │   ├── setup                 # Automated GitHub/Vercel/Supabase setup
-│   ├── wts                   # Worktree setup (Claude Code sandbox)
+│   ├── wts                   # Worktree setup (agent sandbox)
 │   ├── wtcs                  # Worktree cleanup
+│   ├── sandbox/              # Docker sandbox for Claude Code
 │   └── supabase-*            # Supabase management scripts
+├── .claude/                  # Claude Code configuration
+│   ├── settings.local.json   # Local Claude settings
+│   └── skills/               # Custom Claude skills
 ├── .github/workflows/        # CI/CD + Claude integration
 ├── supabase/                 # Supabase config (if not --docker)
+├── .worktreeinclude          # Files to copy into worktrees
 ├── docker-compose.yml        # PostgreSQL containers
 ├── CLAUDE.md                 # Claude Code context
 └── README.md                 # Generated project documentation
@@ -102,7 +109,7 @@ Cloud-hosted PostgreSQL with:
 - Built-in auth and storage (optional)
 
 ```bash
-pnpm dlx create-hatch my-app
+pnpm dev create my-app
 ```
 
 ### Docker (Local)
@@ -113,7 +120,7 @@ Local PostgreSQL containers for offline development:
 - Isolated test database
 
 ```bash
-pnpm dlx create-hatch my-app --docker
+pnpm dev create my-app --docker
 ```
 
 ## Authentication Options
@@ -133,25 +140,66 @@ Enterprise SSO for B2B applications:
 - User provisioning
 
 ```bash
-pnpm dlx create-hatch my-app --workos
+pnpm dev create my-app --workos
 ```
 
-## Worktree Scripts (Claude Code Sandbox)
+## Agent Scripts (Claude Code Sandbox)
 
-The generated project includes scripts for isolated feature development:
+The generated project includes scripts for isolated feature development with Claude Code:
 
 ```bash
-# Create a worktree with isolated database and Claude sandbox
-./scripts/wts feature-branch
+# Create an agent sandbox for a feature branch
+pnpm agent feature-branch
 
-# Clean up when done
-./scripts/wtcs
+# Clean up when done (run from inside the worktree)
+pnpm agent:clean
 ```
 
-This creates:
-- Git worktree for the branch
-- Isolated database (Docker containers or Supabase branches)
-- iTerm2 layout with Claude Code sandbox terminal
+### Examples
+
+```bash
+# Work on a new feature
+pnpm agent add-user-settings
+
+# Fix a bug in isolation
+pnpm agent fix-auth-redirect
+
+# Clean up the sandbox environment (must be run from inside the worktree)
+pnpm agent:clean
+```
+
+### How It Works
+
+When you run `pnpm agent my-feature`, the script:
+
+1. Creates a git worktree at `../my-app-my-feature` (sibling to your project)
+2. Creates and checks out a new branch named `my-feature`
+3. Copies files listed in `.worktreeinclude` (like `.env.local`) that aren't tracked by git
+4. Sets up an isolated database (Docker containers or Supabase branch)
+5. Opens an iTerm2 layout with Claude Code in sandbox mode
+
+The worktree is a full working copy of your repo on its own branch, so changes are isolated from your main development.
+
+### The `.worktreeinclude` File
+
+Since worktrees don't share untracked files with the main repo, the `.worktreeinclude` file lists files that should be copied into new worktrees:
+
+```
+.env.local
+```
+
+Add any untracked files your worktrees need (environment files, local configs, etc.) to this file, one path per line.
+
+### Cleaning Up
+
+When you run `pnpm agent:clean` from inside the worktree, it:
+
+1. Tears down the isolated database (stops Docker containers or deletes Supabase branch)
+2. Checks out the main branch in the main repo
+3. Deletes the feature branch
+4. Removes the worktree directory
+
+This fully cleans up all resources created by `pnpm agent`, returning your environment to its original state.
 
 ## GitHub Actions
 
@@ -193,54 +241,7 @@ pnpm install
 | `pnpm test:e2e` | Run end-to-end tests |
 | `pnpm test:ui` | Run tests with Vitest UI |
 
-### Testing a Generated Project
 
-```bash
-# Generate a test project
-pnpm dev create test-project
-
-# With options
-pnpm dev create test-project --docker
-pnpm dev create test-project --workos
-```
-
-### Architecture
-
-```
-src/
-├── index.ts              # CLI entry point (Commander)
-├── commands/
-│   └── create.ts         # Main orchestration (~800 lines)
-├── templates/            # All generated file templates
-│   ├── root/             # package.json, turbo.json, etc.
-│   ├── web/              # Next.js app files
-│   ├── db/               # Drizzle setup
-│   ├── auth/             # Better Auth / WorkOS
-│   ├── ai/               # Chat API route
-│   ├── workflow/         # Vercel Workflow DevKit
-│   ├── scripts/          # Worktree scripts
-│   ├── github/           # GitHub Actions
-│   └── ...
-├── utils/
-│   ├── exec.ts           # pnpm/git command wrappers
-│   ├── fs.ts             # File operations
-│   ├── logger.ts         # Colored console output
-│   ├── spinner.ts        # Progress spinners
-│   └── prompts.ts        # Interactive prompts
-└── types/
-    └── index.ts          # TypeScript interfaces
-```
-
-Templates export functions that return stringified content:
-
-```typescript
-// src/templates/root/package-json.ts
-export function generateRootPackageJson(projectName: string): string {
-  return JSON.stringify({ name: projectName, ... }, null, 2);
-}
-```
-
----
 
 ## License
 
