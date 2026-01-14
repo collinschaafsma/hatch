@@ -4,6 +4,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
 	transpilePackages: ["@workspace/ui"],
+	experimental: {
+		optimizePackageImports: ["lucide-react"],
+	},
 };
 
 export default withWorkflow(nextConfig);

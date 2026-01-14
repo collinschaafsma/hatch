@@ -307,8 +307,13 @@ export const createCommand = new Command()
 					await ensureDir(path.join(webPath, "app", "api", "auth", "[...all]"));
 					await ensureDir(path.join(webPath, "app", "api", "chat"));
 					await ensureDir(path.join(webPath, "app", "api", "workflow"));
+					await ensureDir(
+						path.join(webPath, "app", "api", "workflow-progress", "[runId]"),
+					);
 					await ensureDir(path.join(webPath, "components", "providers"));
 					await ensureDir(path.join(webPath, "lib"));
+					await ensureDir(path.join(webPath, "lib", "workflow-progress"));
+					await ensureDir(path.join(webPath, "hooks"));
 					await ensureDir(path.join(webPath, "db"));
 					await ensureDir(path.join(webPath, "workflows"));
 
@@ -453,6 +458,30 @@ export const createCommand = new Command()
 					await writeFile(
 						path.join(webPath, "app", "api", "workflow", "route.ts"),
 						templates.generateWorkflowRoute(),
+					);
+					// Workflow progress streaming
+					await writeFile(
+						path.join(webPath, "lib", "workflow-progress", "types.ts"),
+						templates.generateWorkflowProgressTypes(),
+					);
+					await writeFile(
+						path.join(
+							webPath,
+							"app",
+							"api",
+							"workflow-progress",
+							"[runId]",
+							"route.ts",
+						),
+						templates.generateWorkflowProgressRoute({ useWorkOS }),
+					);
+					await writeFile(
+						path.join(webPath, "hooks", "use-workflow-progress.ts"),
+						templates.generateUseWorkflowProgress(),
+					);
+					await writeFile(
+						path.join(webPath, "hooks", "use-latest.ts"),
+						templates.generateUseLatest(),
 					);
 				});
 

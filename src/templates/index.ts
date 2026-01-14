@@ -22,6 +22,9 @@ export * from "./analytics/index.js";
 // Workflow templates
 export * from "./workflow/index.js";
 
+// Hooks templates
+export * from "./hooks/index.js";
+
 // Dashboard templates
 export * from "./dashboard/index.js";
 
