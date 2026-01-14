@@ -22,6 +22,22 @@ describe("template snapshots", () => {
 		it("generateGitignore", () => {
 			expect(templates.generateGitignore()).toMatchSnapshot();
 		});
+
+		it("generateNvmrc", () => {
+			expect(templates.generateNvmrc()).toMatchSnapshot();
+		});
+
+		it("generateMcpJson", () => {
+			expect(templates.generateMcpJson()).toMatchSnapshot();
+		});
+
+		it("generateClaudeMd", () => {
+			expect(templates.generateClaudeMd("test-app")).toMatchSnapshot();
+		});
+
+		it("generateReadme", () => {
+			expect(templates.generateReadme("test-app")).toMatchSnapshot();
+		});
 	});
 
 	describe("web templates", () => {
@@ -61,14 +77,6 @@ describe("template snapshots", () => {
 			expect(templates.generatePostcssConfig()).toMatchSnapshot();
 		});
 
-		it("generateComponentsJson", () => {
-			expect(templates.generateComponentsJson()).toMatchSnapshot();
-		});
-
-		it("generateLibUtils", () => {
-			expect(templates.generateLibUtils()).toMatchSnapshot();
-		});
-
 		it("generateEnvExample", () => {
 			expect(templates.generateEnvExample()).toMatchSnapshot();
 		});
@@ -79,8 +87,20 @@ describe("template snapshots", () => {
 			expect(templates.generateDbIndex()).toMatchSnapshot();
 		});
 
-		it("generateDbSchema", () => {
-			expect(templates.generateDbSchema()).toMatchSnapshot();
+		it("generateDbSchema (Better Auth)", () => {
+			expect(templates.generateDbSchema(false)).toMatchSnapshot();
+		});
+
+		it("generateDbSchema (WorkOS)", () => {
+			expect(templates.generateDbSchema(true)).toMatchSnapshot();
+		});
+
+		it("generateBetterAuthSchema", () => {
+			expect(templates.generateBetterAuthSchema()).toMatchSnapshot();
+		});
+
+		it("generateWorkOSSchema", () => {
+			expect(templates.generateWorkOSSchema()).toMatchSnapshot();
 		});
 
 		it("generateDrizzleConfig", () => {
@@ -112,6 +132,10 @@ describe("template snapshots", () => {
 		it("generateBetterAuthProxy", () => {
 			expect(templates.generateBetterAuthProxy()).toMatchSnapshot();
 		});
+
+		it("generateAuthSkeleton", () => {
+			expect(templates.generateAuthSkeleton()).toMatchSnapshot();
+		});
 	});
 
 	describe("auth templates - WorkOS", () => {
@@ -131,10 +155,6 @@ describe("template snapshots", () => {
 	describe("AI templates", () => {
 		it("generateChatRoute", () => {
 			expect(templates.generateChatRoute()).toMatchSnapshot();
-		});
-
-		it("generateObservedModel", () => {
-			expect(templates.generateObservedModel()).toMatchSnapshot();
 		});
 	});
 
@@ -156,6 +176,32 @@ describe("template snapshots", () => {
 		it("generateWorkflowRoute", () => {
 			expect(templates.generateWorkflowRoute()).toMatchSnapshot();
 		});
+
+		it("generateWorkflowProgressTypes", () => {
+			expect(templates.generateWorkflowProgressTypes()).toMatchSnapshot();
+		});
+
+		it("generateWorkflowProgressRoute (Better Auth)", () => {
+			expect(
+				templates.generateWorkflowProgressRoute({ useWorkOS: false }),
+			).toMatchSnapshot();
+		});
+
+		it("generateWorkflowProgressRoute (WorkOS)", () => {
+			expect(
+				templates.generateWorkflowProgressRoute({ useWorkOS: true }),
+			).toMatchSnapshot();
+		});
+	});
+
+	describe("hooks templates", () => {
+		it("generateUseWorkflowProgress", () => {
+			expect(templates.generateUseWorkflowProgress()).toMatchSnapshot();
+		});
+
+		it("generateUseLatest", () => {
+			expect(templates.generateUseLatest()).toMatchSnapshot();
+		});
 	});
 
 	describe("dashboard templates", () => {
@@ -173,6 +219,14 @@ describe("template snapshots", () => {
 
 		it("generateDashboardActions", () => {
 			expect(templates.generateDashboardActions()).toMatchSnapshot();
+		});
+
+		it("generateSignOutButton", () => {
+			expect(templates.generateSignOutButton()).toMatchSnapshot();
+		});
+
+		it("generateDashboardSkeleton", () => {
+			expect(templates.generateDashboardSkeleton()).toMatchSnapshot();
 		});
 	});
 
@@ -207,6 +261,14 @@ describe("template snapshots", () => {
 
 		it("generateUIIndex", () => {
 			expect(templates.generateUIIndex()).toMatchSnapshot();
+		});
+
+		it("generateUIComponentsJson", () => {
+			expect(templates.generateUIComponentsJson()).toMatchSnapshot();
+		});
+
+		it("generateUILibUtils", () => {
+			expect(templates.generateUILibUtils()).toMatchSnapshot();
 		});
 	});
 
@@ -252,9 +314,23 @@ describe("template snapshots", () => {
 		it("generateUserFactory", () => {
 			expect(templates.generateUserFactory()).toMatchSnapshot();
 		});
+	});
 
-		it("generateFactoriesIndex", () => {
-			expect(templates.generateFactoriesIndex()).toMatchSnapshot();
+	describe("test factories templates", () => {
+		it("generateFactoriesIndex (Better Auth)", () => {
+			expect(templates.generateFactoriesIndex(false)).toMatchSnapshot();
+		});
+
+		it("generateFactoriesIndex (WorkOS)", () => {
+			expect(templates.generateFactoriesIndex(true)).toMatchSnapshot();
+		});
+
+		it("generateWorkOSDbTest", () => {
+			expect(templates.generateWorkOSDbTest()).toMatchSnapshot();
+		});
+
+		it("generateOrganizationFactory", () => {
+			expect(templates.generateOrganizationFactory()).toMatchSnapshot();
 		});
 	});
 
@@ -308,21 +384,77 @@ describe("template snapshots", () => {
 		});
 	});
 
-	describe("evals templates", () => {
-		it("generateEvaliteConfig", () => {
-			expect(templates.generateEvaliteConfig()).toMatchSnapshot();
+	describe("GitHub workflow templates", () => {
+		it("generateChecksWorkflow", () => {
+			expect(templates.generateChecksWorkflow()).toMatchSnapshot();
 		});
 
-		it("generateEvalsSetup", () => {
-			expect(templates.generateEvalsSetup()).toMatchSnapshot();
+		it("generateTestWorkflow", () => {
+			expect(templates.generateTestWorkflow()).toMatchSnapshot();
 		});
 
-		it("generateChatQualityEval", () => {
-			expect(templates.generateChatQualityEval()).toMatchSnapshot();
+		it("generateClaudeCodeReviewWorkflow", () => {
+			expect(templates.generateClaudeCodeReviewWorkflow()).toMatchSnapshot();
 		});
 
-		it("generateStructuredOutputEval", () => {
-			expect(templates.generateStructuredOutputEval()).toMatchSnapshot();
+		it("generateClaudeWorkflow", () => {
+			expect(templates.generateClaudeWorkflow()).toMatchSnapshot();
+		});
+	});
+
+	describe("VS Code templates", () => {
+		it("generateVSCodeExtensions", () => {
+			expect(templates.generateVSCodeExtensions()).toMatchSnapshot();
+		});
+
+		it("generateVSCodeSettings", () => {
+			expect(templates.generateVSCodeSettings()).toMatchSnapshot();
+		});
+	});
+
+	describe("Claude templates", () => {
+		it("generateSettingsLocal", () => {
+			expect(templates.generateSettingsLocal()).toMatchSnapshot();
+		});
+
+		it("generateTypecheckSkill", () => {
+			expect(templates.generateTypecheckSkill()).toMatchSnapshot();
+		});
+
+		it("generateTestSkill", () => {
+			expect(templates.generateTestSkill()).toMatchSnapshot();
+		});
+
+		it("generateDbMigrateSkill", () => {
+			expect(templates.generateDbMigrateSkill()).toMatchSnapshot();
+		});
+	});
+
+	describe("Supabase templates", () => {
+		it("generateSupabaseConfig", () => {
+			expect(templates.generateSupabaseConfig()).toMatchSnapshot();
+		});
+
+		it("generateSupabaseSeedSql", () => {
+			expect(templates.generateSupabaseSeedSql()).toMatchSnapshot();
+		});
+
+		it("generateSupabaseSetupScript", () => {
+			expect(templates.generateSupabaseSetupScript()).toMatchSnapshot();
+		});
+
+		it("generateSupabaseBranchScript", () => {
+			expect(templates.generateSupabaseBranchScript()).toMatchSnapshot();
+		});
+
+		it("generateSupabaseEnvScript", () => {
+			expect(templates.generateSupabaseEnvScript()).toMatchSnapshot();
+		});
+	});
+
+	describe("setup templates", () => {
+		it("generateSetupScript", () => {
+			expect(templates.generateSetupScript()).toMatchSnapshot();
 		});
 	});
 });

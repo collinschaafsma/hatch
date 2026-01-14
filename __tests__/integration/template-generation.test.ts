@@ -91,7 +91,7 @@ describe("template generation integration", () => {
 		});
 
 		it("should generate valid components.json", async () => {
-			const content = templates.generateComponentsJson();
+			const content = templates.generateUIComponentsJson();
 			const filePath = path.join(tempDir, "components.json");
 			await writeFile(filePath, content);
 
@@ -238,7 +238,7 @@ describe("template generation integration", () => {
 		it("should generate valid DB schema", () => {
 			const content = templates.generateDbSchema();
 			expect(content).toContain("pgTable");
-			expect(content).toContain("posts");
+			expect(content).toContain("user");
 		});
 	});
 
@@ -249,7 +249,7 @@ describe("template generation integration", () => {
 			await writeFile(filePath, content);
 
 			const parsed = JSON.parse(await fs.readFile(filePath, "utf-8"));
-			expect(parsed.name).toBe("@repo/ui");
+			expect(parsed.name).toBe("@workspace/ui");
 		});
 	});
 

@@ -1,6 +1,6 @@
-import type { CreateOptions } from "../../types/index.js";
-
-export function generateWorkflowProgressRoute(options: CreateOptions): string {
+export function generateWorkflowProgressRoute(options: {
+	useWorkOS: boolean;
+}): string {
 	const authCheck = options.useWorkOS
 		? `// Authenticate user
 		const { user } = await withAuth();
