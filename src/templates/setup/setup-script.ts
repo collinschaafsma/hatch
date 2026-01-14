@@ -389,57 +389,36 @@ create_new_supabase_project() {
   # Generate a secure database password
   local db_password=\$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 20)
 
-  # Create project - try interactive mode first (lets CLI handle region selection)
+  # Create project interactively (lets CLI handle region selection)
   echo ""
   print_step "Creating project (this may take 1-2 minutes)..."
   echo ""
   echo "  The Supabase CLI will prompt you to select a region."
   echo ""
 
-  # Try interactive create (without --region flag to let CLI prompt)
-  # This avoids the empty region list bug
-  local create_output
-  create_output=\$(supabase projects create "\$proj_name" --org-id "\$org_id" --db-password "\$db_password" 2>&1)
-  local create_exit_code=\$?
-
-  echo "\$create_output"
-
-  if [[ \$create_exit_code -eq 0 ]]; then
+  # Run interactively - do NOT capture output or it breaks the region prompt
+  if supabase projects create "\$proj_name" --org-id "\$org_id" --db-password "\$db_password"; then
     print_success "Supabase project created"
 
-    # Try to parse project reference from the output
-    # The CLI outputs a URL like: https://supabase.com/dashboard/project/<ref>
-    PROJECT_REF=\$(echo "\$create_output" | grep -oE "project/[a-z0-9]+" | head -1 | cut -d'/' -f2)
+    # Look up the project reference by name
+    print_step "Fetching project reference..."
 
-    # If not found in URL, try to find in the table output (REFERENCE ID column)
-    if [[ -z "\$PROJECT_REF" ]]; then
-      # Look for a 20-character alphanumeric ID in the output
-      PROJECT_REF=\$(echo "\$create_output" | grep -oE "[a-z]{20}" | head -1)
-    fi
+    local max_attempts=10
+    local attempt=0
 
-    if [[ -n "\$PROJECT_REF" ]]; then
-      print_success "Got project reference: \$PROJECT_REF"
-    else
-      # Fallback: Wait and poll for the project to appear
-      print_step "Waiting for project to be ready (this can take up to 5 minutes)..."
+    while [[ \$attempt -lt \$max_attempts ]]; do
+      attempt=\$((attempt + 1))
+      echo "  Checking project status (attempt \$attempt/\$max_attempts)..."
 
-      local max_attempts=10
-      local attempt=0
+      PROJECT_REF=\$(supabase projects list --json 2>/dev/null | jq -r ".[] | select(.name == \\"\$proj_name\\") | .id" 2>/dev/null || echo "")
 
-      while [[ \$attempt -lt \$max_attempts ]]; do
-        attempt=\$((attempt + 1))
-        echo "  Checking project status (attempt \$attempt/\$max_attempts)..."
+      if [[ -n "\$PROJECT_REF" ]]; then
+        print_success "Project is ready: \$PROJECT_REF"
+        break
+      fi
 
-        PROJECT_REF=\$(supabase projects list --json 2>/dev/null | jq -r ".[] | select(.name == \\"\$proj_name\\") | .id" 2>/dev/null || echo "")
-
-        if [[ -n "\$PROJECT_REF" ]]; then
-          print_success "Project is ready: \$PROJECT_REF"
-          break
-        fi
-
-        sleep 30
-      done
-    fi
+      sleep 10
+    done
 
     if [[ -z "\$PROJECT_REF" ]]; then
       print_warning "Could not automatically get project reference"
