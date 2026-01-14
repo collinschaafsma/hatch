@@ -1,4 +1,5 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import * as templates from "../templates/index.js";
 import {
@@ -10,6 +11,7 @@ import {
 	pnpmRun,
 } from "../utils/exec.js";
 import {
+	copyDir,
 	ensureDir,
 	fileExists,
 	setExecutable,
@@ -18,6 +20,11 @@ import {
 import { log } from "../utils/logger.js";
 import { getProjectPrompts } from "../utils/prompts.js";
 import { withSpinner } from "../utils/spinner.js";
+
+// Get the package root directory for copying static assets
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const packageRoot = path.resolve(__dirname, "../..");
 
 export const createCommand = new Command()
 	.name("create")
@@ -261,6 +268,21 @@ export const createCommand = new Command()
 						templates.generateDbMigrateSkill(),
 					);
 
+					// Copy react-best-practices skill (static files)
+					const reactSkillSrc = path.join(
+						packageRoot,
+						".claude",
+						"skills",
+						"react-best-practices",
+					);
+					const reactSkillDest = path.join(
+						projectPath,
+						".claude",
+						"skills",
+						"react-best-practices",
+					);
+					await copyDir(reactSkillSrc, reactSkillDest);
+
 					// Make scripts executable
 					await setExecutable(wtsPath);
 					await setExecutable(wtcsPath);
@@ -462,6 +484,17 @@ export const createCommand = new Command()
 							"ai-trigger.tsx",
 						),
 						templates.generateAITriggerButton(),
+					);
+					await writeFile(
+						path.join(
+							webPath,
+							"app",
+							"(app)",
+							"dashboard",
+							"_components",
+							"skeleton.tsx",
+						),
+						templates.generateDashboardSkeleton(),
 					);
 					if (!useWorkOS) {
 						await writeFile(
