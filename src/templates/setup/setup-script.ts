@@ -780,15 +780,15 @@ configure_database_environments() {
       echo "    5. Enable 'Preview Branches' option"
       echo ""
 
-      # Get Vercel project info
-      local vercel_project_id=""
+      # Get Vercel project info (orgId is the team/user slug)
+      local vercel_org_id=""
       if [[ -f "apps/web/.vercel/project.json" ]]; then
-        vercel_project_id=\$(jq -r '.projectId // empty' apps/web/.vercel/project.json 2>/dev/null || echo "")
+        vercel_org_id=\$(jq -r '.orgId // empty' apps/web/.vercel/project.json 2>/dev/null || echo "")
       fi
 
       # Open Vercel integrations page
-      if [[ -n "\$vercel_project_id" ]]; then
-        open "https://vercel.com/~/integrations" 2>/dev/null || echo "  URL: https://vercel.com/~/integrations"
+      if [[ -n "\$vercel_org_id" ]]; then
+        open "https://vercel.com/\$vercel_org_id/~/integrations" 2>/dev/null || echo "  URL: https://vercel.com/\$vercel_org_id/~/integrations"
       else
         open "https://vercel.com/integrations/supabase" 2>/dev/null || echo "  URL: https://vercel.com/integrations/supabase"
       fi
