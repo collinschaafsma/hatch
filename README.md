@@ -29,7 +29,7 @@ cd hatch
 pnpm install
 
 # Create a new project
-pnpm dev create my-app
+pnpm dev create ../my-app
 ```
 
 Then follow the prompts or run `pnpm app:setup` for automated configuration.
@@ -50,16 +50,16 @@ pnpm dev create [project-name] [options]
 
 ```bash
 # Default: Better Auth + Supabase
-pnpm dev create my-app
+pnpm dev create ../my-app
 
 # Enterprise SSO with WorkOS
-pnpm dev create my-app --workos
+pnpm dev create ../my-app --workos
 
 # Local development with Docker PostgreSQL
-pnpm dev create my-app --docker
+pnpm dev create ../my-app --docker
 
 # WorkOS + Docker (no cloud dependencies)
-pnpm dev create my-app --workos --docker
+pnpm dev create ../my-app --workos --docker
 ```
 
 ## Generated Project Structure
