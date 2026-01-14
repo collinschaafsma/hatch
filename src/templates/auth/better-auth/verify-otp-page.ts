@@ -1,7 +1,7 @@
 export function generateVerifyOTPPage(): string {
 	return `"use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@workspace/ui/components/button";
@@ -12,18 +12,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@work
 export default function VerifyOTPPage() {
 	const router = useRouter();
 	const [otp, setOtp] = useState("");
-	const [email, setEmail] = useState("");
+	// Lazy initialization - read email from sessionStorage immediately
+	const [email] = useState(() =>
+		typeof window !== "undefined"
+			? sessionStorage.getItem("pendingEmail") || ""
+			: ""
+	);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState("");
 
+	// Redirect if no pending email (after hydration)
 	useEffect(() => {
-		const pendingEmail = sessionStorage.getItem("pendingEmail");
-		if (!pendingEmail) {
+		if (!email) {
 			router.push("/login");
-			return;
 		}
-		setEmail(pendingEmail);
-	}, [router]);
+	}, [email, router]);
 
 	const handleVerify = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -70,6 +73,18 @@ export default function VerifyOTPPage() {
 		}
 	};
 
+	const handleOtpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		// Use transition for non-urgent input updates
+		startTransition(() => {
+			setOtp(e.target.value);
+		});
+	};
+
+	// Don't render form if no email (will redirect)
+	if (!email) {
+		return null;
+	}
+
 	return (
 		<div className="flex min-h-screen items-center justify-center p-4">
 			<Card className="w-full max-w-md">
@@ -87,7 +102,7 @@ export default function VerifyOTPPage() {
 								id="otp"
 								type="text"
 								value={otp}
-								onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOtp(e.target.value)}
+								onChange={handleOtpChange}
 								required
 								maxLength={6}
 								className="text-center text-2xl tracking-widest"
@@ -95,9 +110,9 @@ export default function VerifyOTPPage() {
 							/>
 						</div>
 
-						{error && (
-							<p className="text-sm text-destructive">{error}</p>
-						)}
+						{error ? (
+							<p className="text-sm text-destructive" role="alert">{error}</p>
+						) : null}
 
 						<Button type="submit" className="w-full" disabled={loading}>
 							{loading ? "Verifying..." : "Verify"}

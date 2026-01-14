@@ -83,5 +83,13 @@ export function generateGlobalsCss(): string {
 		color: var(--color-foreground);
 	}
 }
+
+@layer utilities {
+	/* Defer rendering of off-screen content for performance */
+	.defer-render {
+		content-visibility: auto;
+		contain-intrinsic-size: 0 200px;
+	}
+}
 `;
 }

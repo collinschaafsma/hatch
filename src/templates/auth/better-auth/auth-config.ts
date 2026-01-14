@@ -1,5 +1,7 @@
 export function generateBetterAuthConfig(): string {
-	return `import { betterAuth } from "better-auth";
+	return `import { cache } from "react";
+import { headers } from "next/headers";
+import { betterAuth } from "better-auth";
 import { emailOTP } from "better-auth/plugins";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@/db";
@@ -64,5 +66,16 @@ export const auth = betterAuth({
 });
 
 export type Session = typeof auth.$Infer.Session;
+
+/**
+ * Per-request cached session getter.
+ * Uses React.cache() to deduplicate session fetches within the same request.
+ * Multiple calls to getSession() in the same request will only fetch once.
+ */
+export const getSession = cache(async () => {
+	return auth.api.getSession({
+		headers: await headers(),
+	});
+});
 `;
 }

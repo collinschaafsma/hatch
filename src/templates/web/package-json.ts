@@ -38,6 +38,7 @@ export function generateWebPackageJson(useWorkOS: boolean): string {
 				pg: "^8.16.3",
 				ai: "^6.0.33",
 				"@ai-sdk/react": "^3.0.35",
+				swr: "^2.3.3",
 				workflow: "^4.0.1-beta.45",
 				"posthog-js": "^1.320.0",
 				"posthog-node": "^5.20.0",

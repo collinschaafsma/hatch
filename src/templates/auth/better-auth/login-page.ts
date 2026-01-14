@@ -1,7 +1,7 @@
 export function generateLoginPage(): string {
 	return `"use client";
 
-import { useState } from "react";
+import { useState, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@workspace/ui/components/button";
@@ -11,7 +11,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@work
 
 export default function LoginPage() {
 	const router = useRouter();
-	const [email, setEmail] = useState("");
+	// Lazy initialization - restore email if user navigated back
+	const [email, setEmail] = useState(() =>
+		typeof window !== "undefined"
+			? sessionStorage.getItem("pendingEmail") || ""
+			: ""
+	);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState("");
 
@@ -41,6 +46,13 @@ export default function LoginPage() {
 		}
 	};
 
+	const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		// Use transition for non-urgent input updates
+		startTransition(() => {
+			setEmail(e.target.value);
+		});
+	};
+
 	return (
 		<div className="flex min-h-screen items-center justify-center p-4">
 			<Card className="w-full max-w-md">
@@ -58,15 +70,15 @@ export default function LoginPage() {
 								id="email"
 								type="email"
 								value={email}
-								onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+								onChange={handleEmailChange}
 								required
 								placeholder="you@example.com"
 							/>
 						</div>
 
-						{error && (
-							<p className="text-sm text-destructive">{error}</p>
-						)}
+						{error ? (
+							<p className="text-sm text-destructive" role="alert">{error}</p>
+						) : null}
 
 						<Button type="submit" className="w-full" disabled={loading}>
 							{loading ? "Sending..." : "Send Code"}
