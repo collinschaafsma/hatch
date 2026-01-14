@@ -87,6 +87,7 @@ ${projectName}/
 │       ├── app/          # App router pages
 │       ├── components/   # React components
 │       ├── db/           # Drizzle schema and client
+│       ├── hooks/        # Custom React hooks
 │       ├── lib/          # Utilities and auth
 │       ├── services/     # Business logic layer
 │       ├── workflows/    # Vercel Workflow DevKit
@@ -247,6 +248,50 @@ Mention \`@claude\` in any issue or PR comment to get AI assistance:
 - Bug analysis
 - Implementation suggestions
 - Review feedback
+
+---
+
+## Workflows
+
+This project includes [Vercel Workflow DevKit](https://vercel.com/docs/workflow-kit) for durable, long-running AI workflows.
+
+### Example Workflow
+
+The included example workflow (\`workflows/example.ts\`) demonstrates:
+- Multi-step AI processing with OpenAI
+- Real-time progress streaming via SSE
+- Error handling and retry logic
+
+### Progress Streaming
+
+Workflows emit real-time progress events that the UI consumes via Server-Sent Events:
+
+\`\`\`
+Client                    Server
+  │                         │
+  ├─ POST /api/workflow ───►│  Start workflow, get runId
+  │◄── { runId } ───────────┤
+  │                         │
+  ├─ GET /api/workflow-progress/[runId] ──►│
+  │◄── SSE: step 1/5 ───────┤
+  │◄── SSE: step 2/5 ───────┤
+  │◄── SSE: completed ──────┤
+\`\`\`
+
+Key files:
+- \`workflows/example.ts\` - Workflow definition with progress emits
+- \`app/api/workflow/route.ts\` - Starts workflow runs
+- \`app/api/workflow-progress/[runId]/route.ts\` - SSE progress stream
+- \`hooks/use-workflow-progress.ts\` - React hook for consuming progress
+- \`lib/workflow-progress/types.ts\` - Shared progress types
+
+### Monitoring
+
+View workflow runs in the browser:
+
+\`\`\`bash
+npx workflow web
+\`\`\`
 
 ---
 
