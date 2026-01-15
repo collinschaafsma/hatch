@@ -19,36 +19,14 @@ RUN unset NPM_CONFIG_PREFIX \\
     && nvm use default
 
 # Enable Corepack and install pnpm
-ENV SHELL="/bin/bash"
-ENV PNPM_HOME="/home/agent/.local/share/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
 RUN unset NPM_CONFIG_PREFIX \\
     && . "$NVM_DIR/nvm.sh" \\
     && corepack enable \\
-    && corepack prepare pnpm@latest --activate \\
-    && pnpm setup \\
-    && . ~/.bashrc
+    && corepack prepare pnpm@latest --activate
 
-# Install biome globally for linting (node_modules may be from different platform)
-RUN unset NPM_CONFIG_PREFIX \\
-    && . "$NVM_DIR/nvm.sh" \\
-    && pnpm add -g @biomejs/biome
-
-# Add nvm and pnpm to shell startup
+# Add nvm to shell startup
 RUN echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.bashrc \\
     && echo '[ -s "$NVM_DIR/nvm.sh" ] && \\. "$NVM_DIR/nvm.sh"' >> ~/.bashrc \\
-    && echo '[ -s "$NVM_DIR/bash_completion" ] && \\. "$NVM_DIR/bash_completion"' >> ~/.bashrc \\
-    && echo 'export PNPM_HOME="/home/agent/.local/share/pnpm"' >> ~/.bashrc \\
-    && echo 'export PATH="$PNPM_HOME:$PATH"' >> ~/.bashrc
-
-# Run pnpm install on first bash shell (rebuilds binaries for Linux)
-# Uses a flag file to ensure it only runs once per container session
-RUN echo '' >> ~/.bashrc \\
-    && echo '# Auto-run pnpm install once to rebuild binaries for Linux' >> ~/.bashrc \\
-    && echo 'if [ ! -f /tmp/.pnpm_installed ] && [ -f "package.json" ]; then' >> ~/.bashrc \\
-    && echo '    echo "Running pnpm install to ensure Linux-compatible binaries..."' >> ~/.bashrc \\
-    && echo '    pnpm install --frozen-lockfile 2>/dev/null || pnpm install' >> ~/.bashrc \\
-    && echo '    touch /tmp/.pnpm_installed' >> ~/.bashrc \\
-    && echo 'fi' >> ~/.bashrc
+    && echo '[ -s "$NVM_DIR/bash_completion" ] && \\. "$NVM_DIR/bash_completion"' >> ~/.bashrc
 `;
 }
