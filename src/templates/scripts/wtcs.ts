@@ -25,6 +25,7 @@ main_repo=\$(git rev-parse --git-common-dir | sed 's/\\/.git\$//')
 
 echo "This will:"
 echo "  - Stop Docker Sandbox for: \$compose_project (if exists)"
+echo "  - Remove sandbox node_modules volumes"
 echo "  - Stop containers and delete volumes for: \$compose_project"
 echo "  - Remove worktree at: \$worktree_path"
 echo "  - Delete local branch: \$branch_name"
@@ -41,11 +42,21 @@ fi
 # Format: SANDBOX ID | TEMPLATE | NAME | WORKSPACE | STATUS | CREATED
 sandbox_id=\$(docker sandbox ls --no-trunc 2>/dev/null | awk -v name="\$compose_project" '\$3 == name {print \$1}')
 if [[ -n "\$sandbox_id" ]]; then
-  echo "Removing Docker Sandbox: \$sandbox_id (\$compose_project)"
+  echo "🐳 Removing Docker Sandbox: \$sandbox_id (\$compose_project)"
   docker sandbox rm "\$sandbox_id" 2>/dev/null || true
 else
-  echo "No Docker Sandbox found with name: \$compose_project"
+  echo "ℹ️  No Docker Sandbox found with name: \$compose_project"
 fi
+
+# Remove sandbox node_modules volumes
+echo "🗑️  Removing sandbox node_modules volumes..."
+docker volume rm "\${compose_project}_node_modules" 2>/dev/null || true
+docker volume rm "\${compose_project}_web_node_modules" 2>/dev/null || true
+docker volume rm "\${compose_project}_ui_node_modules" 2>/dev/null || true
+
+# Clean up node_modules directories (may have root ownership from Docker)
+echo "🧹 Cleaning up node_modules directories..."
+docker run --rm -v "\$worktree_path:/workspace" alpine rm -rf /workspace/node_modules /workspace/apps/web/node_modules /workspace/packages/ui/node_modules 2>/dev/null || true
 
 # Stop containers and remove volumes
 COMPOSE_PROJECT_NAME="\$compose_project" docker compose down -v
@@ -102,6 +113,7 @@ if [[ -n "\$PROJECT_REF" ]]; then
   echo "  - Delete Supabase branch: \$supabase_test_branch"
 fi
 echo "  - Stop Docker Sandbox: \$compose_project (if exists)"
+echo "  - Remove sandbox node_modules volumes"
 echo "  - Remove worktree at: \$worktree_path"
 echo "  - Delete local branch: \$branch_name"
 echo ""
@@ -148,6 +160,18 @@ else
   echo "  No Docker Sandbox found with name: \$compose_project"
 fi
 
+# Remove sandbox node_modules volumes
+echo ""
+echo "🗑️  Removing sandbox node_modules volumes..."
+docker volume rm "\${compose_project}_node_modules" 2>/dev/null || true
+docker volume rm "\${compose_project}_web_node_modules" 2>/dev/null || true
+docker volume rm "\${compose_project}_ui_node_modules" 2>/dev/null || true
+echo -e "  \${GREEN}✓ Node_modules volumes removed\${NC}"
+
+# Clean up node_modules directories (may have root ownership from Docker)
+echo "🧹 Cleaning up node_modules directories..."
+docker run --rm -v "\$worktree_path:/workspace" alpine rm -rf /workspace/node_modules /workspace/apps/web/node_modules /workspace/packages/ui/node_modules 2>/dev/null || true
+
 # Remove worktree and branch
 echo ""
 echo "Removing git worktree and branch..."
@@ -170,6 +194,7 @@ if [[ -n "\$PROJECT_REF" ]]; then
   echo "  - Supabase branches: \$supabase_branch_name, \$supabase_test_branch"
 fi
 echo "  - Docker Sandbox: \$compose_project"
+echo "  - Node_modules volumes"
 echo "  - Worktree: \$worktree_path"
 echo "  - Branch: \$branch_name"
 `;

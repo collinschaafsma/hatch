@@ -219,13 +219,24 @@ worktree_dir="\$(pwd)"
 
 echo "Launching iTerm2 with Claude Code sandbox and dev terminals..."
 
+# Pre-create node_modules volumes with correct ownership (agent user UID=1000)
+echo "📦 Creating node_modules volumes with correct ownership..."
+docker volume create "\${sandbox_name}_node_modules" >/dev/null 2>&1 || true
+docker volume create "\${sandbox_name}_web_node_modules" >/dev/null 2>&1 || true
+docker volume create "\${sandbox_name}_ui_node_modules" >/dev/null 2>&1 || true
+docker run --rm \\
+  -v "\${sandbox_name}_node_modules:/mnt/root" \\
+  -v "\${sandbox_name}_web_node_modules:/mnt/web" \\
+  -v "\${sandbox_name}_ui_node_modules:/mnt/ui" \\
+  alpine chown -R 1000:1000 /mnt/root /mnt/web /mnt/ui
+
 osascript <<APPLESCRIPT
 tell application "iTerm2"
     create window with default profile
     tell current window
         tell current session
             set name to "Claude Sandbox"
-            write text "cd '\$worktree_dir' && docker sandbox run --template '\$sandbox_image' --name '\$sandbox_name' --mount-docker-socket -v '\$HOME/.claude:/home/agent/.claude' -v '\$HOME/.claude.json:/home/agent/.claude.json' -w '\$worktree_dir' claude"
+            write text "cd '\$worktree_dir' && docker sandbox run --template '\$sandbox_image' --name '\$sandbox_name' --mount-docker-socket -v '\$HOME/.claude:/home/agent/.claude' -v '\${sandbox_name}_node_modules:\$worktree_dir/node_modules' -v '\${sandbox_name}_web_node_modules:\$worktree_dir/apps/web/node_modules' -v '\${sandbox_name}_ui_node_modules:\$worktree_dir/packages/ui/node_modules' -w '\$worktree_dir' claude"
 
             -- Split vertically to create right pane
             set rightPane to (split vertically with default profile)
@@ -468,13 +479,24 @@ worktree_dir="\$(pwd)"
 
 echo "Launching iTerm2 with Claude Code sandbox and dev terminals..."
 
+# Pre-create node_modules volumes with correct ownership (agent user UID=1000)
+echo "📦 Creating node_modules volumes with correct ownership..."
+docker volume create "\${sandbox_name}_node_modules" >/dev/null 2>&1 || true
+docker volume create "\${sandbox_name}_web_node_modules" >/dev/null 2>&1 || true
+docker volume create "\${sandbox_name}_ui_node_modules" >/dev/null 2>&1 || true
+docker run --rm \\
+  -v "\${sandbox_name}_node_modules:/mnt/root" \\
+  -v "\${sandbox_name}_web_node_modules:/mnt/web" \\
+  -v "\${sandbox_name}_ui_node_modules:/mnt/ui" \\
+  alpine chown -R 1000:1000 /mnt/root /mnt/web /mnt/ui
+
 osascript <<APPLESCRIPT
 tell application "iTerm2"
     create window with default profile
     tell current window
         tell current session
             set name to "Claude Sandbox"
-            write text "cd '\$worktree_dir' && docker sandbox run --template '\$sandbox_image' --name '\$sandbox_name' --mount-docker-socket -v '\$HOME/.claude:/home/agent/.claude' -v '\$HOME/.claude.json:/home/agent/.claude.json' -w '\$worktree_dir' claude"
+            write text "cd '\$worktree_dir' && docker sandbox run --template '\$sandbox_image' --name '\$sandbox_name' --mount-docker-socket -v '\$HOME/.claude:/home/agent/.claude' -v '\${sandbox_name}_node_modules:\$worktree_dir/node_modules' -v '\${sandbox_name}_web_node_modules:\$worktree_dir/apps/web/node_modules' -v '\${sandbox_name}_ui_node_modules:\$worktree_dir/packages/ui/node_modules' -w '\$worktree_dir' claude"
 
             -- Split vertically to create right pane
             set rightPane to (split vertically with default profile)
