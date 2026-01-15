@@ -543,7 +543,7 @@ run_migrations() {
     fi
 
     echo "  Waiting for database to provision (attempt \$attempt/\$max_attempts, status: \${status:-unknown})..."
-    sleep 10
+    sleep 60
   done
 
   # Get DATABASE_URL from saved credentials
