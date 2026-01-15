@@ -19,19 +19,25 @@ RUN unset NPM_CONFIG_PREFIX \\
     && nvm use default
 
 # Enable Corepack and install pnpm
+ENV PNPM_HOME="/home/agent/.local/share/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
 RUN unset NPM_CONFIG_PREFIX \\
     && . "$NVM_DIR/nvm.sh" \\
     && corepack enable \\
-    && corepack prepare pnpm@latest --activate
+    && corepack prepare pnpm@latest --activate \\
+    && pnpm setup \\
+    && . ~/.bashrc
 
 # Install biome globally for linting (node_modules may be from different platform)
 RUN unset NPM_CONFIG_PREFIX \\
     && . "$NVM_DIR/nvm.sh" \\
     && pnpm add -g @biomejs/biome
 
-# Add nvm to shell startup
+# Add nvm and pnpm to shell startup
 RUN echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.bashrc \\
     && echo '[ -s "$NVM_DIR/nvm.sh" ] && \\. "$NVM_DIR/nvm.sh"' >> ~/.bashrc \\
-    && echo '[ -s "$NVM_DIR/bash_completion" ] && \\. "$NVM_DIR/bash_completion"' >> ~/.bashrc
+    && echo '[ -s "$NVM_DIR/bash_completion" ] && \\. "$NVM_DIR/bash_completion"' >> ~/.bashrc \\
+    && echo 'export PNPM_HOME="/home/agent/.local/share/pnpm"' >> ~/.bashrc \\
+    && echo 'export PATH="$PNPM_HOME:$PATH"' >> ~/.bashrc
 `;
 }
