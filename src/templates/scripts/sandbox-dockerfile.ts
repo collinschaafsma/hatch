@@ -41,23 +41,14 @@ RUN echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.bashrc \\
     && echo 'export PNPM_HOME="/home/agent/.local/share/pnpm"' >> ~/.bashrc \\
     && echo 'export PATH="$PNPM_HOME:$PATH"' >> ~/.bashrc
 
-# Create entrypoint script that runs pnpm install before claude
-RUN cat > /home/agent/entrypoint.sh << 'ENTRY'
-#!/bin/bash
-source "$HOME/.bashrc"
-
-# Run pnpm install if package.json exists (rebuilds binaries for Linux)
-if [ -f "package.json" ]; then
-    echo "Running pnpm install to ensure Linux-compatible binaries..."
-    pnpm install --frozen-lockfile 2>/dev/null || pnpm install
-fi
-
-# Execute the original command
-exec "$@"
-ENTRY
-RUN chmod +x /home/agent/entrypoint.sh
-
-ENTRYPOINT ["/home/agent/entrypoint.sh"]
-CMD ["claude"]
+# Run pnpm install on first bash shell (rebuilds binaries for Linux)
+# Uses a flag file to ensure it only runs once per container session
+RUN echo '' >> ~/.bashrc \\
+    && echo '# Auto-run pnpm install once to rebuild binaries for Linux' >> ~/.bashrc \\
+    && echo 'if [ ! -f /tmp/.pnpm_installed ] && [ -f "$HOME/project/package.json" ]; then' >> ~/.bashrc \\
+    && echo '    echo "Running pnpm install to ensure Linux-compatible binaries..."' >> ~/.bashrc \\
+    && echo '    (cd "$HOME/project" && pnpm install --frozen-lockfile 2>/dev/null || pnpm install)' >> ~/.bashrc \\
+    && echo '    touch /tmp/.pnpm_installed' >> ~/.bashrc \\
+    && echo 'fi' >> ~/.bashrc
 `;
 }
