@@ -61,6 +61,23 @@ is_completed() {
   [[ -f "\$STATE_FILE" ]] && grep -q "^\$1$" "\$STATE_FILE"
 }
 
+# Construct DATABASE_URL from saved credentials
+# Returns empty string if credentials not available
+get_database_url() {
+  local project_ref="\$1"
+
+  if [[ ! -f ".supabase/.db-password" ]] || [[ ! -f ".supabase/.region" ]]; then
+    echo ""
+    return
+  fi
+
+  local db_password=\$(cat .supabase/.db-password)
+  local region=\$(cat .supabase/.region)
+
+  # Use transaction pooler (port 6543) for serverless compatibility
+  echo "postgresql://postgres.\${project_ref}:\${db_password}@aws-0-\${region}.pooler.supabase.com:6543/postgres"
+}
+
 # =============================================================================
 # Step 1: Check Prerequisites
 # =============================================================================
@@ -326,7 +343,7 @@ create_supabase_project() {
   fi
 
   # Check if project name already exists in user's Supabase account
-  local existing_project=\$(supabase projects list --json 2>/dev/null | jq -r ".[] | select(.name == \\"\$PROJECT_NAME\\") | .id" 2>/dev/null || echo "")
+  local existing_project=\$(supabase projects list -o json 2>/dev/null | jq -r ".[] | select(.name == \\"\$PROJECT_NAME\\") | .id" 2>/dev/null || echo "")
 
   if [[ -n "\$existing_project" ]]; then
     print_warning "Supabase project '\$PROJECT_NAME' already exists (ref: \$existing_project)"
@@ -400,8 +417,13 @@ create_new_supabase_project() {
   if supabase projects create "\$proj_name" --org-id "\$org_id" --db-password "\$db_password"; then
     print_success "Supabase project created"
 
-    # Look up the project reference by name
-    print_step "Fetching project reference..."
+    # Save password for later DATABASE_URL construction
+    mkdir -p .supabase
+    echo "\$db_password" > .supabase/.db-password
+    chmod 600 .supabase/.db-password
+
+    # Look up the project reference and region
+    print_step "Fetching project details..."
 
     local max_attempts=10
     local attempt=0
@@ -410,10 +432,13 @@ create_new_supabase_project() {
       attempt=\$((attempt + 1))
       echo "  Checking project status (attempt \$attempt/\$max_attempts)..."
 
-      PROJECT_REF=\$(supabase projects list --json 2>/dev/null | jq -r ".[] | select(.name == \\"\$proj_name\\") | .id" 2>/dev/null || echo "")
+      local project_info=\$(supabase projects list -o json 2>/dev/null | jq -r ".[] | select(.name == \\"\$proj_name\\")" 2>/dev/null || echo "")
 
-      if [[ -n "\$PROJECT_REF" ]]; then
-        print_success "Project is ready: \$PROJECT_REF"
+      if [[ -n "\$project_info" ]]; then
+        PROJECT_REF=\$(echo "\$project_info" | jq -r '.id')
+        local region=\$(echo "\$project_info" | jq -r '.region')
+        echo "\$region" > .supabase/.region
+        print_success "Project is ready: \$PROJECT_REF (region: \$region)"
         break
       fi
 
@@ -503,13 +528,34 @@ run_migrations() {
 
   local project_ref=\$(cat .supabase/.project-ref)
 
-  print_step "Fetching production database URL..."
-  local prod_db_url=\$(supabase db url --project-ref "\$project_ref" 2>/dev/null || echo "")
+  # Wait for database to be ACTIVE_HEALTHY
+  print_step "Waiting for database to be ready..."
+  local max_attempts=12
+  local attempt=0
+
+  while [[ \$attempt -lt \$max_attempts ]]; do
+    attempt=\$((attempt + 1))
+    local status=\$(supabase projects list -o json 2>/dev/null | jq -r ".[] | select(.id == \\"\$project_ref\\") | .status" 2>/dev/null || echo "")
+
+    if [[ "\$status" == "ACTIVE_HEALTHY" ]]; then
+      print_success "Database is ready"
+      break
+    fi
+
+    echo "  Waiting for database to provision (attempt \$attempt/\$max_attempts, status: \${status:-unknown})..."
+    sleep 10
+  done
+
+  # Get DATABASE_URL from saved credentials
+  local prod_db_url=\$(get_database_url "\$project_ref")
 
   if [[ -z "\$prod_db_url" ]]; then
-    print_warning "Could not fetch DATABASE_URL - skipping migrations"
-    echo "  You'll need to run migrations manually later:"
-    echo "  cd apps/web && pnpm db:push"
+    print_warning "Database credentials not available - skipping migrations"
+    echo "  You can run migrations manually later:"
+    echo "  cd apps/web && DATABASE_URL='your-url' pnpm db:push"
+    echo ""
+    echo "  Get your DATABASE_URL from:"
+    echo "  https://supabase.com/dashboard/project/\$project_ref/settings/database"
     return 0
   fi
 
@@ -615,21 +661,7 @@ configure_database_environments() {
   fi
 
   # -------------------------------------------------------------------------
-  # Step 11a: Get Production Database URL (main branch)
-  # -------------------------------------------------------------------------
-  print_step "Fetching production database URL..."
-  local prod_db_url=\$(supabase db url --project-ref "\$project_ref" 2>/dev/null || echo "")
-
-  if [[ -z "\$prod_db_url" ]]; then
-    print_warning "Could not fetch production DATABASE_URL"
-    echo "You'll need to add it manually from:"
-    echo "  https://supabase.com/dashboard/project/\$project_ref/settings/database"
-  else
-    print_success "Got production DATABASE_URL"
-  fi
-
-  # -------------------------------------------------------------------------
-  # Step 11b: Create Development Branches (dev, dev-test, preview)
+  # Step 11a: Create Development Branches (dev, dev-test)
   # -------------------------------------------------------------------------
   print_step "Setting up database branches..."
   echo ""
@@ -712,30 +744,29 @@ configure_database_environments() {
   fi
 
   # -------------------------------------------------------------------------
-  # Step 11c: Configure Vercel Environment Variables
+  # Step 11b: Configure Vercel Production DATABASE_URL
   # -------------------------------------------------------------------------
   if [[ -f "apps/web/.vercel/project.json" ]]; then
     echo ""
-    print_step "Configuring Vercel environment variables..."
+    print_step "Configuring Vercel production DATABASE_URL..."
 
-    # Set production DATABASE_URL
+    local prod_db_url=\$(get_database_url "\$project_ref")
+
     if [[ -n "\$prod_db_url" ]]; then
-      echo "  Setting DATABASE_URL for production..."
       if printf '%s' "\$prod_db_url" | vercel env add DATABASE_URL production --cwd apps/web 2>/dev/null; then
-        print_success "  Production DATABASE_URL set"
+        print_success "Production DATABASE_URL set in Vercel"
       else
-        echo -e "    \${YELLOW}⚠ Could not set production DATABASE_URL (may already exist)\${NC}"
+        echo -e "  \${YELLOW}⚠ Could not set DATABASE_URL (may already exist)\${NC}"
       fi
+    else
+      print_warning "Could not get DATABASE_URL - add it manually in Vercel dashboard"
     fi
-
-    # Note: Preview DATABASE_URL is handled by Supabase Vercel Integration
-  else
-    print_warning "Vercel not linked, skipping env var configuration"
   fi
 
   # -------------------------------------------------------------------------
-  # Step 11d: Setup Supabase Vercel Integration (for preview branches)
+  # Step 11c: Setup Supabase Vercel Integration (optional)
   # -------------------------------------------------------------------------
+  # The integration can handle preview branch DATABASE_URLs automatically
   if [[ "\$branching_enabled" == "true" ]] && [[ -f "apps/web/.vercel/project.json" ]]; then
     echo ""
     print_step "Supabase Vercel Integration Setup"
@@ -787,20 +818,26 @@ configure_database_environments() {
   fi
 
   # -------------------------------------------------------------------------
-  # Step 11e: Configure Local .env.local
+  # Step 11d: Configure Local .env.local
   # -------------------------------------------------------------------------
   echo ""
   print_step "Configuring local .env.local..."
 
-  # Use dev branch URL for local development, fallback to production
-  local local_db_url="\${dev_db_url:-\$prod_db_url}"
-  local local_test_db_url="\${dev_test_db_url:-}"
+  # Use dev branch URL for local development
+  local local_db_url="\$dev_db_url"
+  local local_test_db_url="\$dev_test_db_url"
+
+  # If no branches, fall back to production URL for local dev
+  if [[ -z "\$local_db_url" ]] && [[ "\$branching_enabled" != "true" ]]; then
+    print_step "Using production database URL for local development..."
+    local_db_url=\$(get_database_url "\$project_ref")
+  fi
 
   if [[ -n "\$local_db_url" ]]; then
     update_env_var "\$env_file" "DATABASE_URL" "\$local_db_url"
     print_success "DATABASE_URL configured for local development"
   else
-    print_warning "Could not configure DATABASE_URL"
+    print_warning "Could not configure DATABASE_URL - add it manually to .env.local"
   fi
 
   if [[ -n "\$local_test_db_url" ]]; then
@@ -811,14 +848,12 @@ configure_database_environments() {
   echo ""
   print_success "Database environments configured!"
   echo ""
-  echo "  Production (Vercel):  Main Supabase database"
+  echo "  Production (Vercel):  DATABASE_URL configured"
   if [[ "\$branching_enabled" == "true" ]]; then
-    echo "  Preview (Vercel):     Auto-created per PR (via Supabase Integration)"
+    echo "  Preview (Vercel):     Via Supabase Integration (if configured)"
     echo "  Development (local):  'dev' branch"
     echo "  Tests (local):        'dev-test' branch"
-    echo "  Worktrees (wts):      Per-branch databases created on demand"
   else
-    echo "  Preview (Vercel):     Main database (no branching)"
     echo "  Development (local):  Main database (no branching)"
   fi
 }
@@ -894,7 +929,7 @@ print_summary() {
 
   echo ""
   if [[ "\$USE_DOCKER" != "true" ]]; then
-    echo "  Vercel DATABASE_URL has been configured automatically."
+    echo "  Vercel production DATABASE_URL has been configured."
     echo "  Add any additional env vars in the Vercel dashboard."
   else
     echo "  For deployment, configure DATABASE_URL in Vercel:"
