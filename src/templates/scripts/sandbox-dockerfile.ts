@@ -19,6 +19,7 @@ RUN unset NPM_CONFIG_PREFIX \\
     && nvm use default
 
 # Enable Corepack and install pnpm
+ENV SHELL="/bin/bash"
 ENV PNPM_HOME="/home/agent/.local/share/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN unset NPM_CONFIG_PREFIX \\
