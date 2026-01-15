@@ -273,7 +273,7 @@ export const createCommand = new Command()
 						packageRoot,
 						".claude",
 						"skills",
-						"react-best-practices",
+						"vercel-react-best-practices",
 					);
 					const reactSkillDest = path.join(
 						projectPath,
