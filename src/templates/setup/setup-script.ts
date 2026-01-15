@@ -995,6 +995,26 @@ commit_and_deploy() {
     fi
   else
     print_success "Already up to date with remote"
+    echo ""
+    echo "  No new commits to push, but you may still want to deploy."
+    read -p "Trigger a production deployment via Vercel CLI? (Y/n) " do_cli_deploy
+    do_cli_deploy=\${do_cli_deploy:-Y}
+
+    if [[ "\$do_cli_deploy" == [yY] ]]; then
+      print_step "Deploying to production..."
+      if vercel --prod --cwd apps/web --yes; then
+        print_success "Production deployment triggered!"
+        echo ""
+        echo "  Your app will be live at:"
+        echo "  https://\$PROJECT_NAME.vercel.app"
+      else
+        print_warning "Deployment failed - try manually with: vercel --prod --cwd apps/web"
+      fi
+    else
+      print_step "Skipping deploy"
+      echo "  Deploy later with: vercel --prod --cwd apps/web"
+      echo "  Your app will be at: https://\$PROJECT_NAME.vercel.app"
+    fi
   fi
 }
 
