@@ -40,5 +40,24 @@ RUN echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.bashrc \\
     && echo '[ -s "$NVM_DIR/bash_completion" ] && \\. "$NVM_DIR/bash_completion"' >> ~/.bashrc \\
     && echo 'export PNPM_HOME="/home/agent/.local/share/pnpm"' >> ~/.bashrc \\
     && echo 'export PATH="$PNPM_HOME:$PATH"' >> ~/.bashrc
+
+# Create entrypoint script that runs pnpm install before claude
+RUN cat > /home/agent/entrypoint.sh << 'ENTRY'
+#!/bin/bash
+source "$HOME/.bashrc"
+
+# Run pnpm install if package.json exists (rebuilds binaries for Linux)
+if [ -f "package.json" ]; then
+    echo "Running pnpm install to ensure Linux-compatible binaries..."
+    pnpm install --frozen-lockfile 2>/dev/null || pnpm install
+fi
+
+# Execute the original command
+exec "$@"
+ENTRY
+RUN chmod +x /home/agent/entrypoint.sh
+
+ENTRYPOINT ["/home/agent/entrypoint.sh"]
+CMD ["claude"]
 `;
 }
