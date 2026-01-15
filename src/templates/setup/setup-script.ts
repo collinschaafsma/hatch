@@ -948,6 +948,57 @@ print_summary() {
 }
 
 # =============================================================================
+# Step 12: Commit Setup Changes and Deploy
+# =============================================================================
+
+commit_and_deploy() {
+  print_header "Deploying to Production"
+
+  # Check if there are any changes to commit
+  if git diff --quiet && git diff --cached --quiet; then
+    print_step "No setup changes to commit"
+  else
+    print_step "Committing setup changes..."
+    git add -A
+    git commit -m "chore: configure project setup
+
+- Add Vercel project configuration
+- Update .gitignore with Vercel entries
+- Configure environment files" 2>/dev/null || true
+  fi
+
+  # Check if we need to push
+  local unpushed=\$(git log origin/main..HEAD --oneline 2>/dev/null | wc -l | tr -d ' ')
+
+  if [[ "\$unpushed" -gt 0 ]]; then
+    echo ""
+    read -p "Push to main and trigger production deploy? (Y/n) " do_deploy
+    do_deploy=\${do_deploy:-Y}
+
+    if [[ "\$do_deploy" == [yY] ]]; then
+      print_step "Pushing to main..."
+      if git push origin main; then
+        print_success "Pushed to main - deployment triggered!"
+        echo ""
+        echo "  Your app will be live at:"
+        echo "  https://\$PROJECT_NAME.vercel.app"
+        echo ""
+        echo "  View deployment progress at:"
+        echo "  https://vercel.com/dashboard"
+      else
+        print_warning "Push failed - deploy manually with: git push origin main"
+      fi
+    else
+      print_step "Skipping deploy"
+      echo "  Deploy later with: git push origin main"
+      echo "  Your app will be at: https://\$PROJECT_NAME.vercel.app"
+    fi
+  else
+    print_success "Already up to date with remote"
+  fi
+}
+
+# =============================================================================
 # Main Execution
 # =============================================================================
 
@@ -976,6 +1027,7 @@ main() {
   setup_vercel
   pull_vercel_env
   configure_database_environments
+  commit_and_deploy
   print_summary
 }
 
