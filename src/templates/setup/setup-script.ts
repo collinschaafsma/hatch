@@ -591,21 +591,30 @@ setup_vercel() {
   fi
 
   print_step "Setting up Vercel project..."
-  echo ""
-  echo "Linking Vercel to apps/web (where your Next.js app lives)."
-  echo ""
 
-  # Run vercel link from apps/web so Vercel correctly identifies the root
+  # Run vercel link with project name and --yes to skip prompts
   cd apps/web
-  vercel link
-  cd ../..
+  vercel link --project "\$PROJECT_NAME" --yes
 
-  if [[ -f "apps/web/.vercel/project.json" ]]; then
+  if [[ -f ".vercel/project.json" ]]; then
+    print_success "Vercel project linked: \$PROJECT_NAME"
+
+    # Connect Git repository for automatic deployments
+    local git_url=\$(git remote get-url origin 2>/dev/null || echo "")
+    if [[ -n "\$git_url" ]]; then
+      print_step "Connecting Git repository..."
+      if vercel git connect "\$git_url" 2>/dev/null; then
+        print_success "Git repository connected"
+      else
+        print_warning "Could not auto-connect Git - connect manually in Vercel dashboard"
+      fi
+    fi
     mark_completed "vercel_project"
-    print_success "Vercel project linked to apps/web"
   else
     print_warning "Vercel project may not be fully configured"
   fi
+
+  cd ../..
 }
 
 # =============================================================================
