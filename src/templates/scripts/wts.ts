@@ -236,7 +236,7 @@ tell application "iTerm2"
     tell current window
         tell current session
             set name to "Claude Sandbox"
-            write text "cd '\$worktree_dir' && docker sandbox run --template '\$sandbox_image' --name '\$sandbox_name' --mount-docker-socket -v '\$HOME/.claude:/home/agent/.claude' -v '\${sandbox_name}_node_modules:\$worktree_dir/node_modules' -v '\${sandbox_name}_web_node_modules:\$worktree_dir/apps/web/node_modules' -v '\${sandbox_name}_ui_node_modules:\$worktree_dir/packages/ui/node_modules' -w '\$worktree_dir' claude"
+            write text "cd '\$worktree_dir' && docker sandbox run --template '\$sandbox_image' --name '\$sandbox_name' --mount-docker-socket -v '\$HOME/.claude:/home/agent/.claude' -v '\$original_dir/.git:\$original_dir/.git' -v '\${sandbox_name}_node_modules:\$worktree_dir/node_modules' -v '\${sandbox_name}_web_node_modules:\$worktree_dir/apps/web/node_modules' -v '\${sandbox_name}_ui_node_modules:\$worktree_dir/packages/ui/node_modules' -w '\$worktree_dir' claude"
 
             -- Split vertically to create right pane
             set rightPane to (split vertically with default profile)
@@ -496,7 +496,7 @@ tell application "iTerm2"
     tell current window
         tell current session
             set name to "Claude Sandbox"
-            write text "cd '\$worktree_dir' && docker sandbox run --template '\$sandbox_image' --name '\$sandbox_name' --mount-docker-socket -v '\$HOME/.claude:/home/agent/.claude' -v '\${sandbox_name}_node_modules:\$worktree_dir/node_modules' -v '\${sandbox_name}_web_node_modules:\$worktree_dir/apps/web/node_modules' -v '\${sandbox_name}_ui_node_modules:\$worktree_dir/packages/ui/node_modules' -w '\$worktree_dir' claude"
+            write text "cd '\$worktree_dir' && docker sandbox run --template '\$sandbox_image' --name '\$sandbox_name' --mount-docker-socket -v '\$HOME/.claude:/home/agent/.claude' -v '\$original_dir/.git:\$original_dir/.git' -v '\${sandbox_name}_node_modules:\$worktree_dir/node_modules' -v '\${sandbox_name}_web_node_modules:\$worktree_dir/apps/web/node_modules' -v '\${sandbox_name}_ui_node_modules:\$worktree_dir/packages/ui/node_modules' -w '\$worktree_dir' claude"
 
             -- Split vertically to create right pane
             set rightPane to (split vertically with default profile)
