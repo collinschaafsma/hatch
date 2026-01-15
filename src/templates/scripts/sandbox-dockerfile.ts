@@ -45,9 +45,9 @@ RUN echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.bashrc \\
 # Uses a flag file to ensure it only runs once per container session
 RUN echo '' >> ~/.bashrc \\
     && echo '# Auto-run pnpm install once to rebuild binaries for Linux' >> ~/.bashrc \\
-    && echo 'if [ ! -f /tmp/.pnpm_installed ] && [ -f "$HOME/project/package.json" ]; then' >> ~/.bashrc \\
+    && echo 'if [ ! -f /tmp/.pnpm_installed ] && [ -f "package.json" ]; then' >> ~/.bashrc \\
     && echo '    echo "Running pnpm install to ensure Linux-compatible binaries..."' >> ~/.bashrc \\
-    && echo '    (cd "$HOME/project" && pnpm install --frozen-lockfile 2>/dev/null || pnpm install)' >> ~/.bashrc \\
+    && echo '    pnpm install --frozen-lockfile 2>/dev/null || pnpm install' >> ~/.bashrc \\
     && echo '    touch /tmp/.pnpm_installed' >> ~/.bashrc \\
     && echo 'fi' >> ~/.bashrc
 `;
