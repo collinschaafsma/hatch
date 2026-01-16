@@ -1,7 +1,10 @@
 export function generateGlobalsCss(): string {
 	return `@import "tailwindcss";
+@import "tw-animate-css";
 
 @source "../../packages/ui/src/**/*.{ts,tsx}";
+
+@custom-variant dark (&:is(.dark *));
 
 :root {
 	--background: hsl(0 0% 100%);
@@ -72,15 +75,17 @@ export function generateGlobalsCss(): string {
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);
 	--radius-xl: calc(var(--radius) + 4px);
+	--radius-2xl: calc(var(--radius) + 8px);
+	--radius-3xl: calc(var(--radius) + 12px);
+	--radius-4xl: calc(var(--radius) + 16px);
 }
 
 @layer base {
 	* {
-		border-color: var(--color-border);
+		@apply border-border outline-ring/50;
 	}
 	body {
-		background-color: var(--color-background);
-		color: var(--color-foreground);
+		@apply bg-background text-foreground;
 	}
 }
 

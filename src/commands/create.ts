@@ -350,6 +350,10 @@ export const createCommand = new Command()
 						path.join(webPath, ".gitignore"),
 						templates.generateWebGitignore(),
 					);
+					await writeFile(
+						path.join(webPath, "components.json"),
+						templates.generateWebComponentsJson(),
+					);
 
 					// App files
 					await writeFile(

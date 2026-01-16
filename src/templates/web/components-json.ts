@@ -1,4 +1,4 @@
-export function generateUIComponentsJson(): string {
+export function generateWebComponentsJson(): string {
 	return `${JSON.stringify(
 		{
 			$schema: "https://ui.shadcn.com/schema.json",
@@ -7,17 +7,17 @@ export function generateUIComponentsJson(): string {
 			tsx: true,
 			tailwind: {
 				config: "",
-				css: "../../apps/web/app/globals.css",
+				css: "app/globals.css",
 				baseColor: "slate",
 				cssVariables: true,
 			},
 			iconLibrary: "lucide",
 			aliases: {
-				components: "@workspace/ui/components",
+				components: "@/components",
+				hooks: "@/hooks",
+				lib: "@/lib",
 				utils: "@workspace/ui/lib/utils",
 				ui: "@workspace/ui/components",
-				hooks: "@workspace/ui/hooks",
-				lib: "@workspace/ui/lib",
 			},
 		},
 		null,
