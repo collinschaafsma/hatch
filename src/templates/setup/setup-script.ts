@@ -946,27 +946,27 @@ configure_database_environments() {
 
     if [[ "\$setup_integration" == [yY] ]]; then
       echo ""
-      echo "  Opening Vercel Integrations page..."
+      echo "  Opening Vercel projects page..."
       echo ""
       echo "  Steps to complete:"
-      echo "    1. Click 'Browse Marketplace' or find 'Supabase'"
-      echo "    2. Click 'Add Integration' or 'Manage'"
-      echo "    3. Select your Vercel project"
+      echo "    1. Select your project: \$PROJECT_NAME"
+      echo "    2. Go to Settings → Integrations → Browse Marketplace"
+      echo "    3. Find and add 'Supabase' integration"
       echo "    4. Connect to your existing Supabase project: \$project_ref"
       echo "    5. Enable 'Preview Branches' option"
       echo ""
 
-      # Get Vercel project info (orgId is the team/user slug)
+      # Get Vercel org info (orgId is the team/user slug)
       local vercel_org_id=""
       if [[ -f "apps/web/.vercel/project.json" ]]; then
         vercel_org_id=\$(jq -r '.orgId // empty' apps/web/.vercel/project.json 2>/dev/null || echo "")
       fi
 
-      # Open Vercel integrations page
+      # Open Vercel projects page
       if [[ -n "\$vercel_org_id" ]]; then
-        open "https://vercel.com/\$vercel_org_id/~/integrations" 2>/dev/null || echo "  URL: https://vercel.com/\$vercel_org_id/~/integrations"
+        open "https://vercel.com/\$vercel_org_id" 2>/dev/null || echo "  URL: https://vercel.com/\$vercel_org_id"
       else
-        open "https://vercel.com/integrations/supabase" 2>/dev/null || echo "  URL: https://vercel.com/integrations/supabase"
+        open "https://vercel.com/dashboard" 2>/dev/null || echo "  URL: https://vercel.com/dashboard"
       fi
 
       echo ""
