@@ -4,10 +4,19 @@ export function generateTestMocks(): string {
 export function createFetchMock(responses: Record<string, unknown> = {}) {
 	return vi.fn((url: string) => {
 		const response = responses[url] || { ok: true, data: {} };
+
+		// Create a mock readable stream body for SSE endpoints
+		const mockBody = {
+			getReader: () => ({
+				read: () => Promise.resolve({ done: true, value: undefined }),
+			}),
+		};
+
 		return Promise.resolve({
 			ok: true,
 			json: () => Promise.resolve(response),
 			text: () => Promise.resolve(JSON.stringify(response)),
+			body: mockBody,
 			...response,
 		});
 	});

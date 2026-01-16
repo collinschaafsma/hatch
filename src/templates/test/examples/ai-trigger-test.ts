@@ -52,6 +52,13 @@ describe("AITriggerButton", () => {
 	});
 
 	it("shows loading state when triggered", async () => {
+		// Create a mock readable stream body for SSE endpoints
+		const mockBody = {
+			getReader: () => ({
+				read: () => Promise.resolve({ done: true, value: undefined }),
+			}),
+		};
+
 		// Use a delayed mock to capture the loading state
 		global.fetch = vi.fn<typeof fetch>(() =>
 			new Promise((resolve) =>
@@ -60,6 +67,7 @@ describe("AITriggerButton", () => {
 						resolve({
 							ok: true,
 							json: () => Promise.resolve({ runId: "test-run-123" }),
+							body: mockBody,
 						} as Response),
 					100,
 				),

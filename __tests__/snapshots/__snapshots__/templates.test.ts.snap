@@ -1639,11 +1639,13 @@ import { useLatest } from "@/hooks/use-latest";
 
 export function AITriggerButton() {
 	const [prompt, setPrompt] = useState("What are 3 interesting facts about TypeScript?");
+	const [isPending, setIsPending] = useState(false);
 	const { state, startWithRunId, setError, reset } = useWorkflowProgress();
 	const promptRef = useLatest(prompt);
 
 	const handleTrigger = useCallback(async () => {
 		reset();
+		setIsPending(true);
 
 		try {
 			const response = await fetch("/api/workflow", {
@@ -1662,6 +1664,8 @@ export function AITriggerButton() {
 			startWithRunId(data.runId);
 		} catch (error) {
 			setError(error instanceof Error ? error.message : "Failed to start workflow");
+		} finally {
+			setIsPending(false);
 		}
 	}, [promptRef, reset, setError, startWithRunId]);
 
@@ -1671,7 +1675,7 @@ export function AITriggerButton() {
 		});
 	}, []);
 
-	const isRunning = state.status === "generating";
+	const isRunning = isPending || state.status === "generating";
 
 	return (
 		<div className="space-y-4">
@@ -1693,8 +1697,9 @@ export function AITriggerButton() {
 			{/* Progress indicator */}
 			{state.status === "generating" && (
 				<div className="p-4 bg-blue-50 text-blue-800 rounded border border-blue-200 dark:bg-blue-950 dark:text-blue-200 dark:border-blue-800">
+					<div className="font-medium mb-1">Workflow started! Run ID: {state.runId}</div>
 					<div className="flex items-center justify-between mb-2">
-						<span className="font-medium">Processing</span>
+						<span className="text-sm">Processing</span>
 						<span className="text-sm">
 							Step {state.step} of {state.totalSteps}
 						</span>
@@ -4850,7 +4855,7 @@ run_migrations() {
     fi
 
     echo "  Waiting for database to provision (attempt $attempt/$max_attempts, status: \${status:-unknown})..."
-    sleep 10
+    sleep 60
   done
 
   # Get DATABASE_URL from saved credentials
@@ -5302,6 +5307,26 @@ commit_and_deploy() {
     fi
   else
     print_success "Already up to date with remote"
+    echo ""
+    echo "  No new commits to push, but you may still want to deploy."
+    read -p "Trigger a production deployment via Vercel CLI? (Y/n) " do_cli_deploy
+    do_cli_deploy=\${do_cli_deploy:-Y}
+
+    if [[ "$do_cli_deploy" == [yY] ]]; then
+      print_step "Deploying to production..."
+      if vercel --prod --cwd apps/web --yes; then
+        print_success "Production deployment triggered!"
+        echo ""
+        echo "  Your app will be live at:"
+        echo "  https://$PROJECT_NAME.vercel.app"
+      else
+        print_warning "Deployment failed - try manually with: vercel --prod --cwd apps/web"
+      fi
+    else
+      print_step "Skipping deploy"
+      echo "  Deploy later with: vercel --prod --cwd apps/web"
+      echo "  Your app will be at: https://$PROJECT_NAME.vercel.app"
+    fi
   fi
 }
 
@@ -5850,6 +5875,13 @@ describe("AITriggerButton", () => {
 	});
 
 	it("shows loading state when triggered", async () => {
+		// Create a mock readable stream body for SSE endpoints
+		const mockBody = {
+			getReader: () => ({
+				read: () => Promise.resolve({ done: true, value: undefined }),
+			}),
+		};
+
 		// Use a delayed mock to capture the loading state
 		global.fetch = vi.fn<typeof fetch>(() =>
 			new Promise((resolve) =>
@@ -5858,6 +5890,7 @@ describe("AITriggerButton", () => {
 						resolve({
 							ok: true,
 							json: () => Promise.resolve({ runId: "test-run-123" }),
+							body: mockBody,
 						} as Response),
 					100,
 				),
@@ -6182,10 +6215,19 @@ exports[`template snapshots > test templates > generateTestMocks 1`] = `
 export function createFetchMock(responses: Record<string, unknown> = {}) {
 	return vi.fn((url: string) => {
 		const response = responses[url] || { ok: true, data: {} };
+
+		// Create a mock readable stream body for SSE endpoints
+		const mockBody = {
+			getReader: () => ({
+				read: () => Promise.resolve({ done: true, value: undefined }),
+			}),
+		};
+
 		return Promise.resolve({
 			ok: true,
 			json: () => Promise.resolve(response),
 			text: () => Promise.resolve(JSON.stringify(response)),
+			body: mockBody,
 			...response,
 		});
 	});

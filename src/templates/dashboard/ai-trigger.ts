@@ -10,11 +10,13 @@ import { useLatest } from "@/hooks/use-latest";
 
 export function AITriggerButton() {
 	const [prompt, setPrompt] = useState("What are 3 interesting facts about TypeScript?");
+	const [isPending, setIsPending] = useState(false);
 	const { state, startWithRunId, setError, reset } = useWorkflowProgress();
 	const promptRef = useLatest(prompt);
 
 	const handleTrigger = useCallback(async () => {
 		reset();
+		setIsPending(true);
 
 		try {
 			const response = await fetch("/api/workflow", {
@@ -33,6 +35,8 @@ export function AITriggerButton() {
 			startWithRunId(data.runId);
 		} catch (error) {
 			setError(error instanceof Error ? error.message : "Failed to start workflow");
+		} finally {
+			setIsPending(false);
 		}
 	}, [promptRef, reset, setError, startWithRunId]);
 
@@ -42,7 +46,7 @@ export function AITriggerButton() {
 		});
 	}, []);
 
-	const isRunning = state.status === "generating";
+	const isRunning = isPending || state.status === "generating";
 
 	return (
 		<div className="space-y-4">
@@ -64,8 +68,9 @@ export function AITriggerButton() {
 			{/* Progress indicator */}
 			{state.status === "generating" && (
 				<div className="p-4 bg-blue-50 text-blue-800 rounded border border-blue-200 dark:bg-blue-950 dark:text-blue-200 dark:border-blue-800">
+					<div className="font-medium mb-1">Workflow started! Run ID: {state.runId}</div>
 					<div className="flex items-center justify-between mb-2">
-						<span className="font-medium">Processing</span>
+						<span className="text-sm">Processing</span>
 						<span className="text-sm">
 							Step {state.step} of {state.totalSteps}
 						</span>
