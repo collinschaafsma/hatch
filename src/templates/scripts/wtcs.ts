@@ -124,12 +124,14 @@ if [[ "\$confirm" != [yY] ]]; then
   exit 0
 fi
 
-# Delete Supabase branches
+# Delete Supabase branches (must disable persistence first)
 if [[ -n "\$PROJECT_REF" ]]; then
   echo ""
   echo "Deleting Supabase branches..."
 
   echo "  Deleting '\$supabase_branch_name'..."
+  # Disable persistence first (required before deletion)
+  supabase branches update "\$supabase_branch_name" --persistent=false --project-ref "\$PROJECT_REF" 2>/dev/null || true
   if supabase branches delete "\$supabase_branch_name" --project-ref "\$PROJECT_REF" --yes 2>/dev/null; then
     echo -e "  \${GREEN}✓ \$supabase_branch_name deleted\${NC}"
   else
@@ -137,6 +139,8 @@ if [[ -n "\$PROJECT_REF" ]]; then
   fi
 
   echo "  Deleting '\$supabase_test_branch'..."
+  # Disable persistence first (required before deletion)
+  supabase branches update "\$supabase_test_branch" --persistent=false --project-ref "\$PROJECT_REF" 2>/dev/null || true
   if supabase branches delete "\$supabase_test_branch" --project-ref "\$PROJECT_REF" --yes 2>/dev/null; then
     echo -e "  \${GREEN}✓ \$supabase_test_branch deleted\${NC}"
   else
