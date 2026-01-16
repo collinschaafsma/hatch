@@ -346,6 +346,10 @@ export const createCommand = new Command()
 						path.join(webPath, "vercel.json"),
 						templates.generateVercelJson(),
 					);
+					await writeFile(
+						path.join(webPath, ".gitignore"),
+						templates.generateWebGitignore(),
+					);
 
 					// App files
 					await writeFile(

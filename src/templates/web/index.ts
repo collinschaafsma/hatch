@@ -8,3 +8,4 @@ export { generateTailwindConfig } from "./tailwind-config.js";
 export { generatePostcssConfig } from "./postcss-config.js";
 export { generateEnvExample } from "./env-example.js";
 export { generateVercelJson } from "./vercel-json.js";
+export { generateWebGitignore } from "./gitignore.js";
