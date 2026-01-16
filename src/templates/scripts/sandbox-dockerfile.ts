@@ -9,6 +9,9 @@ ENV NPM_CONFIG_PREFIX=""
 # Note: Shift+Enter doesn't work in Docker sandbox - use \\ + Enter for newlines
 ENV TERM=xterm-256color
 
+# Use relative cache dir to avoid absolute path issues across worktrees
+ENV TURBO_CACHE_DIR=".turbo/cache"
+
 # Install nvm and Node.js LTS (jod = v22)
 ENV NVM_DIR="/home/agent/.nvm"
 RUN unset NPM_CONFIG_PREFIX \\
