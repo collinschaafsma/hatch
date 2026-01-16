@@ -14,10 +14,10 @@ export async function POST(req: Request) {
 			);
 		}
 
-		const result = await start(aiAgentWorkflow, [prompt]);
+		const run = await start(aiAgentWorkflow, [prompt]);
 
 		return NextResponse.json({
-			result,
+			runId: run.runId,
 			status: "started",
 		});
 	} catch (error) {

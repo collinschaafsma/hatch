@@ -64,10 +64,11 @@ export async function aiAgentWorkflow(prompt: string): Promise<string> {
 	try {
 		// Step 1: Initialize
 		await emitProgress("initializing");
-		await initializeWorkflow();
+		await sleep("500ms");
 
 		// Step 2: Analyze prompt
 		await emitProgress("analyzing");
+		await sleep("500ms");
 		const processedPrompt = await analyzePrompt(prompt);
 
 		// Step 3: Generate AI response
@@ -76,6 +77,7 @@ export async function aiAgentWorkflow(prompt: string): Promise<string> {
 
 		// Step 4: Process results
 		await emitProgress("processing");
+		await sleep("500ms");
 		const processedResponse = await processResults(response);
 
 		// Step 5: Finalize
@@ -90,16 +92,9 @@ export async function aiAgentWorkflow(prompt: string): Promise<string> {
 	}
 }
 
-async function initializeWorkflow(): Promise<void> {
-	"use step";
-	// Simulate initialization delay
-	await sleep("500ms");
-}
-
 async function analyzePrompt(prompt: string): Promise<string> {
 	"use step";
 	// Add any preprocessing logic here
-	await sleep("300ms");
 	return \`User request: \${prompt}\`;
 }
 
@@ -118,7 +113,6 @@ async function generateAIResponse(prompt: string): Promise<string> {
 async function processResults(response: string): Promise<string> {
 	"use step";
 	// Add any post-processing logic here
-	await sleep("200ms");
 	return response;
 }
 `;
