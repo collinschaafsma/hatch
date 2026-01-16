@@ -12,7 +12,7 @@
 		"build": "tsup src/index.ts --format esm --dts",
 		"lint": "biome check .",
 		"format": "biome format --write .",
-    "typecheck": "tsc --noEmit",
+		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:ui": "vitest --ui",

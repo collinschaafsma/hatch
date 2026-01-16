@@ -216,7 +216,7 @@ export const createCommand = new Command()
 					const setupScriptPath = path.join(projectPath, "scripts", "setup");
 					await writeFile(
 						setupScriptPath,
-						templates.generateSetupScript(useDocker, name),
+						templates.generateSetupScript(useDocker, name, useWorkOS),
 					);
 					await setExecutable(setupScriptPath);
 

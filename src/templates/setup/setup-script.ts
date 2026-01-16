@@ -1,6 +1,7 @@
 export function generateSetupScript(
 	useDocker: boolean,
 	projectName: string,
+	useWorkOS: boolean,
 ): string {
 	return `#!/usr/bin/env bash
 set -e
@@ -20,6 +21,7 @@ NC='\\033[0m' # No Color
 # Project configuration (embedded at generation time)
 PROJECT_NAME="${projectName}"
 USE_DOCKER=${useDocker ? "true" : "false"}
+USE_WORKOS=${useWorkOS ? "true" : "false"}
 
 # State tracking file for idempotency
 STATE_FILE=".setup-state"
@@ -618,6 +620,108 @@ setup_vercel() {
 }
 
 # =============================================================================
+# Step 9b: Configure Auth Secrets
+# =============================================================================
+
+setup_auth_secrets() {
+  if [[ ! -f "apps/web/.vercel/project.json" ]]; then
+    print_warning "Vercel project not linked, skipping auth secret setup"
+    return 0
+  fi
+
+  if [[ "\$USE_WORKOS" == "true" ]]; then
+    setup_workos_secrets
+  else
+    setup_better_auth_secrets
+  fi
+}
+
+setup_better_auth_secrets() {
+  print_header "Configuring Better Auth Secrets"
+
+  print_step "Generating unique secrets for each environment..."
+
+  local prod_secret=\$(openssl rand -base64 32)
+  local preview_secret=\$(openssl rand -base64 32)
+  local dev_secret=\$(openssl rand -base64 32)
+
+  # Add BETTER_AUTH_SECRET to each environment
+  print_step "Adding BETTER_AUTH_SECRET to production..."
+  if printf '%s' "\$prod_secret" | vercel env add BETTER_AUTH_SECRET production --sensitive --cwd apps/web --force 2>/dev/null; then
+    print_success "Production BETTER_AUTH_SECRET configured"
+  else
+    print_warning "Could not set production secret (may already exist)"
+  fi
+
+  print_step "Adding BETTER_AUTH_SECRET to preview..."
+  if printf '%s' "\$preview_secret" | vercel env add BETTER_AUTH_SECRET preview --sensitive --cwd apps/web --force 2>/dev/null; then
+    print_success "Preview BETTER_AUTH_SECRET configured"
+  else
+    print_warning "Could not set preview secret (may already exist)"
+  fi
+
+  print_step "Adding BETTER_AUTH_SECRET to development..."
+  if printf '%s' "\$dev_secret" | vercel env add BETTER_AUTH_SECRET development --sensitive --cwd apps/web --force 2>/dev/null; then
+    print_success "Development BETTER_AUTH_SECRET configured"
+  else
+    print_warning "Could not set development secret (may already exist)"
+  fi
+
+  # Add BETTER_AUTH_URL for production
+  print_step "Adding BETTER_AUTH_URL to production..."
+  if printf '%s' "https://\$PROJECT_NAME.vercel.app" | vercel env add BETTER_AUTH_URL production --cwd apps/web --force 2>/dev/null; then
+    print_success "Production BETTER_AUTH_URL configured"
+  else
+    print_warning "Could not set production BETTER_AUTH_URL (may already exist)"
+  fi
+
+  print_step "Adding BETTER_AUTH_URL to development..."
+  if printf '%s' "http://localhost:3000" | vercel env add BETTER_AUTH_URL development --cwd apps/web --force 2>/dev/null; then
+    print_success "Development BETTER_AUTH_URL configured"
+  else
+    print_warning "Could not set development BETTER_AUTH_URL (may already exist)"
+  fi
+
+  # Note: Development secrets will be pulled to .env.local by pull_vercel_env()
+  print_success "Better Auth secrets configured for all environments!"
+}
+
+setup_workos_secrets() {
+  print_header "Configuring WorkOS Cookie Password"
+
+  print_step "Generating unique secrets for each environment..."
+
+  local prod_secret=\$(openssl rand -base64 32)
+  local preview_secret=\$(openssl rand -base64 32)
+  local dev_secret=\$(openssl rand -base64 32)
+
+  # Add WORKOS_COOKIE_PASSWORD to each environment
+  print_step "Adding WORKOS_COOKIE_PASSWORD to production..."
+  if printf '%s' "\$prod_secret" | vercel env add WORKOS_COOKIE_PASSWORD production --sensitive --cwd apps/web --force 2>/dev/null; then
+    print_success "Production WORKOS_COOKIE_PASSWORD configured"
+  else
+    print_warning "Could not set production secret (may already exist)"
+  fi
+
+  print_step "Adding WORKOS_COOKIE_PASSWORD to preview..."
+  if printf '%s' "\$preview_secret" | vercel env add WORKOS_COOKIE_PASSWORD preview --sensitive --cwd apps/web --force 2>/dev/null; then
+    print_success "Preview WORKOS_COOKIE_PASSWORD configured"
+  else
+    print_warning "Could not set preview secret (may already exist)"
+  fi
+
+  print_step "Adding WORKOS_COOKIE_PASSWORD to development..."
+  if printf '%s' "\$dev_secret" | vercel env add WORKOS_COOKIE_PASSWORD development --sensitive --cwd apps/web --force 2>/dev/null; then
+    print_success "Development WORKOS_COOKIE_PASSWORD configured"
+  else
+    print_warning "Could not set development secret (may already exist)"
+  fi
+
+  # Note: Development secrets will be pulled to .env.local by pull_vercel_env()
+  print_success "WorkOS cookie password configured for all environments!"
+}
+
+# =============================================================================
 # Step 10: Pull Vercel Environment Variables
 # =============================================================================
 
@@ -1045,6 +1149,7 @@ main() {
   link_supabase
   run_migrations
   setup_vercel
+  setup_auth_secrets
   pull_vercel_env
   configure_database_environments
   commit_and_deploy
