@@ -109,7 +109,7 @@ Cloud-hosted PostgreSQL with:
 - Built-in auth and storage (optional)
 
 ```bash
-pnpm dev create my-app
+pnpm dev create ../my-app
 ```
 
 ### Docker (Local)
@@ -120,7 +120,7 @@ Local PostgreSQL containers for offline development:
 - Isolated test database
 
 ```bash
-pnpm dev create my-app --docker
+pnpm dev create ../my-app --docker
 ```
 
 ## Authentication Options
@@ -140,7 +140,7 @@ Enterprise SSO for B2B applications:
 - User provisioning
 
 ```bash
-pnpm dev create my-app --workos
+pnpm dev create ../my-app --workos
 ```
 
 ## Agent Scripts (Claude Code Sandbox)
