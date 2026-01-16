@@ -63,9 +63,9 @@ is_completed() {
   [[ -f "\$STATE_FILE" ]] && grep -q "^\$1$" "\$STATE_FILE"
 }
 
-# Construct DATABASE_URL from saved credentials
+# Construct pooler DATABASE_URL from saved credentials (for runtime/serverless)
 # Returns empty string if credentials not available
-get_database_url() {
+get_pooler_database_url() {
   local project_ref="\$1"
 
   if [[ ! -f ".supabase/.db-password" ]] || [[ ! -f ".supabase/.region" ]]; then
@@ -78,6 +78,22 @@ get_database_url() {
 
   # Use transaction pooler (port 6543) for serverless compatibility
   echo "postgresql://postgres.\${project_ref}:\${db_password}@aws-0-\${region}.pooler.supabase.com:6543/postgres"
+}
+
+# Construct direct DATABASE_URL from saved credentials (for migrations/DDL)
+# Direct connections are required for DDL operations (CREATE TABLE, etc.)
+get_direct_database_url() {
+  local project_ref="\$1"
+
+  if [[ ! -f ".supabase/.db-password" ]]; then
+    echo ""
+    return
+  fi
+
+  local db_password=\$(cat .supabase/.db-password)
+
+  # Use direct connection for DDL operations (migrations, schema push)
+  echo "postgresql://postgres.\${project_ref}:\${db_password}@db.\${project_ref}.supabase.co:5432/postgres"
 }
 
 # =============================================================================
@@ -548,8 +564,8 @@ run_migrations() {
     sleep 60
   done
 
-  # Get DATABASE_URL from saved credentials
-  local prod_db_url=\$(get_database_url "\$project_ref")
+  # Get direct DATABASE_URL for migrations (DDL requires direct connection, not pooler)
+  local prod_db_url=\$(get_direct_database_url "\$project_ref")
 
   if [[ -z "\$prod_db_url" ]]; then
     print_warning "Database credentials not available - skipping migrations"
@@ -899,7 +915,8 @@ configure_database_environments() {
     echo ""
     print_step "Configuring Vercel production DATABASE_URL..."
 
-    local prod_db_url=\$(get_database_url "\$project_ref")
+    # Use pooler URL for serverless runtime (transaction pooler is optimal for serverless)
+    local prod_db_url=\$(get_pooler_database_url "\$project_ref")
 
     if [[ -n "\$prod_db_url" ]]; then
       if printf '%s' "\$prod_db_url" | vercel env add DATABASE_URL production --cwd apps/web 2>/dev/null; then
@@ -979,7 +996,8 @@ configure_database_environments() {
   # If no branches, fall back to production URL for local dev
   if [[ -z "\$local_db_url" ]] && [[ "\$branching_enabled" != "true" ]]; then
     print_step "Using production database URL for local development..."
-    local_db_url=\$(get_database_url "\$project_ref")
+    # Use direct connection for local dev (allows running migrations locally)
+    local_db_url=\$(get_direct_database_url "\$project_ref")
   fi
 
   if [[ -n "\$local_db_url" ]]; then
