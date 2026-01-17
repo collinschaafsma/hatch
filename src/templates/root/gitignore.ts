@@ -30,9 +30,6 @@ npm-debug.log*
 # Testing
 coverage/
 
-# Drizzle
-drizzle/
-
 # Setup script state (idempotency tracking)
 .setup-state
 

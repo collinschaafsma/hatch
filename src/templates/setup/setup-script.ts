@@ -573,22 +573,32 @@ run_migrations() {
   if [[ -z "\$prod_db_url" ]]; then
     print_warning "Database credentials not available - skipping migrations"
     echo "  You can run migrations manually later:"
-    echo "  cd apps/web && DATABASE_URL='your-url' pnpm db:push"
+    echo "  cd apps/web && pnpm db:generate"
+    echo "  DATABASE_URL='your-url' pnpm db:migrate"
     echo ""
     echo "  Get your DATABASE_URL from:"
     echo "  https://supabase.com/dashboard/project/\$project_ref/settings/database"
     return 0
   fi
 
-  print_step "Pushing schema to production database..."
-
-  # Use drizzle-kit push with the production URL directly
   cd apps/web
-  if DATABASE_URL="\$prod_db_url" pnpm db:push 2>/dev/null; then
-    print_success "Database schema pushed successfully"
+
+  # Generate initial migration files first
+  print_step "Generating initial database migration..."
+  if pnpm db:generate 2>/dev/null; then
+    print_success "Initial migration generated"
   else
-    print_warning "Database push failed - you may need to run it manually"
-    echo "  cd apps/web && DATABASE_URL='<your-url>' pnpm db:push"
+    print_warning "Could not generate migration - you may need to run: pnpm db:generate"
+  fi
+
+  # Run migrations (not db:push) so Drizzle records them as applied
+  # This prevents "relation already exists" errors on deploy
+  print_step "Applying migrations to production database..."
+  if DATABASE_URL="\$prod_db_url" pnpm db:migrate 2>/dev/null; then
+    print_success "Database migrations applied successfully"
+  else
+    print_warning "Migration failed - you may need to run it manually"
+    echo "  cd apps/web && DATABASE_URL='<your-url>' pnpm db:migrate"
   fi
   cd ../..
 }
@@ -619,6 +629,32 @@ setup_vercel() {
 
   if [[ -f ".vercel/project.json" ]]; then
     print_success "Vercel project linked: \$PROJECT_NAME"
+
+    # Set root directory via Vercel API (CLI doesn't support this)
+    local project_id=\$(jq -r '.projectId' .vercel/project.json)
+    local vercel_token=""
+
+    # Try to get token from Vercel CLI config
+    # macOS stores in Application Support, Linux in .config
+    if [[ -f "\$HOME/Library/Application Support/com.vercel.cli/auth.json" ]]; then
+      vercel_token=\$(jq -r '.token // empty' "\$HOME/Library/Application Support/com.vercel.cli/auth.json" 2>/dev/null)
+    elif [[ -f "\$HOME/.config/com.vercel.cli/auth.json" ]]; then
+      vercel_token=\$(jq -r '.token // empty' "\$HOME/.config/com.vercel.cli/auth.json" 2>/dev/null)
+    fi
+
+    if [[ -n "\$vercel_token" && -n "\$project_id" ]]; then
+      print_step "Setting Vercel root directory to apps/web..."
+      if curl -s -X PATCH "https://api.vercel.com/v9/projects/\$project_id" \\
+        -H "Authorization: Bearer \$vercel_token" \\
+        -H "Content-Type: application/json" \\
+        -d '{"rootDirectory": "apps/web"}' > /dev/null; then
+        print_success "Root directory configured"
+      else
+        print_warning "Could not set root directory - set it manually in Vercel dashboard"
+      fi
+    else
+      print_warning "Could not set root directory automatically - set apps/web in Vercel dashboard"
+    fi
 
     # Connect Git repository for automatic deployments
     local git_url=\$(git remote get-url origin 2>/dev/null || echo "")
@@ -698,7 +734,8 @@ setup_better_auth_secrets() {
   fi
 
   print_step "Adding BETTER_AUTH_SECRET to development..."
-  if set_vercel_env "BETTER_AUTH_SECRET" "development" "\$dev_secret" "true" 2>/dev/null; then
+  # Note: Don't use --sensitive for development env vars
+  if set_vercel_env "BETTER_AUTH_SECRET" "development" "\$dev_secret" "false" 2>/dev/null; then
     print_success "Development BETTER_AUTH_SECRET configured"
   else
     print_warning "Could not set development secret"
@@ -766,7 +803,8 @@ setup_workos_secrets() {
   fi
 
   print_step "Adding WORKOS_COOKIE_PASSWORD to development..."
-  if set_vercel_env "WORKOS_COOKIE_PASSWORD" "development" "\$dev_secret" "true" 2>/dev/null; then
+  # Note: Don't use --sensitive for development env vars
+  if set_vercel_env "WORKOS_COOKIE_PASSWORD" "development" "\$dev_secret" "false" 2>/dev/null; then
     print_success "Development WORKOS_COOKIE_PASSWORD configured"
   else
     print_warning "Could not set development secret"
@@ -896,19 +934,9 @@ configure_database_environments() {
       fi
     fi
 
-    # Apply migrations to branches
-    echo ""
-    print_step "Applying schema to branches..."
-
-    if [[ -n "\$dev_db_url" ]]; then
-      echo "  Pushing schema to dev branch..."
-      DATABASE_URL="\$dev_db_url" pnpm --filter web db:push 2>/dev/null && print_success "  Schema pushed to dev" || echo -e "    \${YELLOW}⚠ Schema push to dev failed\${NC}"
-    fi
-
-    if [[ -n "\$dev_test_db_url" ]]; then
-      echo "  Pushing schema to dev-test branch..."
-      DATABASE_URL="\$dev_test_db_url" pnpm --filter web db:push 2>/dev/null && print_success "  Schema pushed to dev-test" || echo -e "    \${YELLOW}⚠ Schema push to dev-test failed\${NC}"
-    fi
+    # Note: No need to run migrations on branches - they're copies of main
+    # and already have the schema + migration history
+    print_success "Branches created (schema inherited from main)"
   fi
 
   # -------------------------------------------------------------------------
@@ -918,8 +946,10 @@ configure_database_environments() {
     echo ""
     print_step "Configuring Vercel production DATABASE_URL..."
 
-    # Use pooler URL for serverless runtime (transaction pooler is optimal for serverless)
-    local prod_db_url=\$(get_pooler_database_url "\$project_ref")
+    # Use session pooler (aws-1, port 5432) which supports both:
+    # - DDL operations (migrations) during build
+    # - Runtime queries from serverless functions
+    local prod_db_url=\$(get_direct_database_url "\$project_ref")
 
     if [[ -n "\$prod_db_url" ]]; then
       if printf '%s' "\$prod_db_url" | vercel env add DATABASE_URL production --cwd apps/web 2>/dev/null; then
@@ -1163,17 +1193,17 @@ commit_and_deploy() {
 
     if [[ "\$do_cli_deploy" == [yY] ]]; then
       print_step "Deploying to production..."
-      if vercel --prod --cwd apps/web --yes; then
+      if vercel --prod --yes; then
         print_success "Production deployment triggered!"
         echo ""
         echo "  Your app will be live at:"
         echo "  https://\$PROJECT_NAME.vercel.app"
       else
-        print_warning "Deployment failed - try manually with: vercel --prod --cwd apps/web"
+        print_warning "Deployment failed - try manually with: vercel --prod"
       fi
     else
       print_step "Skipping deploy"
-      echo "  Deploy later with: vercel --prod --cwd apps/web"
+      echo "  Deploy later with: vercel --prod"
       echo "  Your app will be at: https://\$PROJECT_NAME.vercel.app"
     fi
   fi
