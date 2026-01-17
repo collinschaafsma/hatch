@@ -66,3 +66,6 @@ export * from "./claude/index.js";
 
 // Setup script templates
 export * from "./setup/index.js";
+
+// SEO templates
+export * from "./seo/index.js";

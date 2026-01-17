@@ -1,14 +1,40 @@
-export function generateRootLayout(useWorkOS: boolean): string {
+export function generateRootLayout(useWorkOS: boolean, name: string): string {
+	const metadata = `export const metadata: Metadata = {
+	metadataBase: new URL(
+		process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+	),
+	title: {
+		default: "${name}",
+		template: "%s | ${name}",
+	},
+	description: "${name} - Built with Hatch",
+	keywords: ["${name}", "web app"],
+	authors: [{ name: "${name}" }],
+	openGraph: {
+		type: "website",
+		locale: "en_US",
+		siteName: "${name}",
+		title: "${name}",
+		description: "${name} - Built with Hatch",
+	},
+	twitter: {
+		card: "summary_large_image",
+		title: "${name}",
+		description: "${name} - Built with Hatch",
+	},
+	robots: {
+		index: true,
+		follow: true,
+	},
+};`;
+
 	if (useWorkOS) {
 		return `import type { Metadata } from "next";
 import { AuthKitProvider } from "@workos-inc/authkit-nextjs/components";
 import { PostHogProvider } from "@/components/providers/posthog";
 import "./globals.css";
 
-export const metadata: Metadata = {
-	title: "My App",
-	description: "Built with Hatch",
-};
+${metadata}
 
 export default function RootLayout({
 	children,
@@ -32,10 +58,7 @@ export default function RootLayout({
 import { PostHogProvider } from "@/components/providers/posthog";
 import "./globals.css";
 
-export const metadata: Metadata = {
-	title: "My App",
-	description: "Built with Hatch",
-};
+${metadata}
 
 export default function RootLayout({
 	children,

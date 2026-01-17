@@ -358,7 +358,7 @@ export const createCommand = new Command()
 					// App files
 					await writeFile(
 						path.join(webPath, "app", "layout.tsx"),
-						templates.generateRootLayout(useWorkOS),
+						templates.generateRootLayout(useWorkOS, name),
 					);
 					await writeFile(
 						path.join(webPath, "app", "globals.css"),
@@ -368,7 +368,7 @@ export const createCommand = new Command()
 					// Marketing page files
 					await writeFile(
 						path.join(webPath, "app", "(marketing)", "page.tsx"),
-						templates.generateMarketingPage(),
+						templates.generateMarketingPage(name),
 					);
 					await writeFile(
 						path.join(webPath, "app", "(marketing)", "_components", "hero.tsx"),
@@ -383,6 +383,29 @@ export const createCommand = new Command()
 							"footer.tsx",
 						),
 						templates.generateFooter(),
+					);
+
+					// SEO files
+					await writeFile(
+						path.join(webPath, "app", "robots.ts"),
+						templates.generateRobots(),
+					);
+					await writeFile(
+						path.join(webPath, "app", "sitemap.ts"),
+						templates.generateSitemap(),
+					);
+					await writeFile(
+						path.join(webPath, "app", "manifest.ts"),
+						templates.generateManifest(name),
+					);
+					await writeFile(
+						path.join(webPath, "app", "opengraph-image.tsx"),
+						templates.generateOpengraphImage(name),
+					);
+					await ensureDir(path.join(webPath, "public"));
+					await writeFile(
+						path.join(webPath, "public", "llms.txt"),
+						templates.generateLlmsTxt(name),
 					);
 
 					// App layout
