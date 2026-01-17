@@ -11,7 +11,7 @@ Hatch generates a complete full-stack monorepo with:
 - **[Drizzle ORM](https://orm.drizzle.team/)** - Type-safe database access with PostgreSQL
 - **[Better Auth](https://www.better-auth.com/)** - Email OTP authentication (or [WorkOS](https://workos.com/) for enterprise SSO)
 - **[Vercel AI SDK](https://sdk.vercel.ai/)** - AI/LLM integration with OpenAI
-- **[Vercel Workflow DevKit](https://vercel.com/docs/workflow-kit)** - Durable workflow execution
+- **[Vercel Workflows](https://useworkflow.dev/)** - Durable workflow execution
 - **[Tailwind CSS 4](https://tailwindcss.com/)** + **[shadcn/ui](https://ui.shadcn.com/)** - Modern styling
 - **[Vitest](https://vitest.dev/)** - Fast unit and integration testing
 - **[Biome](https://biomejs.dev/)** - Lightning-fast linting and formatting
@@ -78,7 +78,7 @@ my-app/
 │       ├── db/               # Drizzle schema and client
 │       ├── lib/              # Auth, safe-action, logger, utils
 │       ├── services/         # Business logic layer
-│       ├── workflows/        # Vercel Workflow DevKit
+│       ├── workflows/        # Vercel Workflow
 │       └── __tests__/        # Vitest tests and factories
 ├── packages/
 │   └── ui/                   # Shared shadcn/ui components
