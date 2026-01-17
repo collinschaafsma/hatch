@@ -80,20 +80,23 @@ get_pooler_database_url() {
   echo "postgresql://postgres.\${project_ref}:\${db_password}@aws-0-\${region}.pooler.supabase.com:6543/postgres"
 }
 
-# Construct direct DATABASE_URL from saved credentials (for migrations/DDL)
-# Direct connections are required for DDL operations (CREATE TABLE, etc.)
+# Construct DATABASE_URL for DDL operations (migrations, schema push)
+# Uses session pooler (aws-1, port 5432) which supports DDL and is IPv4 compatible
 get_direct_database_url() {
   local project_ref="\$1"
 
-  if [[ ! -f ".supabase/.db-password" ]]; then
+  if [[ ! -f ".supabase/.db-password" ]] || [[ ! -f ".supabase/.region" ]]; then
     echo ""
     return
   fi
 
   local db_password=\$(cat .supabase/.db-password)
+  local region=\$(cat .supabase/.region)
 
-  # Use direct connection for DDL operations (migrations, schema push)
-  echo "postgresql://postgres.\${project_ref}:\${db_password}@db.\${project_ref}.supabase.co:5432/postgres"
+  # Use session pooler (aws-1, port 5432) for DDL operations
+  # Note: aws-0 is transaction pooler (port 6543) which doesn't support DDL
+  # Note: db.{ref}.supabase.co is IPv6-only and doesn't resolve on many networks
+  echo "postgresql://postgres.\${project_ref}:\${db_password}@aws-1-\${region}.pooler.supabase.com:5432/postgres"
 }
 
 # =============================================================================
