@@ -1,5 +1,6 @@
 export function generateMarketingPage(name: string): string {
 	return `import type { Metadata } from "next";
+import { cacheLife, cacheTag } from "next/cache";
 import { Hero } from "./_components/hero";
 import { Footer } from "./_components/footer";
 
@@ -8,7 +9,11 @@ export const metadata: Metadata = {
 	description: "Welcome to ${name}",
 };
 
-export default function HomePage() {
+export default async function HomePage() {
+	"use cache";
+	cacheLife("days");
+	cacheTag("marketing-home");
+
 	const jsonLd = {
 		"@context": "https://schema.org",
 		"@type": "WebSite",

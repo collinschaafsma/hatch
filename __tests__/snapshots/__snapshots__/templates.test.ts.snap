@@ -2998,7 +2998,13 @@ export const logger = new ServerLogger();
 `;
 
 exports[`template snapshots > marketing templates > generateFooter 1`] = `
-"export function Footer() {
+"import { cacheLife, cacheTag } from "next/cache";
+
+export async function Footer() {
+	"use cache";
+	cacheLife("weeks");
+	cacheTag("marketing-footer");
+
 	return (
 		<footer className="border-t py-6 text-center text-sm text-muted-foreground">
 			<p>&copy; {new Date().getFullYear()} Your Company. All rights reserved.</p>
@@ -3010,9 +3016,14 @@ exports[`template snapshots > marketing templates > generateFooter 1`] = `
 
 exports[`template snapshots > marketing templates > generateHero 1`] = `
 "import Link from "next/link";
+import { cacheLife, cacheTag } from "next/cache";
 import { Button } from "@workspace/ui/components/button";
 
-export function Hero() {
+export async function Hero() {
+	"use cache";
+	cacheLife("days");
+	cacheTag("marketing-hero");
+
 	return (
 		<section className="flex-1 flex flex-col items-center justify-center gap-6 p-8 text-center">
 			<h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
@@ -3031,15 +3042,39 @@ export function Hero() {
 `;
 
 exports[`template snapshots > marketing templates > generateMarketingPage 1`] = `
-"import { Hero } from "./_components/hero";
+"import type { Metadata } from "next";
+import { cacheLife, cacheTag } from "next/cache";
+import { Hero } from "./_components/hero";
 import { Footer } from "./_components/footer";
 
-export default function HomePage() {
+export const metadata: Metadata = {
+	title: "Home",
+	description: "Welcome to undefined",
+};
+
+export default async function HomePage() {
+	"use cache";
+	cacheLife("days");
+	cacheTag("marketing-home");
+
+	const jsonLd = {
+		"@context": "https://schema.org",
+		"@type": "WebSite",
+		name: "undefined",
+		url: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+	};
+
 	return (
-		<main className="min-h-screen flex flex-col">
-			<Hero />
-			<Footer />
-		</main>
+		<>
+			<script
+				type="application/ld+json"
+				dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+			/>
+			<main className="min-h-screen flex flex-col">
+				<Hero />
+				<Footer />
+			</main>
+		</>
 	);
 }
 "
@@ -3784,6 +3819,9 @@ ENV NPM_CONFIG_PREFIX=""
 # Note: Shift+Enter doesn't work in Docker sandbox - use \\ + Enter for newlines
 ENV TERM=xterm-256color
 
+# Use relative cache dir to avoid absolute path issues across worktrees
+ENV TURBO_CACHE_DIR=".turbo/cache"
+
 # Install nvm and Node.js LTS (jod = v22)
 ENV NVM_DIR="/home/agent/.nvm"
 RUN unset NPM_CONFIG_PREFIX \\
@@ -3910,12 +3948,14 @@ if [[ "$confirm" != [yY] ]]; then
   exit 0
 fi
 
-# Delete Supabase branches
+# Delete Supabase branches (must disable persistence first)
 if [[ -n "$PROJECT_REF" ]]; then
   echo ""
   echo "Deleting Supabase branches..."
 
   echo "  Deleting '$supabase_branch_name'..."
+  # Disable persistence first (required before deletion)
+  supabase branches update "$supabase_branch_name" --persistent=false --project-ref "$PROJECT_REF" 2>/dev/null || true
   if supabase branches delete "$supabase_branch_name" --project-ref "$PROJECT_REF" --yes 2>/dev/null; then
     echo -e "  \${GREEN}✓ $supabase_branch_name deleted\${NC}"
   else
@@ -3923,6 +3963,8 @@ if [[ -n "$PROJECT_REF" ]]; then
   fi
 
   echo "  Deleting '$supabase_test_branch'..."
+  # Disable persistence first (required before deletion)
+  supabase branches update "$supabase_test_branch" --persistent=false --project-ref "$PROJECT_REF" 2>/dev/null || true
   if supabase branches delete "$supabase_test_branch" --project-ref "$PROJECT_REF" --yes 2>/dev/null; then
     echo -e "  \${GREEN}✓ $supabase_test_branch deleted\${NC}"
   else
@@ -4205,8 +4247,8 @@ worktree_dir="$(pwd)"
 
 echo "Launching iTerm2 with Claude Code sandbox and dev terminals..."
 
-# Pre-create node_modules volumes with correct ownership (agent user UID=1000)
-echo "📦 Creating node_modules volumes with correct ownership..."
+# Pre-create node_modules and turbo volumes with correct ownership (agent user UID=1000)
+echo "📦 Creating node_modules and turbo volumes with correct ownership..."
 docker volume create "\${sandbox_name}_node_modules" >/dev/null 2>&1 || true
 docker volume create "\${sandbox_name}_web_node_modules" >/dev/null 2>&1 || true
 docker volume create "\${sandbox_name}_ui_node_modules" >/dev/null 2>&1 || true
@@ -4333,6 +4375,7 @@ NC='\\033[0m' # No Color
 # Project configuration (embedded at generation time)
 PROJECT_NAME="undefined"
 USE_DOCKER=false
+USE_WORKOS=false
 
 # State tracking file for idempotency
 STATE_FILE=".setup-state"
@@ -4374,9 +4417,9 @@ is_completed() {
   [[ -f "$STATE_FILE" ]] && grep -q "^$1$" "$STATE_FILE"
 }
 
-# Construct DATABASE_URL from saved credentials
+# Construct pooler DATABASE_URL from saved credentials (for runtime/serverless)
 # Returns empty string if credentials not available
-get_database_url() {
+get_pooler_database_url() {
   local project_ref="$1"
 
   if [[ ! -f ".supabase/.db-password" ]] || [[ ! -f ".supabase/.region" ]]; then
@@ -4389,6 +4432,25 @@ get_database_url() {
 
   # Use transaction pooler (port 6543) for serverless compatibility
   echo "postgresql://postgres.\${project_ref}:\${db_password}@aws-0-\${region}.pooler.supabase.com:6543/postgres"
+}
+
+# Construct DATABASE_URL for DDL operations (migrations, schema push)
+# Uses session pooler (aws-1, port 5432) which supports DDL and is IPv4 compatible
+get_direct_database_url() {
+  local project_ref="$1"
+
+  if [[ ! -f ".supabase/.db-password" ]] || [[ ! -f ".supabase/.region" ]]; then
+    echo ""
+    return
+  fi
+
+  local db_password=$(cat .supabase/.db-password)
+  local region=$(cat .supabase/.region)
+
+  # Use session pooler (aws-1, port 5432) for DDL operations
+  # Note: aws-0 is transaction pooler (port 6543) which doesn't support DDL
+  # Note: db.{ref}.supabase.co is IPv6-only and doesn't resolve on many networks
+  echo "postgresql://postgres.\${project_ref}:\${db_password}@aws-1-\${region}.pooler.supabase.com:5432/postgres"
 }
 
 # =============================================================================
@@ -4859,8 +4921,8 @@ run_migrations() {
     sleep 60
   done
 
-  # Get DATABASE_URL from saved credentials
-  local prod_db_url=$(get_database_url "$project_ref")
+  # Get direct DATABASE_URL for migrations (DDL requires direct connection, not pooler)
+  local prod_db_url=$(get_direct_database_url "$project_ref")
 
   if [[ -z "$prod_db_url" ]]; then
     print_warning "Database credentials not available - skipping migrations"
@@ -4928,6 +4990,144 @@ setup_vercel() {
   fi
 
   cd ../..
+}
+
+# =============================================================================
+# Step 9b: Configure Auth Secrets
+# =============================================================================
+
+setup_auth_secrets() {
+  if [[ ! -f "apps/web/.vercel/project.json" ]]; then
+    print_warning "Vercel project not linked, skipping auth secret setup"
+    return 0
+  fi
+
+  if [[ "$USE_WORKOS" == "true" ]]; then
+    setup_workos_secrets
+  else
+    setup_better_auth_secrets
+  fi
+}
+
+setup_better_auth_secrets() {
+  print_header "Configuring Better Auth Secrets"
+
+  print_step "Generating unique secrets for each environment..."
+
+  local prod_secret=$(openssl rand -base64 32)
+  local preview_secret=$(openssl rand -base64 32)
+  local dev_secret=$(openssl rand -base64 32)
+
+  # Helper to set env var (removes existing first to avoid --force issues)
+  set_vercel_env() {
+    local name="$1"
+    local env="$2"
+    local value="$3"
+    local sensitive="$4"
+
+    # Remove existing var if present (ignore errors)
+    vercel env rm "$name" "$env" --cwd apps/web --yes 2>/dev/null || true
+
+    # Add the new value
+    local flags=""
+    if [[ "$sensitive" == "true" ]]; then
+      flags="--sensitive"
+    fi
+    printf '%s' "$value" | vercel env add "$name" "$env" $flags --cwd apps/web
+  }
+
+  # Add BETTER_AUTH_SECRET to each environment
+  print_step "Adding BETTER_AUTH_SECRET to production..."
+  if set_vercel_env "BETTER_AUTH_SECRET" "production" "$prod_secret" "true" 2>/dev/null; then
+    print_success "Production BETTER_AUTH_SECRET configured"
+  else
+    print_warning "Could not set production secret"
+  fi
+
+  print_step "Adding BETTER_AUTH_SECRET to preview..."
+  if set_vercel_env "BETTER_AUTH_SECRET" "preview" "$preview_secret" "true" 2>/dev/null; then
+    print_success "Preview BETTER_AUTH_SECRET configured"
+  else
+    print_warning "Could not set preview secret"
+  fi
+
+  print_step "Adding BETTER_AUTH_SECRET to development..."
+  if set_vercel_env "BETTER_AUTH_SECRET" "development" "$dev_secret" "true" 2>/dev/null; then
+    print_success "Development BETTER_AUTH_SECRET configured"
+  else
+    print_warning "Could not set development secret"
+  fi
+
+  # Add BETTER_AUTH_URL for production
+  print_step "Adding BETTER_AUTH_URL to production..."
+  if set_vercel_env "BETTER_AUTH_URL" "production" "https://$PROJECT_NAME.vercel.app" "false" 2>/dev/null; then
+    print_success "Production BETTER_AUTH_URL configured"
+  else
+    print_warning "Could not set production BETTER_AUTH_URL"
+  fi
+
+  print_step "Adding BETTER_AUTH_URL to development..."
+  if set_vercel_env "BETTER_AUTH_URL" "development" "http://localhost:3000" "false" 2>/dev/null; then
+    print_success "Development BETTER_AUTH_URL configured"
+  else
+    print_warning "Could not set development BETTER_AUTH_URL"
+  fi
+
+  # Note: Development secrets will be pulled to .env.local by pull_vercel_env()
+  print_success "Better Auth secrets configured for all environments!"
+}
+
+setup_workos_secrets() {
+  print_header "Configuring WorkOS Cookie Password"
+
+  print_step "Generating unique secrets for each environment..."
+
+  local prod_secret=$(openssl rand -base64 32)
+  local preview_secret=$(openssl rand -base64 32)
+  local dev_secret=$(openssl rand -base64 32)
+
+  # Helper to set env var (removes existing first to avoid --force issues)
+  set_vercel_env() {
+    local name="$1"
+    local env="$2"
+    local value="$3"
+    local sensitive="$4"
+
+    # Remove existing var if present (ignore errors)
+    vercel env rm "$name" "$env" --cwd apps/web --yes 2>/dev/null || true
+
+    # Add the new value
+    local flags=""
+    if [[ "$sensitive" == "true" ]]; then
+      flags="--sensitive"
+    fi
+    printf '%s' "$value" | vercel env add "$name" "$env" $flags --cwd apps/web
+  }
+
+  # Add WORKOS_COOKIE_PASSWORD to each environment
+  print_step "Adding WORKOS_COOKIE_PASSWORD to production..."
+  if set_vercel_env "WORKOS_COOKIE_PASSWORD" "production" "$prod_secret" "true" 2>/dev/null; then
+    print_success "Production WORKOS_COOKIE_PASSWORD configured"
+  else
+    print_warning "Could not set production secret"
+  fi
+
+  print_step "Adding WORKOS_COOKIE_PASSWORD to preview..."
+  if set_vercel_env "WORKOS_COOKIE_PASSWORD" "preview" "$preview_secret" "true" 2>/dev/null; then
+    print_success "Preview WORKOS_COOKIE_PASSWORD configured"
+  else
+    print_warning "Could not set preview secret"
+  fi
+
+  print_step "Adding WORKOS_COOKIE_PASSWORD to development..."
+  if set_vercel_env "WORKOS_COOKIE_PASSWORD" "development" "$dev_secret" "true" 2>/dev/null; then
+    print_success "Development WORKOS_COOKIE_PASSWORD configured"
+  else
+    print_warning "Could not set development secret"
+  fi
+
+  # Note: Development secrets will be pulled to .env.local by pull_vercel_env()
+  print_success "WorkOS cookie password configured for all environments!"
 }
 
 # =============================================================================
@@ -5072,7 +5272,8 @@ configure_database_environments() {
     echo ""
     print_step "Configuring Vercel production DATABASE_URL..."
 
-    local prod_db_url=$(get_database_url "$project_ref")
+    # Use pooler URL for serverless runtime (transaction pooler is optimal for serverless)
+    local prod_db_url=$(get_pooler_database_url "$project_ref")
 
     if [[ -n "$prod_db_url" ]]; then
       if printf '%s' "$prod_db_url" | vercel env add DATABASE_URL production --cwd apps/web 2>/dev/null; then
@@ -5102,27 +5303,27 @@ configure_database_environments() {
 
     if [[ "$setup_integration" == [yY] ]]; then
       echo ""
-      echo "  Opening Vercel Integrations page..."
+      echo "  Opening Vercel projects page..."
       echo ""
       echo "  Steps to complete:"
-      echo "    1. Click 'Browse Marketplace' or find 'Supabase'"
-      echo "    2. Click 'Add Integration' or 'Manage'"
-      echo "    3. Select your Vercel project"
+      echo "    1. Select your project: $PROJECT_NAME"
+      echo "    2. Go to Settings → Integrations → Browse Marketplace"
+      echo "    3. Find and add 'Supabase' integration"
       echo "    4. Connect to your existing Supabase project: $project_ref"
       echo "    5. Enable 'Preview Branches' option"
       echo ""
 
-      # Get Vercel project info (orgId is the team/user slug)
+      # Get Vercel org info (orgId is the team/user slug)
       local vercel_org_id=""
       if [[ -f "apps/web/.vercel/project.json" ]]; then
         vercel_org_id=$(jq -r '.orgId // empty' apps/web/.vercel/project.json 2>/dev/null || echo "")
       fi
 
-      # Open Vercel integrations page
+      # Open Vercel projects page
       if [[ -n "$vercel_org_id" ]]; then
-        open "https://vercel.com/$vercel_org_id/~/integrations" 2>/dev/null || echo "  URL: https://vercel.com/$vercel_org_id/~/integrations"
+        open "https://vercel.com/$vercel_org_id" 2>/dev/null || echo "  URL: https://vercel.com/$vercel_org_id"
       else
-        open "https://vercel.com/integrations/supabase" 2>/dev/null || echo "  URL: https://vercel.com/integrations/supabase"
+        open "https://vercel.com/dashboard" 2>/dev/null || echo "  URL: https://vercel.com/dashboard"
       fi
 
       echo ""
@@ -5152,7 +5353,8 @@ configure_database_environments() {
   # If no branches, fall back to production URL for local dev
   if [[ -z "$local_db_url" ]] && [[ "$branching_enabled" != "true" ]]; then
     print_step "Using production database URL for local development..."
-    local_db_url=$(get_database_url "$project_ref")
+    # Use direct connection for local dev (allows running migrations locally)
+    local_db_url=$(get_direct_database_url "$project_ref")
   fi
 
   if [[ -n "$local_db_url" ]]; then
@@ -5358,6 +5560,7 @@ main() {
   link_supabase
   run_migrations
   setup_vercel
+  setup_auth_secrets
   pull_vercel_env
   configure_database_environments
   commit_and_deploy
@@ -6572,6 +6775,7 @@ const nextConfig: NextConfig = {
 	transpilePackages: ["@workspace/ui"],
 	experimental: {
 		optimizePackageImports: ["lucide-react"],
+		useCache: true,
 	},
 };
 
@@ -6597,8 +6801,32 @@ import { PostHogProvider } from "@/components/providers/posthog";
 import "./globals.css";
 
 export const metadata: Metadata = {
-	title: "My App",
-	description: "Built with Hatch",
+	metadataBase: new URL(
+		process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+	),
+	title: {
+		default: "undefined",
+		template: "%s | undefined",
+	},
+	description: "undefined - Built with Hatch",
+	keywords: ["undefined", "web app"],
+	authors: [{ name: "undefined" }],
+	openGraph: {
+		type: "website",
+		locale: "en_US",
+		siteName: "undefined",
+		title: "undefined",
+		description: "undefined - Built with Hatch",
+	},
+	twitter: {
+		card: "summary_large_image",
+		title: "undefined",
+		description: "undefined - Built with Hatch",
+	},
+	robots: {
+		index: true,
+		follow: true,
+	},
 };
 
 export default function RootLayout({

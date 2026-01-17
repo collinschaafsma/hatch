@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
 	transpilePackages: ["@workspace/ui"],
 	experimental: {
 		optimizePackageImports: ["lucide-react"],
+		useCache: true,
 	},
 };
 
