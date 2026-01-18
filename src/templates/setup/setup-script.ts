@@ -247,6 +247,26 @@ auth_vercel() {
 }
 
 # =============================================================================
+# Step 4b: Select Vercel Team/Account
+# =============================================================================
+
+select_vercel_team() {
+  print_header "Vercel Team Selection"
+
+  print_step "Select which Vercel account/team to use for this project..."
+  echo ""
+
+  # vercel switch without arguments shows interactive picker
+  vercel switch
+
+  # Show which team was selected
+  local current_team=\$(vercel whoami 2>/dev/null)
+  if [[ -n "\$current_team" ]]; then
+    print_success "Using Vercel account: \$current_team"
+  fi
+}
+
+# =============================================================================
 # Step 5: Create GitHub Repository
 # =============================================================================
 
@@ -1231,6 +1251,7 @@ main() {
   auth_github
   auth_supabase
   auth_vercel
+  select_vercel_team
   create_github_repo
   create_supabase_project
   link_supabase
