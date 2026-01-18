@@ -28,7 +28,9 @@ export function generateRootPackageJson(projectName: string): string {
 					"docker compose down -v && docker compose up -d postgres",
 				"app:setup": "./scripts/setup",
 				agent: "./scripts/wts",
+				"agent:sandbox": "./scripts/wts --sandbox",
 				"agent:clean": "./scripts/wtcs",
+				"agent:clean:sandbox": "./scripts/wtcs --sandbox",
 			},
 			devDependencies: {
 				"@biomejs/biome": "^2.3.11",

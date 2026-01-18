@@ -165,19 +165,25 @@ pnpm --filter web test:coverage
 
 ---
 
-## Agent Sandbox (Claude Code)
+## Agent Worktree (Claude Code)
 
 Create isolated development environments with separate databases, perfect for feature development with Claude Code.
 
 | Command | Description |
 |---------|-------------|
-| \`pnpm agent <branch>\` | Create sandbox with isolated database |
-| \`pnpm agent:clean\` | Clean up sandbox (run from within worktree) |
+| \`pnpm agent <branch>\` | Create worktree with isolated database (runs Claude directly) |
+| \`pnpm agent:sandbox <branch>\` | Create worktree with Docker sandbox isolation |
+| \`pnpm agent:clean\` | Clean up worktree (run from within worktree) |
+| \`pnpm agent:clean:sandbox\` | Clean up sandbox worktree (run from within worktree) |
 
-### Create a Sandbox
+### Create a Worktree
 
 \`\`\`bash
+# Default: Run Claude Code directly
 pnpm agent <branch-name>
+
+# Optional: Run Claude Code in Docker sandbox with isolated node_modules
+pnpm agent:sandbox <branch-name>
 \`\`\`
 
 This will:
@@ -188,23 +194,27 @@ This will:
 5. Copy data from the main database
 6. Push branch to remote
 7. Open iTerm2 with 3 panes:
-   - **Pane 1:** Claude Code running in Docker sandbox
+   - **Pane 1:** Claude Code (directly or in Docker sandbox)
    - **Pane 2:** Development terminal
    - **Pane 3:** Additional terminal
 
-### Clean Up a Sandbox
+### Clean Up
 
-From within the sandbox directory:
+From within the worktree directory:
 
 \`\`\`bash
+# For worktrees created with pnpm agent
 pnpm agent:clean
+
+# For worktrees created with pnpm agent:sandbox
+pnpm agent:clean:sandbox
 \`\`\`
 
 This will:
-1. Stop and remove the Docker sandbox
-2. ${supabaseCleanupNote}
-3. Remove the git worktree
-4. Delete the local branch
+1. ${supabaseCleanupNote}
+2. Remove the git worktree
+3. Delete the local branch
+4. (Sandbox only) Stop and remove the Docker sandbox and node_modules volumes
 
 ---
 

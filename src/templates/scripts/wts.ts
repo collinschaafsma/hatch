@@ -13,22 +13,32 @@ set -e
 export NVM_DIR="\$HOME/.nvm"
 [ -s "\$NVM_DIR/nvm.sh" ] && \\. "\$NVM_DIR/nvm.sh"
 
-if [[ -z "\$1" ]]; then
-  echo "Usage: ./scripts/wts <branch-name>"
+# Parse arguments
+sandbox_mode=false
+branch_name=""
+while [[ \$# -gt 0 ]]; do
+  case \$1 in
+    --sandbox) sandbox_mode=true; shift ;;
+    *) branch_name="\$1"; shift ;;
+  esac
+done
+
+if [[ -z "\$branch_name" ]]; then
+  echo "Usage: ./scripts/wts [--sandbox] <branch-name>"
   exit 1
 fi
-
-branch_name="\$1"
 original_dir=\$(pwd)
 repo_name=\$(basename "\$original_dir")
 safe_branch_name="\${branch_name//\\//-}"
 worktree_path="../\${repo_name}-\${safe_branch_name}"
 sandbox_image="\${repo_name}-claude-sandbox"
 
-# Check if custom sandbox image exists, build if not
-if ! docker image inspect "\$sandbox_image" &>/dev/null; then
-  echo "Custom sandbox image not found. Building \$sandbox_image..."
-  "\$original_dir/scripts/sandbox/build-sandbox"
+# Check if custom sandbox image exists, build if not (only for sandbox mode)
+if [[ "\$sandbox_mode" == "true" ]]; then
+  if ! docker image inspect "\$sandbox_image" &>/dev/null; then
+    echo "Custom sandbox image not found. Building \$sandbox_image..."
+    "\$original_dir/scripts/sandbox/build-sandbox"
+  fi
 fi
 
 env_file="apps/web/.env.local"
@@ -84,11 +94,12 @@ if [[ -f ".worktreeinclude" ]]; then
   done < ".worktreeinclude"
 fi
 
-# Copy sandbox Claude settings (disables dangerous mode, blocks destructive git commands)
-if [[ -f ".claude/sandbox.settings.local.json" ]]; then
+# Copy Claude settings for non-sandbox mode (disables dangerous mode, blocks destructive git commands)
+# In sandbox mode, Claude runs in dangerous mode since the Docker sandbox provides isolation
+if [[ "\$sandbox_mode" != "true" ]] && [[ -f ".claude/sandbox.settings.local.json" ]]; then
   mkdir -p "\$worktree_path/.claude"
   cp ".claude/sandbox.settings.local.json" "\$worktree_path/.claude/settings.local.json"
-  echo "Copied: sandbox settings -> .claude/settings.local.json"
+  echo "Copied: Claude settings -> .claude/settings.local.json"
 fi
 
 # Create worktree-specific docker-compose
@@ -217,20 +228,21 @@ echo ""
 sandbox_name="\${compose_project}"
 worktree_dir="\$(pwd)"
 
-echo "Launching iTerm2 with Claude Code sandbox and dev terminals..."
+if [[ "\$sandbox_mode" == "true" ]]; then
+  echo "Launching iTerm2 with Claude Code sandbox and dev terminals..."
 
-# Pre-create node_modules and turbo volumes with correct ownership (agent user UID=1000)
-echo "📦 Creating node_modules and turbo volumes with correct ownership..."
-docker volume create "\${sandbox_name}_node_modules" >/dev/null 2>&1 || true
-docker volume create "\${sandbox_name}_web_node_modules" >/dev/null 2>&1 || true
-docker volume create "\${sandbox_name}_ui_node_modules" >/dev/null 2>&1 || true
-docker run --rm \\
-  -v "\${sandbox_name}_node_modules:/mnt/root" \\
-  -v "\${sandbox_name}_web_node_modules:/mnt/web" \\
-  -v "\${sandbox_name}_ui_node_modules:/mnt/ui" \\
-  alpine chown -R 1000:1000 /mnt/root /mnt/web /mnt/ui
+  # Pre-create node_modules and turbo volumes with correct ownership (agent user UID=1000)
+  echo "📦 Creating node_modules and turbo volumes with correct ownership..."
+  docker volume create "\${sandbox_name}_node_modules" >/dev/null 2>&1 || true
+  docker volume create "\${sandbox_name}_web_node_modules" >/dev/null 2>&1 || true
+  docker volume create "\${sandbox_name}_ui_node_modules" >/dev/null 2>&1 || true
+  docker run --rm \\
+    -v "\${sandbox_name}_node_modules:/mnt/root" \\
+    -v "\${sandbox_name}_web_node_modules:/mnt/web" \\
+    -v "\${sandbox_name}_ui_node_modules:/mnt/ui" \\
+    alpine chown -R 1000:1000 /mnt/root /mnt/web /mnt/ui
 
-osascript <<APPLESCRIPT
+  osascript <<APPLESCRIPT
 tell application "iTerm2"
     create window with default profile
     tell current window
@@ -256,7 +268,38 @@ tell application "iTerm2"
 end tell
 APPLESCRIPT
 
-echo "iTerm2 launched with 3-pane layout"
+  echo "iTerm2 launched with 3-pane layout (sandbox mode)"
+else
+  echo "Launching iTerm2 with Claude Code and dev terminals..."
+
+  osascript <<APPLESCRIPT
+tell application "iTerm2"
+    create window with default profile
+    tell current window
+        tell current session
+            set name to "Claude"
+            write text "cd '\$worktree_dir' && claude"
+
+            -- Split vertically to create right pane
+            set rightPane to (split vertically with default profile)
+            tell rightPane
+                set name to "Dev Terminal"
+                write text "cd '\$worktree_dir' && nvm use 2>/dev/null; echo 'Dev terminal ready'"
+
+                -- Split horizontally to create bottom-right pane
+                set bottomPane to (split horizontally with default profile)
+                tell bottomPane
+                    set name to "Terminal 2"
+                    write text "cd '\$worktree_dir' && nvm use 2>/dev/null; echo 'Terminal 2 ready'"
+                end tell
+            end tell
+        end tell
+    end tell
+end tell
+APPLESCRIPT
+
+  echo "iTerm2 launched with 3-pane layout"
+fi
 `;
 }
 
@@ -274,22 +317,32 @@ NC='\\033[0m' # No Color
 export NVM_DIR="\$HOME/.nvm"
 [ -s "\$NVM_DIR/nvm.sh" ] && \\. "\$NVM_DIR/nvm.sh"
 
-if [[ -z "\$1" ]]; then
-  echo "Usage: ./scripts/wts <branch-name>"
+# Parse arguments
+sandbox_mode=false
+branch_name=""
+while [[ \$# -gt 0 ]]; do
+  case \$1 in
+    --sandbox) sandbox_mode=true; shift ;;
+    *) branch_name="\$1"; shift ;;
+  esac
+done
+
+if [[ -z "\$branch_name" ]]; then
+  echo "Usage: ./scripts/wts [--sandbox] <branch-name>"
   exit 1
 fi
-
-branch_name="\$1"
 original_dir=\$(pwd)
 repo_name=\$(basename "\$original_dir")
 safe_branch_name="\${branch_name//\\//-}"
 worktree_path="../\${repo_name}-\${safe_branch_name}"
 sandbox_image="\${repo_name}-claude-sandbox"
 
-# Check if custom sandbox image exists, build if not
-if ! docker image inspect "\$sandbox_image" &>/dev/null; then
-  echo "Custom sandbox image not found. Building \$sandbox_image..."
-  "\$original_dir/scripts/sandbox/build-sandbox"
+# Check if custom sandbox image exists, build if not (only for sandbox mode)
+if [[ "\$sandbox_mode" == "true" ]]; then
+  if ! docker image inspect "\$sandbox_image" &>/dev/null; then
+    echo "Custom sandbox image not found. Building \$sandbox_image..."
+    "\$original_dir/scripts/sandbox/build-sandbox"
+  fi
 fi
 
 # Check for Supabase project configuration
@@ -331,11 +384,12 @@ if [[ -f ".worktreeinclude" ]]; then
   done < ".worktreeinclude"
 fi
 
-# Copy sandbox Claude settings (disables dangerous mode, blocks destructive git commands)
-if [[ -f ".claude/sandbox.settings.local.json" ]]; then
+# Copy Claude settings for non-sandbox mode (disables dangerous mode, blocks destructive git commands)
+# In sandbox mode, Claude runs in dangerous mode since the Docker sandbox provides isolation
+if [[ "\$sandbox_mode" != "true" ]] && [[ -f ".claude/sandbox.settings.local.json" ]]; then
   mkdir -p "\$worktree_path/.claude"
   cp ".claude/sandbox.settings.local.json" "\$worktree_path/.claude/settings.local.json"
-  echo "Copied: sandbox settings -> .claude/settings.local.json"
+  echo "Copied: Claude settings -> .claude/settings.local.json"
 fi
 
 # Copy Supabase project reference
@@ -477,20 +531,21 @@ compose_project="\${repo_name}-\${safe_branch_name}"
 sandbox_name="\${compose_project}"
 worktree_dir="\$(pwd)"
 
-echo "Launching iTerm2 with Claude Code sandbox and dev terminals..."
+if [[ "\$sandbox_mode" == "true" ]]; then
+  echo "Launching iTerm2 with Claude Code sandbox and dev terminals..."
 
-# Pre-create node_modules and turbo volumes with correct ownership (agent user UID=1000)
-echo "📦 Creating node_modules and turbo volumes with correct ownership..."
-docker volume create "\${sandbox_name}_node_modules" >/dev/null 2>&1 || true
-docker volume create "\${sandbox_name}_web_node_modules" >/dev/null 2>&1 || true
-docker volume create "\${sandbox_name}_ui_node_modules" >/dev/null 2>&1 || true
-docker run --rm \\
-  -v "\${sandbox_name}_node_modules:/mnt/root" \\
-  -v "\${sandbox_name}_web_node_modules:/mnt/web" \\
-  -v "\${sandbox_name}_ui_node_modules:/mnt/ui" \\
-  alpine chown -R 1000:1000 /mnt/root /mnt/web /mnt/ui
+  # Pre-create node_modules and turbo volumes with correct ownership (agent user UID=1000)
+  echo "📦 Creating node_modules and turbo volumes with correct ownership..."
+  docker volume create "\${sandbox_name}_node_modules" >/dev/null 2>&1 || true
+  docker volume create "\${sandbox_name}_web_node_modules" >/dev/null 2>&1 || true
+  docker volume create "\${sandbox_name}_ui_node_modules" >/dev/null 2>&1 || true
+  docker run --rm \\
+    -v "\${sandbox_name}_node_modules:/mnt/root" \\
+    -v "\${sandbox_name}_web_node_modules:/mnt/web" \\
+    -v "\${sandbox_name}_ui_node_modules:/mnt/ui" \\
+    alpine chown -R 1000:1000 /mnt/root /mnt/web /mnt/ui
 
-osascript <<APPLESCRIPT
+  osascript <<APPLESCRIPT
 tell application "iTerm2"
     create window with default profile
     tell current window
@@ -516,6 +571,37 @@ tell application "iTerm2"
 end tell
 APPLESCRIPT
 
-echo "iTerm2 launched with 3-pane layout"
+  echo "iTerm2 launched with 3-pane layout (sandbox mode)"
+else
+  echo "Launching iTerm2 with Claude Code and dev terminals..."
+
+  osascript <<APPLESCRIPT
+tell application "iTerm2"
+    create window with default profile
+    tell current window
+        tell current session
+            set name to "Claude"
+            write text "cd '\$worktree_dir' && claude"
+
+            -- Split vertically to create right pane
+            set rightPane to (split vertically with default profile)
+            tell rightPane
+                set name to "Dev Terminal"
+                write text "cd '\$worktree_dir' && nvm use 2>/dev/null; echo 'Dev terminal ready'"
+
+                -- Split horizontally to create bottom-right pane
+                set bottomPane to (split horizontally with default profile)
+                tell bottomPane
+                    set name to "Terminal 2"
+                    write text "cd '\$worktree_dir' && nvm use 2>/dev/null; echo 'Terminal 2 ready'"
+                end tell
+            end tell
+        end tell
+    end tell
+end tell
+APPLESCRIPT
+
+  echo "iTerm2 launched with 3-pane layout"
+fi
 `;
 }

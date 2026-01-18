@@ -143,29 +143,34 @@ Enterprise SSO for B2B applications:
 pnpm dev create ../my-app --workos
 ```
 
-## Agent Scripts (Claude Code Sandbox)
+## Agent Scripts (Claude Code)
 
 The generated project includes scripts for isolated feature development with Claude Code:
 
 ```bash
-# Create an agent sandbox for a feature branch
+# Create a worktree with Claude Code running directly (default)
 pnpm agent feature-branch
 
+# Create a worktree with Claude Code in Docker sandbox
+pnpm agent:sandbox feature-branch
+
 # Clean up when done (run from inside the worktree)
-pnpm agent:clean
+pnpm agent:clean           # For worktrees created with pnpm agent
+pnpm agent:clean:sandbox   # For worktrees created with pnpm agent:sandbox
 ```
 
 ### Examples
 
 ```bash
-# Work on a new feature
+# Work on a new feature (Claude runs directly)
 pnpm agent add-user-settings
 
-# Fix a bug in isolation
-pnpm agent fix-auth-redirect
+# Work with Docker sandbox isolation
+pnpm agent:sandbox add-user-settings
 
-# Clean up the sandbox environment (must be run from inside the worktree)
-pnpm agent:clean
+# Clean up (from inside the worktree)
+pnpm agent:clean              # Non-sandbox
+pnpm agent:clean:sandbox      # Sandbox
 ```
 
 ### How It Works
@@ -176,7 +181,12 @@ When you run `pnpm agent my-feature`, the script:
 2. Creates and checks out a new branch named `my-feature`
 3. Copies files listed in `.worktreeinclude` (like `.env.local`) that aren't tracked by git
 4. Sets up an isolated database (Docker containers or Supabase branch)
-5. Opens an iTerm2 layout with Claude Code in sandbox mode
+5. Opens an iTerm2 layout with Claude Code
+
+The `--sandbox` variant (`pnpm agent:sandbox`) additionally:
+- Builds a custom Docker sandbox image
+- Creates isolated node_modules volumes
+- Runs Claude Code inside the Docker sandbox container
 
 The worktree is a full working copy of your repo on its own branch, so changes are isolated from your main development.
 
@@ -195,9 +205,12 @@ Add any untracked files your worktrees need (environment files, local configs, e
 When you run `pnpm agent:clean` from inside the worktree, it:
 
 1. Tears down the isolated database (stops Docker containers or deletes Supabase branch)
-2. Checks out the main branch in the main repo
-3. Deletes the feature branch
-4. Removes the worktree directory
+2. Deletes the feature branch
+3. Removes the worktree directory
+
+The `pnpm agent:clean:sandbox` variant additionally:
+- Stops and removes the Docker sandbox container
+- Removes node_modules volumes
 
 This fully cleans up all resources created by `pnpm agent`, returning your environment to its original state.
 

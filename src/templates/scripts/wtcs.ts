@@ -9,6 +9,12 @@ function generateDockerWtcsScript(): string {
 	return `#!/usr/bin/env bash
 set -e
 
+# Parse arguments
+sandbox_mode=false
+if [[ "\$1" == "--sandbox" ]]; then
+  sandbox_mode=true
+fi
+
 worktree_path=\$(pwd)
 git_dir=\$(git rev-parse --git-dir 2>/dev/null)
 
@@ -24,8 +30,10 @@ compose_project="\${repo_name}-\${safe_branch_name}"
 main_repo=\$(git rev-parse --git-common-dir | sed 's/\\/.git\$//')
 
 echo "This will:"
-echo "  - Stop Docker Sandbox for: \$compose_project (if exists)"
-echo "  - Remove sandbox node_modules volumes"
+if [[ "\$sandbox_mode" == "true" ]]; then
+  echo "  - Stop Docker Sandbox for: \$compose_project (if exists)"
+  echo "  - Remove sandbox node_modules volumes"
+fi
 echo "  - Stop containers and delete volumes for: \$compose_project"
 echo "  - Remove worktree at: \$worktree_path"
 echo "  - Delete local branch: \$branch_name"
@@ -37,26 +45,28 @@ if [[ "\$confirm" != [yY] ]]; then
   exit 0
 fi
 
-# Remove Docker Sandbox if it exists (search by name)
-# Note: docker sandbox ls doesn't support --format, so we parse the table output
-# Format: SANDBOX ID | TEMPLATE | NAME | WORKSPACE | STATUS | CREATED
-sandbox_id=\$(docker sandbox ls --no-trunc 2>/dev/null | awk -v name="\$compose_project" '\$3 == name {print \$1}')
-if [[ -n "\$sandbox_id" ]]; then
-  echo "🐳 Removing Docker Sandbox: \$sandbox_id (\$compose_project)"
-  docker sandbox rm "\$sandbox_id" 2>/dev/null || true
-else
-  echo "ℹ️  No Docker Sandbox found with name: \$compose_project"
+if [[ "\$sandbox_mode" == "true" ]]; then
+  # Remove Docker Sandbox if it exists (search by name)
+  # Note: docker sandbox ls doesn't support --format, so we parse the table output
+  # Format: SANDBOX ID | TEMPLATE | NAME | WORKSPACE | STATUS | CREATED
+  sandbox_id=\$(docker sandbox ls --no-trunc 2>/dev/null | awk -v name="\$compose_project" '\$3 == name {print \$1}')
+  if [[ -n "\$sandbox_id" ]]; then
+    echo "🐳 Removing Docker Sandbox: \$sandbox_id (\$compose_project)"
+    docker sandbox rm "\$sandbox_id" 2>/dev/null || true
+  else
+    echo "ℹ️  No Docker Sandbox found with name: \$compose_project"
+  fi
+
+  # Remove sandbox node_modules volumes
+  echo "🗑️  Removing sandbox node_modules volumes..."
+  docker volume rm "\${compose_project}_node_modules" 2>/dev/null || true
+  docker volume rm "\${compose_project}_web_node_modules" 2>/dev/null || true
+  docker volume rm "\${compose_project}_ui_node_modules" 2>/dev/null || true
+
+  # Clean up node_modules directories (may have root ownership from Docker)
+  echo "🧹 Cleaning up node_modules directories..."
+  docker run --rm -v "\$worktree_path:/workspace" alpine rm -rf /workspace/node_modules /workspace/apps/web/node_modules /workspace/packages/ui/node_modules 2>/dev/null || true
 fi
-
-# Remove sandbox node_modules volumes
-echo "🗑️  Removing sandbox node_modules volumes..."
-docker volume rm "\${compose_project}_node_modules" 2>/dev/null || true
-docker volume rm "\${compose_project}_web_node_modules" 2>/dev/null || true
-docker volume rm "\${compose_project}_ui_node_modules" 2>/dev/null || true
-
-# Clean up node_modules directories (may have root ownership from Docker)
-echo "🧹 Cleaning up node_modules directories..."
-docker run --rm -v "\$worktree_path:/workspace" alpine rm -rf /workspace/node_modules /workspace/apps/web/node_modules /workspace/packages/ui/node_modules 2>/dev/null || true
 
 # Stop containers and remove volumes
 COMPOSE_PROJECT_NAME="\$compose_project" docker compose down -v
@@ -67,13 +77,23 @@ git branch -D "\$branch_name"
 
 cd ..
 
-echo "Cleaned up worktree, sandbox, containers, volumes, and branch '\$branch_name'"
+if [[ "\$sandbox_mode" == "true" ]]; then
+  echo "Cleaned up worktree, sandbox, containers, volumes, and branch '\$branch_name'"
+else
+  echo "Cleaned up worktree, containers, volumes, and branch '\$branch_name'"
+fi
 `;
 }
 
 function generateSupabaseWtcsScript(): string {
 	return `#!/usr/bin/env bash
 set -e
+
+# Parse arguments
+sandbox_mode=false
+if [[ "\$1" == "--sandbox" ]]; then
+  sandbox_mode=true
+fi
 
 # Colors for output
 RED='\\033[0;31m'
@@ -112,8 +132,10 @@ if [[ -n "\$PROJECT_REF" ]]; then
   echo "  - Delete Supabase branch: \$supabase_branch_name"
   echo "  - Delete Supabase branch: \$supabase_test_branch"
 fi
-echo "  - Stop Docker Sandbox: \$compose_project (if exists)"
-echo "  - Remove sandbox node_modules volumes"
+if [[ "\$sandbox_mode" == "true" ]]; then
+  echo "  - Stop Docker Sandbox: \$compose_project (if exists)"
+  echo "  - Remove sandbox node_modules volumes"
+fi
 echo "  - Remove worktree at: \$worktree_path"
 echo "  - Delete local branch: \$branch_name"
 echo ""
@@ -150,31 +172,33 @@ else
   echo -e "\${YELLOW}No Supabase project configured - skipping branch deletion\${NC}"
 fi
 
-# Remove Docker Sandbox if it exists (search by name)
-# Note: docker sandbox ls doesn't support --format, so we parse the table output
-# Format: SANDBOX ID | TEMPLATE | NAME | WORKSPACE | STATUS | CREATED
-echo ""
-echo "Cleaning up Docker Sandbox..."
-sandbox_id=\$(docker sandbox ls --no-trunc 2>/dev/null | awk -v name="\$compose_project" '\$3 == name {print \$1}')
-if [[ -n "\$sandbox_id" ]]; then
-  echo "  Removing Docker Sandbox: \$sandbox_id (\$compose_project)"
-  docker sandbox rm "\$sandbox_id" 2>/dev/null || true
-  echo -e "  \${GREEN}✓ Docker Sandbox removed\${NC}"
-else
-  echo "  No Docker Sandbox found with name: \$compose_project"
+if [[ "\$sandbox_mode" == "true" ]]; then
+  # Remove Docker Sandbox if it exists (search by name)
+  # Note: docker sandbox ls doesn't support --format, so we parse the table output
+  # Format: SANDBOX ID | TEMPLATE | NAME | WORKSPACE | STATUS | CREATED
+  echo ""
+  echo "Cleaning up Docker Sandbox..."
+  sandbox_id=\$(docker sandbox ls --no-trunc 2>/dev/null | awk -v name="\$compose_project" '\$3 == name {print \$1}')
+  if [[ -n "\$sandbox_id" ]]; then
+    echo "  Removing Docker Sandbox: \$sandbox_id (\$compose_project)"
+    docker sandbox rm "\$sandbox_id" 2>/dev/null || true
+    echo -e "  \${GREEN}✓ Docker Sandbox removed\${NC}"
+  else
+    echo "  No Docker Sandbox found with name: \$compose_project"
+  fi
+
+  # Remove sandbox node_modules volumes
+  echo ""
+  echo "🗑️  Removing sandbox node_modules volumes..."
+  docker volume rm "\${compose_project}_node_modules" 2>/dev/null || true
+  docker volume rm "\${compose_project}_web_node_modules" 2>/dev/null || true
+  docker volume rm "\${compose_project}_ui_node_modules" 2>/dev/null || true
+  echo -e "  \${GREEN}✓ Node_modules volumes removed\${NC}"
+
+  # Clean up node_modules directories (may have root ownership from Docker)
+  echo "🧹 Cleaning up node_modules directories..."
+  docker run --rm -v "\$worktree_path:/workspace" alpine rm -rf /workspace/node_modules /workspace/apps/web/node_modules /workspace/packages/ui/node_modules 2>/dev/null || true
 fi
-
-# Remove sandbox node_modules volumes
-echo ""
-echo "🗑️  Removing sandbox node_modules volumes..."
-docker volume rm "\${compose_project}_node_modules" 2>/dev/null || true
-docker volume rm "\${compose_project}_web_node_modules" 2>/dev/null || true
-docker volume rm "\${compose_project}_ui_node_modules" 2>/dev/null || true
-echo -e "  \${GREEN}✓ Node_modules volumes removed\${NC}"
-
-# Clean up node_modules directories (may have root ownership from Docker)
-echo "🧹 Cleaning up node_modules directories..."
-docker run --rm -v "\$worktree_path:/workspace" alpine rm -rf /workspace/node_modules /workspace/apps/web/node_modules /workspace/packages/ui/node_modules 2>/dev/null || true
 
 # Remove worktree and branch
 echo ""
@@ -197,8 +221,10 @@ echo "Cleaned up:"
 if [[ -n "\$PROJECT_REF" ]]; then
   echo "  - Supabase branches: \$supabase_branch_name, \$supabase_test_branch"
 fi
-echo "  - Docker Sandbox: \$compose_project"
-echo "  - Node_modules volumes"
+if [[ "\$sandbox_mode" == "true" ]]; then
+  echo "  - Docker Sandbox: \$compose_project"
+  echo "  - Node_modules volumes"
+fi
 echo "  - Worktree: \$worktree_path"
 echo "  - Branch: \$branch_name"
 `;
