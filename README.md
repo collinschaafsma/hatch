@@ -2,6 +2,23 @@
 
 A CLI tool that scaffolds production-ready Turborepo monorepos with Next.js, authentication, database, AI, and more.
 
+**From zero to deployed in minutes.** Hatch generates a complete full-stack application, then `pnpm app:setup` does the rest:
+
+- Creates your GitHub repo and pushes the initial commit
+- Provisions a Supabase database with connection pooling
+- Links your Vercel project with the correct root directory
+- Configures environment variables across all environments
+- Runs database migrations and deploys to production
+
+**Built for AI-assisted development.** The generated project includes agent scripts that create isolated environments for Claude Code:
+
+- `pnpm agent feature-name` spins up a git worktree with its own database branch
+- `pnpm agent:sandbox feature-name` adds Docker sandbox isolation for full containment
+- Claude works in isolation - no risk to your main branch or data
+- `pnpm agent:clean` tears everything down when you're done
+
+A modern stack (Next.js 16, React 19, Drizzle, Tailwind 4, shadcn/ui) with auth, AI, workflows, and testing already wired up. Skip the boilerplate and start building.
+
 ## What You Get
 
 Hatch generates a complete full-stack monorepo with:
