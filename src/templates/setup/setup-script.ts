@@ -1165,8 +1165,8 @@ print_summary() {
 commit_and_deploy() {
   print_header "Deploying to Production"
 
-  # Check if there are any changes to commit
-  if git diff --quiet && git diff --cached --quiet; then
+  # Check if there are any changes to commit (including untracked files)
+  if [[ -z \$(git status --porcelain) ]]; then
     print_step "No setup changes to commit"
   else
     print_step "Committing setup changes..."
