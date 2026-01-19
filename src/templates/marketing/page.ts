@@ -25,6 +25,7 @@ export default async function HomePage() {
 		<>
 			<script
 				type="application/ld+json"
+				// biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data for SEO
 				dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
 			/>
 			<main className="min-h-screen flex flex-col">
