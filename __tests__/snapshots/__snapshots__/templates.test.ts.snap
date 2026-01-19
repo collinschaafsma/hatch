@@ -2369,17 +2369,15 @@ export const organizationMemberships = pgTable(
 exports[`template snapshots > database templates > generateDrizzleConfig 1`] = `
 "import { defineConfig } from "drizzle-kit";
 
-if (!process.env.DATABASE_URL) {
-	throw new Error("DATABASE_URL environment variable is required");
-}
-
 export default defineConfig({
 	schema: "./db/schema.ts",
 	out: "./drizzle",
 	dialect: "postgresql",
-	dbCredentials: {
-		url: process.env.DATABASE_URL,
-	},
+	...(process.env.DATABASE_URL && {
+		dbCredentials: {
+			url: process.env.DATABASE_URL,
+		},
+	}),
 });
 "
 `;
@@ -3068,6 +3066,7 @@ export default async function HomePage() {
 		<>
 			<script
 				type="application/ld+json"
+				// biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data for SEO
 				dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
 			/>
 			<main className="min-h-screen flex flex-col">
@@ -3082,7 +3081,7 @@ export default async function HomePage() {
 
 exports[`template snapshots > root templates > generateBiomeJson 1`] = `
 "{
-  "$schema": "https://biomejs.dev/schemas/2.0.0/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.3.11/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -3096,11 +3095,11 @@ exports[`template snapshots > root templates > generateBiomeJson 1`] = `
       "**/*.js",
       "**/*.jsx",
       "**/*.json",
-      "!node_modules/**",
-      "!.next/**",
-      "!dist/**",
-      "!drizzle/**",
-      "!packages/ui/src/components/**"
+      "!**/node_modules/**",
+      "!**/.next/**",
+      "!**/dist/**",
+      "!**/drizzle/**",
+      "!**/packages/ui/src/components/**"
     ]
   },
   "formatter": {
@@ -3310,9 +3309,6 @@ npm-debug.log*
 # Testing
 coverage/
 
-# Drizzle
-drizzle/
-
 # Setup script state (idempotency tracking)
 .setup-state
 
@@ -3495,19 +3491,25 @@ pnpm --filter web test:coverage
 
 ---
 
-## Agent Sandbox (Claude Code)
+## Agent Worktree (Claude Code)
 
 Create isolated development environments with separate databases, perfect for feature development with Claude Code.
 
 | Command | Description |
 |---------|-------------|
-| \`pnpm agent <branch>\` | Create sandbox with isolated database |
-| \`pnpm agent:clean\` | Clean up sandbox (run from within worktree) |
+| \`pnpm agent <branch>\` | Create worktree with isolated database (runs Claude directly) |
+| \`pnpm agent:sandbox <branch>\` | Create worktree with Docker sandbox isolation |
+| \`pnpm agent:clean\` | Clean up worktree (run from within worktree) |
+| \`pnpm agent:clean:sandbox\` | Clean up sandbox worktree (run from within worktree) |
 
-### Create a Sandbox
+### Create a Worktree
 
 \`\`\`bash
+# Default: Run Claude Code directly
 pnpm agent <branch-name>
+
+# Optional: Run Claude Code in Docker sandbox with isolated node_modules
+pnpm agent:sandbox <branch-name>
 \`\`\`
 
 This will:
@@ -3518,23 +3520,27 @@ This will:
 5. Copy data from the main database
 6. Push branch to remote
 7. Open iTerm2 with 3 panes:
-   - **Pane 1:** Claude Code running in Docker sandbox
+   - **Pane 1:** Claude Code (directly or in Docker sandbox)
    - **Pane 2:** Development terminal
    - **Pane 3:** Additional terminal
 
-### Clean Up a Sandbox
+### Clean Up
 
-From within the sandbox directory:
+From within the worktree directory:
 
 \`\`\`bash
+# For worktrees created with pnpm agent
 pnpm agent:clean
+
+# For worktrees created with pnpm agent:sandbox
+pnpm agent:clean:sandbox
 \`\`\`
 
 This will:
-1. Stop and remove the Docker sandbox
-2. Deletes Supabase branches and stops any Docker containers
-3. Remove the git worktree
-4. Delete the local branch
+1. Deletes Supabase branches and stops any Docker containers
+2. Remove the git worktree
+3. Delete the local branch
+4. (Sandbox only) Stop and remove the Docker sandbox and node_modules volumes
 
 ---
 
@@ -3730,7 +3736,9 @@ exports[`template snapshots > root templates > generateRootPackageJson 1`] = `
     "docker:reset": "docker compose down -v && docker compose up -d postgres",
     "app:setup": "./scripts/setup",
     "agent": "./scripts/wts",
-    "agent:clean": "./scripts/wtcs"
+    "agent:sandbox": "./scripts/wts --sandbox",
+    "agent:clean": "./scripts/wtcs",
+    "agent:clean:sandbox": "./scripts/wtcs --sandbox"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.11",
@@ -3899,6 +3907,12 @@ exports[`template snapshots > scripts templates > generateWtcsScript 1`] = `
 "#!/usr/bin/env bash
 set -e
 
+# Parse arguments
+sandbox_mode=false
+if [[ "$1" == "--sandbox" ]]; then
+  sandbox_mode=true
+fi
+
 # Colors for output
 RED='\\033[0;31m'
 GREEN='\\033[0;32m'
@@ -3936,8 +3950,10 @@ if [[ -n "$PROJECT_REF" ]]; then
   echo "  - Delete Supabase branch: $supabase_branch_name"
   echo "  - Delete Supabase branch: $supabase_test_branch"
 fi
-echo "  - Stop Docker Sandbox: $compose_project (if exists)"
-echo "  - Remove sandbox node_modules volumes"
+if [[ "$sandbox_mode" == "true" ]]; then
+  echo "  - Stop Docker Sandbox: $compose_project (if exists)"
+  echo "  - Remove sandbox node_modules volumes"
+fi
 echo "  - Remove worktree at: $worktree_path"
 echo "  - Delete local branch: $branch_name"
 echo ""
@@ -3974,31 +3990,33 @@ else
   echo -e "\${YELLOW}No Supabase project configured - skipping branch deletion\${NC}"
 fi
 
-# Remove Docker Sandbox if it exists (search by name)
-# Note: docker sandbox ls doesn't support --format, so we parse the table output
-# Format: SANDBOX ID | TEMPLATE | NAME | WORKSPACE | STATUS | CREATED
-echo ""
-echo "Cleaning up Docker Sandbox..."
-sandbox_id=$(docker sandbox ls --no-trunc 2>/dev/null | awk -v name="$compose_project" '$3 == name {print $1}')
-if [[ -n "$sandbox_id" ]]; then
-  echo "  Removing Docker Sandbox: $sandbox_id ($compose_project)"
-  docker sandbox rm "$sandbox_id" 2>/dev/null || true
-  echo -e "  \${GREEN}✓ Docker Sandbox removed\${NC}"
-else
-  echo "  No Docker Sandbox found with name: $compose_project"
+if [[ "$sandbox_mode" == "true" ]]; then
+  # Remove Docker Sandbox if it exists (search by name)
+  # Note: docker sandbox ls doesn't support --format, so we parse the table output
+  # Format: SANDBOX ID | TEMPLATE | NAME | WORKSPACE | STATUS | CREATED
+  echo ""
+  echo "Cleaning up Docker Sandbox..."
+  sandbox_id=$(docker sandbox ls --no-trunc 2>/dev/null | awk -v name="$compose_project" '$3 == name {print $1}')
+  if [[ -n "$sandbox_id" ]]; then
+    echo "  Removing Docker Sandbox: $sandbox_id ($compose_project)"
+    docker sandbox rm "$sandbox_id" 2>/dev/null || true
+    echo -e "  \${GREEN}✓ Docker Sandbox removed\${NC}"
+  else
+    echo "  No Docker Sandbox found with name: $compose_project"
+  fi
+
+  # Remove sandbox node_modules volumes
+  echo ""
+  echo "🗑️  Removing sandbox node_modules volumes..."
+  docker volume rm "\${compose_project}_node_modules" 2>/dev/null || true
+  docker volume rm "\${compose_project}_web_node_modules" 2>/dev/null || true
+  docker volume rm "\${compose_project}_ui_node_modules" 2>/dev/null || true
+  echo -e "  \${GREEN}✓ Node_modules volumes removed\${NC}"
+
+  # Clean up node_modules directories (may have root ownership from Docker)
+  echo "🧹 Cleaning up node_modules directories..."
+  docker run --rm -v "$worktree_path:/workspace" alpine rm -rf /workspace/node_modules /workspace/apps/web/node_modules /workspace/packages/ui/node_modules 2>/dev/null || true
 fi
-
-# Remove sandbox node_modules volumes
-echo ""
-echo "🗑️  Removing sandbox node_modules volumes..."
-docker volume rm "\${compose_project}_node_modules" 2>/dev/null || true
-docker volume rm "\${compose_project}_web_node_modules" 2>/dev/null || true
-docker volume rm "\${compose_project}_ui_node_modules" 2>/dev/null || true
-echo -e "  \${GREEN}✓ Node_modules volumes removed\${NC}"
-
-# Clean up node_modules directories (may have root ownership from Docker)
-echo "🧹 Cleaning up node_modules directories..."
-docker run --rm -v "$worktree_path:/workspace" alpine rm -rf /workspace/node_modules /workspace/apps/web/node_modules /workspace/packages/ui/node_modules 2>/dev/null || true
 
 # Remove worktree and branch
 echo ""
@@ -4021,8 +4039,10 @@ echo "Cleaned up:"
 if [[ -n "$PROJECT_REF" ]]; then
   echo "  - Supabase branches: $supabase_branch_name, $supabase_test_branch"
 fi
-echo "  - Docker Sandbox: $compose_project"
-echo "  - Node_modules volumes"
+if [[ "$sandbox_mode" == "true" ]]; then
+  echo "  - Docker Sandbox: $compose_project"
+  echo "  - Node_modules volumes"
+fi
 echo "  - Worktree: $worktree_path"
 echo "  - Branch: $branch_name"
 "
@@ -4042,22 +4062,32 @@ NC='\\033[0m' # No Color
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \\. "$NVM_DIR/nvm.sh"
 
-if [[ -z "$1" ]]; then
-  echo "Usage: ./scripts/wts <branch-name>"
+# Parse arguments
+sandbox_mode=false
+branch_name=""
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --sandbox) sandbox_mode=true; shift ;;
+    *) branch_name="$1"; shift ;;
+  esac
+done
+
+if [[ -z "$branch_name" ]]; then
+  echo "Usage: ./scripts/wts [--sandbox] <branch-name>"
   exit 1
 fi
-
-branch_name="$1"
 original_dir=$(pwd)
 repo_name=$(basename "$original_dir")
 safe_branch_name="\${branch_name//\\//-}"
 worktree_path="../\${repo_name}-\${safe_branch_name}"
 sandbox_image="\${repo_name}-claude-sandbox"
 
-# Check if custom sandbox image exists, build if not
-if ! docker image inspect "$sandbox_image" &>/dev/null; then
-  echo "Custom sandbox image not found. Building $sandbox_image..."
-  "$original_dir/scripts/sandbox/build-sandbox"
+# Check if custom sandbox image exists, build if not (only for sandbox mode)
+if [[ "$sandbox_mode" == "true" ]]; then
+  if ! docker image inspect "$sandbox_image" &>/dev/null; then
+    echo "Custom sandbox image not found. Building $sandbox_image..."
+    "$original_dir/scripts/sandbox/build-sandbox"
+  fi
 fi
 
 # Check for Supabase project configuration
@@ -4099,11 +4129,12 @@ if [[ -f ".worktreeinclude" ]]; then
   done < ".worktreeinclude"
 fi
 
-# Copy sandbox Claude settings (disables dangerous mode, blocks destructive git commands)
-if [[ -f ".claude/sandbox.settings.local.json" ]]; then
+# Copy Claude settings for non-sandbox mode (disables dangerous mode, blocks destructive git commands)
+# In sandbox mode, Claude runs in dangerous mode since the Docker sandbox provides isolation
+if [[ "$sandbox_mode" != "true" ]] && [[ -f ".claude/sandbox.settings.local.json" ]]; then
   mkdir -p "$worktree_path/.claude"
   cp ".claude/sandbox.settings.local.json" "$worktree_path/.claude/settings.local.json"
-  echo "Copied: sandbox settings -> .claude/settings.local.json"
+  echo "Copied: Claude settings -> .claude/settings.local.json"
 fi
 
 # Copy Supabase project reference
@@ -4245,20 +4276,21 @@ compose_project="\${repo_name}-\${safe_branch_name}"
 sandbox_name="\${compose_project}"
 worktree_dir="$(pwd)"
 
-echo "Launching iTerm2 with Claude Code sandbox and dev terminals..."
+if [[ "$sandbox_mode" == "true" ]]; then
+  echo "Launching iTerm2 with Claude Code sandbox and dev terminals..."
 
-# Pre-create node_modules and turbo volumes with correct ownership (agent user UID=1000)
-echo "📦 Creating node_modules and turbo volumes with correct ownership..."
-docker volume create "\${sandbox_name}_node_modules" >/dev/null 2>&1 || true
-docker volume create "\${sandbox_name}_web_node_modules" >/dev/null 2>&1 || true
-docker volume create "\${sandbox_name}_ui_node_modules" >/dev/null 2>&1 || true
-docker run --rm \\
-  -v "\${sandbox_name}_node_modules:/mnt/root" \\
-  -v "\${sandbox_name}_web_node_modules:/mnt/web" \\
-  -v "\${sandbox_name}_ui_node_modules:/mnt/ui" \\
-  alpine chown -R 1000:1000 /mnt/root /mnt/web /mnt/ui
+  # Pre-create node_modules and turbo volumes with correct ownership (agent user UID=1000)
+  echo "📦 Creating node_modules and turbo volumes with correct ownership..."
+  docker volume create "\${sandbox_name}_node_modules" >/dev/null 2>&1 || true
+  docker volume create "\${sandbox_name}_web_node_modules" >/dev/null 2>&1 || true
+  docker volume create "\${sandbox_name}_ui_node_modules" >/dev/null 2>&1 || true
+  docker run --rm \\
+    -v "\${sandbox_name}_node_modules:/mnt/root" \\
+    -v "\${sandbox_name}_web_node_modules:/mnt/web" \\
+    -v "\${sandbox_name}_ui_node_modules:/mnt/ui" \\
+    alpine chown -R 1000:1000 /mnt/root /mnt/web /mnt/ui
 
-osascript <<APPLESCRIPT
+  osascript <<APPLESCRIPT
 tell application "iTerm2"
     create window with default profile
     tell current window
@@ -4284,7 +4316,38 @@ tell application "iTerm2"
 end tell
 APPLESCRIPT
 
-echo "iTerm2 launched with 3-pane layout"
+  echo "iTerm2 launched with 3-pane layout (sandbox mode)"
+else
+  echo "Launching iTerm2 with Claude Code and dev terminals..."
+
+  osascript <<APPLESCRIPT
+tell application "iTerm2"
+    create window with default profile
+    tell current window
+        tell current session
+            set name to "Claude"
+            write text "cd '$worktree_dir' && claude"
+
+            -- Split vertically to create right pane
+            set rightPane to (split vertically with default profile)
+            tell rightPane
+                set name to "Dev Terminal"
+                write text "cd '$worktree_dir' && nvm use 2>/dev/null; echo 'Dev terminal ready'"
+
+                -- Split horizontally to create bottom-right pane
+                set bottomPane to (split horizontally with default profile)
+                tell bottomPane
+                    set name to "Terminal 2"
+                    write text "cd '$worktree_dir' && nvm use 2>/dev/null; echo 'Terminal 2 ready'"
+                end tell
+            end tell
+        end tell
+    end tell
+end tell
+APPLESCRIPT
+
+  echo "iTerm2 launched with 3-pane layout"
+fi
 "
 `;
 
@@ -4597,6 +4660,26 @@ auth_vercel() {
   else
     print_error "Vercel authentication failed"
     exit 1
+  fi
+}
+
+# =============================================================================
+# Step 4b: Select Vercel Team/Account
+# =============================================================================
+
+select_vercel_team() {
+  print_header "Vercel Team Selection"
+
+  print_step "Select which Vercel account/team to use for this project..."
+  echo ""
+
+  # vercel switch without arguments shows interactive picker
+  vercel switch
+
+  # Show which team was selected
+  local current_team=$(vercel whoami 2>/dev/null)
+  if [[ -n "$current_team" ]]; then
+    print_success "Using Vercel account: $current_team"
   fi
 }
 
@@ -4927,22 +5010,32 @@ run_migrations() {
   if [[ -z "$prod_db_url" ]]; then
     print_warning "Database credentials not available - skipping migrations"
     echo "  You can run migrations manually later:"
-    echo "  cd apps/web && DATABASE_URL='your-url' pnpm db:push"
+    echo "  cd apps/web && pnpm db:generate"
+    echo "  DATABASE_URL='your-url' pnpm db:migrate"
     echo ""
     echo "  Get your DATABASE_URL from:"
     echo "  https://supabase.com/dashboard/project/$project_ref/settings/database"
     return 0
   fi
 
-  print_step "Pushing schema to production database..."
-
-  # Use drizzle-kit push with the production URL directly
   cd apps/web
-  if DATABASE_URL="$prod_db_url" pnpm db:push 2>/dev/null; then
-    print_success "Database schema pushed successfully"
+
+  # Generate initial migration files first
+  print_step "Generating initial database migration..."
+  if pnpm db:generate 2>/dev/null; then
+    print_success "Initial migration generated"
   else
-    print_warning "Database push failed - you may need to run it manually"
-    echo "  cd apps/web && DATABASE_URL='<your-url>' pnpm db:push"
+    print_warning "Could not generate migration - you may need to run: pnpm db:generate"
+  fi
+
+  # Run migrations (not db:push) so Drizzle records them as applied
+  # This prevents "relation already exists" errors on deploy
+  print_step "Applying migrations to production database..."
+  if DATABASE_URL="$prod_db_url" pnpm db:migrate 2>/dev/null; then
+    print_success "Database migrations applied successfully"
+  else
+    print_warning "Migration failed - you may need to run it manually"
+    echo "  cd apps/web && DATABASE_URL='<your-url>' pnpm db:migrate"
   fi
   cd ../..
 }
@@ -4973,6 +5066,32 @@ setup_vercel() {
 
   if [[ -f ".vercel/project.json" ]]; then
     print_success "Vercel project linked: $PROJECT_NAME"
+
+    # Set root directory via Vercel API (CLI doesn't support this)
+    local project_id=$(jq -r '.projectId' .vercel/project.json)
+    local vercel_token=""
+
+    # Try to get token from Vercel CLI config
+    # macOS stores in Application Support, Linux in .config
+    if [[ -f "$HOME/Library/Application Support/com.vercel.cli/auth.json" ]]; then
+      vercel_token=$(jq -r '.token // empty' "$HOME/Library/Application Support/com.vercel.cli/auth.json" 2>/dev/null)
+    elif [[ -f "$HOME/.config/com.vercel.cli/auth.json" ]]; then
+      vercel_token=$(jq -r '.token // empty' "$HOME/.config/com.vercel.cli/auth.json" 2>/dev/null)
+    fi
+
+    if [[ -n "$vercel_token" && -n "$project_id" ]]; then
+      print_step "Setting Vercel root directory to apps/web..."
+      if curl -s -X PATCH "https://api.vercel.com/v9/projects/$project_id" \\
+        -H "Authorization: Bearer $vercel_token" \\
+        -H "Content-Type: application/json" \\
+        -d '{"rootDirectory": "apps/web"}' > /dev/null; then
+        print_success "Root directory configured"
+      else
+        print_warning "Could not set root directory - set it manually in Vercel dashboard"
+      fi
+    else
+      print_warning "Could not set root directory automatically - set apps/web in Vercel dashboard"
+    fi
 
     # Connect Git repository for automatic deployments
     local git_url=$(git remote get-url origin 2>/dev/null || echo "")
@@ -5052,7 +5171,8 @@ setup_better_auth_secrets() {
   fi
 
   print_step "Adding BETTER_AUTH_SECRET to development..."
-  if set_vercel_env "BETTER_AUTH_SECRET" "development" "$dev_secret" "true" 2>/dev/null; then
+  # Note: Don't use --sensitive for development env vars
+  if set_vercel_env "BETTER_AUTH_SECRET" "development" "$dev_secret" "false" 2>/dev/null; then
     print_success "Development BETTER_AUTH_SECRET configured"
   else
     print_warning "Could not set development secret"
@@ -5120,7 +5240,8 @@ setup_workos_secrets() {
   fi
 
   print_step "Adding WORKOS_COOKIE_PASSWORD to development..."
-  if set_vercel_env "WORKOS_COOKIE_PASSWORD" "development" "$dev_secret" "true" 2>/dev/null; then
+  # Note: Don't use --sensitive for development env vars
+  if set_vercel_env "WORKOS_COOKIE_PASSWORD" "development" "$dev_secret" "false" 2>/dev/null; then
     print_success "Development WORKOS_COOKIE_PASSWORD configured"
   else
     print_warning "Could not set development secret"
@@ -5250,19 +5371,9 @@ configure_database_environments() {
       fi
     fi
 
-    # Apply migrations to branches
-    echo ""
-    print_step "Applying schema to branches..."
-
-    if [[ -n "$dev_db_url" ]]; then
-      echo "  Pushing schema to dev branch..."
-      DATABASE_URL="$dev_db_url" pnpm --filter web db:push 2>/dev/null && print_success "  Schema pushed to dev" || echo -e "    \${YELLOW}⚠ Schema push to dev failed\${NC}"
-    fi
-
-    if [[ -n "$dev_test_db_url" ]]; then
-      echo "  Pushing schema to dev-test branch..."
-      DATABASE_URL="$dev_test_db_url" pnpm --filter web db:push 2>/dev/null && print_success "  Schema pushed to dev-test" || echo -e "    \${YELLOW}⚠ Schema push to dev-test failed\${NC}"
-    fi
+    # Note: No need to run migrations on branches - they're copies of main
+    # and already have the schema + migration history
+    print_success "Branches created (schema inherited from main)"
   fi
 
   # -------------------------------------------------------------------------
@@ -5272,8 +5383,10 @@ configure_database_environments() {
     echo ""
     print_step "Configuring Vercel production DATABASE_URL..."
 
-    # Use pooler URL for serverless runtime (transaction pooler is optimal for serverless)
-    local prod_db_url=$(get_pooler_database_url "$project_ref")
+    # Use session pooler (aws-1, port 5432) which supports both:
+    # - DDL operations (migrations) during build
+    # - Runtime queries from serverless functions
+    local prod_db_url=$(get_direct_database_url "$project_ref")
 
     if [[ -n "$prod_db_url" ]]; then
       if printf '%s' "$prod_db_url" | vercel env add DATABASE_URL production --cwd apps/web 2>/dev/null; then
@@ -5313,18 +5426,7 @@ configure_database_environments() {
       echo "    5. Enable 'Preview Branches' option"
       echo ""
 
-      # Get Vercel org info (orgId is the team/user slug)
-      local vercel_org_id=""
-      if [[ -f "apps/web/.vercel/project.json" ]]; then
-        vercel_org_id=$(jq -r '.orgId // empty' apps/web/.vercel/project.json 2>/dev/null || echo "")
-      fi
-
-      # Open Vercel projects page
-      if [[ -n "$vercel_org_id" ]]; then
-        open "https://vercel.com/$vercel_org_id" 2>/dev/null || echo "  URL: https://vercel.com/$vercel_org_id"
-      else
-        open "https://vercel.com/dashboard" 2>/dev/null || echo "  URL: https://vercel.com/dashboard"
-      fi
+      open "https://vercel.com/" 2>/dev/null || echo "  URL: https://vercel.com/"
 
       echo ""
       read -p "  Press Enter when you've completed the integration setup..." _
@@ -5469,8 +5571,8 @@ print_summary() {
 commit_and_deploy() {
   print_header "Deploying to Production"
 
-  # Check if there are any changes to commit
-  if git diff --quiet && git diff --cached --quiet; then
+  # Check if there are any changes to commit (including untracked files)
+  if [[ -z $(git status --porcelain) ]]; then
     print_step "No setup changes to commit"
   else
     print_step "Committing setup changes..."
@@ -5494,19 +5596,11 @@ commit_and_deploy() {
       print_step "Pushing to main..."
       if git push origin main; then
         print_success "Pushed to main - deployment triggered!"
-        echo ""
-        echo "  Your app will be live at:"
-        echo "  https://$PROJECT_NAME.vercel.app"
-        echo ""
-        echo "  View deployment progress at:"
-        echo "  https://vercel.com/dashboard"
       else
         print_warning "Push failed - deploy manually with: git push origin main"
       fi
     else
-      print_step "Skipping deploy"
-      echo "  Deploy later with: git push origin main"
-      echo "  Your app will be at: https://$PROJECT_NAME.vercel.app"
+      print_step "Skipping deploy - deploy later with: git push origin main"
     fi
   else
     print_success "Already up to date with remote"
@@ -5517,18 +5611,13 @@ commit_and_deploy() {
 
     if [[ "$do_cli_deploy" == [yY] ]]; then
       print_step "Deploying to production..."
-      if vercel --prod --cwd apps/web --yes; then
-        print_success "Production deployment triggered!"
-        echo ""
-        echo "  Your app will be live at:"
-        echo "  https://$PROJECT_NAME.vercel.app"
+      if vercel --prod --yes; then
+        print_success "Production deployment complete!"
       else
-        print_warning "Deployment failed - try manually with: vercel --prod --cwd apps/web"
+        print_warning "Deployment failed - try manually with: vercel --prod"
       fi
     else
-      print_step "Skipping deploy"
-      echo "  Deploy later with: vercel --prod --cwd apps/web"
-      echo "  Your app will be at: https://$PROJECT_NAME.vercel.app"
+      print_step "Skipping deploy - deploy later with: vercel --prod"
     fi
   fi
 }
@@ -5555,6 +5644,7 @@ main() {
   auth_github
   auth_supabase
   auth_vercel
+  select_vercel_team
   create_github_repo
   create_supabase_project
   link_supabase
