@@ -580,6 +580,8 @@ run_migrations() {
 
     if [[ "\$status" == "ACTIVE_HEALTHY" ]]; then
       print_success "Database is ready"
+      # Give pooler endpoints a moment to become fully available
+      sleep 5
       break
     fi
 
@@ -605,18 +607,20 @@ run_migrations() {
 
   # Generate initial migration files first
   print_step "Generating initial database migration..."
-  if pnpm db:generate 2>/dev/null; then
+  if pnpm db:generate; then
     print_success "Initial migration generated"
   else
+    echo ""
     print_warning "Could not generate migration - you may need to run: pnpm db:generate"
   fi
 
   # Run migrations (not db:push) so Drizzle records them as applied
   # This prevents "relation already exists" errors on deploy
   print_step "Applying migrations to production database..."
-  if DATABASE_URL="\$prod_db_url" pnpm db:migrate 2>/dev/null; then
+  if DATABASE_URL="\$prod_db_url" pnpm db:migrate; then
     print_success "Database migrations applied successfully"
   else
+    echo ""
     print_warning "Migration failed - you may need to run it manually"
     echo "  cd apps/web && DATABASE_URL='<your-url>' pnpm db:migrate"
   fi
