@@ -1190,19 +1190,11 @@ commit_and_deploy() {
       print_step "Pushing to main..."
       if git push origin main; then
         print_success "Pushed to main - deployment triggered!"
-        echo ""
-        echo "  Your app will be live at:"
-        echo "  https://\$PROJECT_NAME.vercel.app"
-        echo ""
-        echo "  View deployment progress at:"
-        echo "  https://vercel.com/dashboard"
       else
         print_warning "Push failed - deploy manually with: git push origin main"
       fi
     else
-      print_step "Skipping deploy"
-      echo "  Deploy later with: git push origin main"
-      echo "  Your app will be at: https://\$PROJECT_NAME.vercel.app"
+      print_step "Skipping deploy - deploy later with: git push origin main"
     fi
   else
     print_success "Already up to date with remote"
@@ -1214,17 +1206,12 @@ commit_and_deploy() {
     if [[ "\$do_cli_deploy" == [yY] ]]; then
       print_step "Deploying to production..."
       if vercel --prod --yes; then
-        print_success "Production deployment triggered!"
-        echo ""
-        echo "  Your app will be live at:"
-        echo "  https://\$PROJECT_NAME.vercel.app"
+        print_success "Production deployment complete!"
       else
         print_warning "Deployment failed - try manually with: vercel --prod"
       fi
     else
-      print_step "Skipping deploy"
-      echo "  Deploy later with: vercel --prod"
-      echo "  Your app will be at: https://\$PROJECT_NAME.vercel.app"
+      print_step "Skipping deploy - deploy later with: vercel --prod"
     fi
   fi
 }
