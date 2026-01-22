@@ -283,6 +283,21 @@ export const createCommand = new Command()
 					);
 					await copyDir(reactSkillSrc, reactSkillDest);
 
+					// Copy agent-browser skill (static files)
+					const browserSkillSrc = path.join(
+						packageRoot,
+						".claude",
+						"skills",
+						"agent-browser",
+					);
+					const browserSkillDest = path.join(
+						projectPath,
+						".claude",
+						"skills",
+						"agent-browser",
+					);
+					await copyDir(browserSkillSrc, browserSkillDest);
+
 					// Make scripts executable
 					await setExecutable(wtsPath);
 					await setExecutable(wtcsPath);

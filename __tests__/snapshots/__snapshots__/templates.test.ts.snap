@@ -3274,6 +3274,16 @@ Required (stored in \`apps/web/.env.local\`):
 ## Service Layer
 
 All database access goes through service files in \`apps/web/services/\`. Never call \`db\` directly from components or server actions.
+
+## Browser Automation
+
+Use \`agent-browser\` for web automation. Run \`agent-browser --help\` for all commands.
+
+Core workflow:
+1. \`agent-browser open <url>\` - Navigate to page
+2. \`agent-browser snapshot -i\` - Get interactive elements with refs (@e1, @e2)
+3. \`agent-browser click @e1\` / \`fill @e2 "text"\` - Interact using refs
+4. Re-snapshot after page changes
 "
 `;
 
@@ -4997,6 +5007,8 @@ run_migrations() {
 
     if [[ "$status" == "ACTIVE_HEALTHY" ]]; then
       print_success "Database is ready"
+      # Give pooler endpoints a moment to become fully available
+      sleep 5
       break
     fi
 
@@ -5022,18 +5034,20 @@ run_migrations() {
 
   # Generate initial migration files first
   print_step "Generating initial database migration..."
-  if pnpm db:generate 2>/dev/null; then
+  if pnpm db:generate; then
     print_success "Initial migration generated"
   else
+    echo ""
     print_warning "Could not generate migration - you may need to run: pnpm db:generate"
   fi
 
   # Run migrations (not db:push) so Drizzle records them as applied
   # This prevents "relation already exists" errors on deploy
   print_step "Applying migrations to production database..."
-  if DATABASE_URL="$prod_db_url" pnpm db:migrate 2>/dev/null; then
+  if DATABASE_URL="$prod_db_url" pnpm db:migrate; then
     print_success "Database migrations applied successfully"
   else
+    echo ""
     print_warning "Migration failed - you may need to run it manually"
     echo "  cd apps/web && DATABASE_URL='<your-url>' pnpm db:migrate"
   fi
