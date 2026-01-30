@@ -261,8 +261,16 @@ if command -v vercel &> /dev/null; then
     success "Vercel CLI is installed"
 else
     info "Installing Vercel CLI..."
-    pkg_install_global vercel
-    success "Vercel CLI installed"
+    # Install via npm to user directory
+    mkdir -p ~/.local/lib ~/.local/bin
+    npm install --prefix ~/.local/lib vercel
+    # Create wrapper script
+    cat > ~/.local/bin/vercel << 'WRAPPER'
+#!/bin/bash
+exec node ~/.local/lib/node_modules/vercel/dist/index.js "$@"
+WRAPPER
+    chmod +x ~/.local/bin/vercel
+    command -v vercel &> /dev/null && success "Vercel CLI installed" || warn "Vercel CLI installation failed"
 fi
 
 # Supabase CLI
