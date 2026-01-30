@@ -267,7 +267,7 @@ else
     # Create wrapper script
     cat > ~/.local/bin/vercel << 'WRAPPER'
 #!/bin/bash
-exec node ~/.local/lib/node_modules/vercel/dist/index.js "$@"
+exec node ~/.local/lib/node_modules/vercel/dist/vc.js "$@"
 WRAPPER
     chmod +x ~/.local/bin/vercel
     command -v vercel &> /dev/null && success "Vercel CLI installed" || warn "Vercel CLI installation failed"
@@ -284,7 +284,7 @@ else
     # Create wrapper script since npm --prefix doesn't create bin links
     cat > ~/.local/bin/supabase << 'WRAPPER'
 #!/bin/bash
-exec node ~/.local/lib/node_modules/supabase/bin/supabase "$@"
+exec ~/.local/lib/node_modules/supabase/bin/supabase "$@"
 WRAPPER
     chmod +x ~/.local/bin/supabase
     command -v supabase &> /dev/null && success "Supabase CLI installed" || warn "Supabase CLI installation failed"
