@@ -1152,7 +1152,29 @@ print_summary() {
 }
 
 # =============================================================================
-# Step 12: Commit Setup Changes and Deploy
+# Step 12: Install Claude Code Skills
+# =============================================================================
+
+install_skills() {
+  print_header "Installing Claude Code Skills"
+
+  print_step "Installing vercel-react-best-practices skill..."
+  if npx -y skills add vercel-labs/agent-skills --skill vercel-react-best-practices --agent claude-code -y; then
+    print_success "vercel-react-best-practices skill installed"
+  else
+    print_warning "Could not install vercel-react-best-practices skill"
+  fi
+
+  print_step "Installing agent-browser skill..."
+  if npx -y skills add vercel-labs/agent-browser --skill agent-browser --agent claude-code -y; then
+    print_success "agent-browser skill installed"
+  else
+    print_warning "Could not install agent-browser skill"
+  fi
+}
+
+# =============================================================================
+# Step 13: Commit Setup Changes and Deploy
 # =============================================================================
 
 commit_and_deploy() {
@@ -1240,6 +1262,7 @@ main() {
   setup_auth_secrets
   pull_vercel_env
   configure_database_environments
+  install_skills
   commit_and_deploy
   print_summary
 }
