@@ -167,9 +167,9 @@ export interface VercelAuthStatus {
 export async function vercelAuthStatus(
 	token?: string,
 ): Promise<VercelAuthStatus> {
-	const env = token ? { ...process.env, VERCEL_TOKEN: token } : process.env;
+	const args = token ? ["whoami", "--token", token] : ["whoami"];
 
-	const result = await exec("vercel", ["whoami"], { env });
+	const result = await exec("vercel", args);
 
 	if (result.exitCode === 0) {
 		return {
@@ -190,18 +190,17 @@ export async function vercelLink(options: {
 	cwd: string;
 	token?: string;
 }): Promise<{ projectId: string }> {
-	const env = options.token
-		? { ...process.env, VERCEL_TOKEN: options.token }
-		: process.env;
-
 	const args = [
 		"link",
 		"--yes",
 		`--scope=${options.team}`,
 		`--project=${options.projectName}`,
 	];
+	if (options.token) {
+		args.push("--token", options.token);
+	}
 
-	const result = await exec("vercel", args, { cwd: options.cwd, env });
+	const result = await exec("vercel", args, { cwd: options.cwd });
 
 	if (result.exitCode !== 0) {
 		throw new Error(`Failed to link Vercel project: ${result.stderr}`);
@@ -222,14 +221,12 @@ export async function vercelGitConnect(options: {
 	cwd: string;
 	token?: string;
 }): Promise<void> {
-	const env = options.token
-		? { ...process.env, VERCEL_TOKEN: options.token }
-		: process.env;
+	const args = ["git", "connect", "--yes"];
+	if (options.token) {
+		args.push("--token", options.token);
+	}
 
-	const result = await exec("vercel", ["git", "connect", "--yes"], {
-		cwd: options.cwd,
-		env,
-	});
+	const result = await exec("vercel", args, { cwd: options.cwd });
 
 	if (result.exitCode !== 0) {
 		throw new Error(`Failed to connect Git to Vercel: ${result.stderr}`);
@@ -243,21 +240,17 @@ export async function vercelEnvAdd(options: {
 	cwd: string;
 	token?: string;
 }): Promise<void> {
-	const env = options.token
-		? { ...process.env, VERCEL_TOKEN: options.token }
-		: process.env;
-
 	for (const environment of options.environments) {
+		const args = ["env", "add", options.key, environment, "--yes"];
+		if (options.token) {
+			args.push("--token", options.token);
+		}
+
 		// Use echo to pipe the value to vercel env add
-		const result = await execa(
-			"vercel",
-			["env", "add", options.key, environment, "--yes"],
-			{
-				cwd: options.cwd,
-				env,
-				input: options.value,
-			},
-		);
+		const result = await execa("vercel", args, {
+			cwd: options.cwd,
+			input: options.value,
+		});
 
 		if (result.exitCode !== 0) {
 			throw new Error(
@@ -272,16 +265,15 @@ export async function vercelEnvPull(options: {
 	token?: string;
 	environment?: "production" | "preview" | "development";
 }): Promise<void> {
-	const env = options.token
-		? { ...process.env, VERCEL_TOKEN: options.token }
-		: process.env;
-
 	const args = ["env", "pull", ".env.local", "--yes"];
 	if (options.environment) {
 		args.push(`--environment=${options.environment}`);
 	}
+	if (options.token) {
+		args.push("--token", options.token);
+	}
 
-	const result = await exec("vercel", args, { cwd: options.cwd, env });
+	const result = await exec("vercel", args, { cwd: options.cwd });
 
 	if (result.exitCode !== 0) {
 		throw new Error(`Failed to pull Vercel env vars: ${result.stderr}`);
@@ -293,16 +285,15 @@ export async function vercelDeploy(options: {
 	token?: string;
 	prod?: boolean;
 }): Promise<{ url: string }> {
-	const env = options.token
-		? { ...process.env, VERCEL_TOKEN: options.token }
-		: process.env;
-
 	const args = ["deploy", "--yes"];
 	if (options.prod) {
 		args.push("--prod");
 	}
+	if (options.token) {
+		args.push("--token", options.token);
+	}
 
-	const result = await exec("vercel", args, { cwd: options.cwd, env });
+	const result = await exec("vercel", args, { cwd: options.cwd });
 
 	if (result.exitCode !== 0) {
 		throw new Error(`Failed to deploy to Vercel: ${result.stderr}`);
