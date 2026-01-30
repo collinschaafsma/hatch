@@ -134,13 +134,11 @@ if command -v pnpm &> /dev/null; then
     success "pnpm $(pnpm -v) is installed"
 else
     info "Installing pnpm..."
-    # Try corepack first (built into Node.js 16+), then fall back to npm
-    # npm prefix is already set to ~/.local above
-    if command -v corepack &> /dev/null; then
-        corepack enable pnpm 2>/dev/null || npm install -g pnpm
-    else
-        npm install -g pnpm
-    fi
+    # Use pnpm's standalone installer (works without sudo)
+    curl -fsSL https://get.pnpm.io/install.sh | sh -
+    # Source the updated PATH
+    export PNPM_HOME="$HOME/.local/share/pnpm"
+    export PATH="$PNPM_HOME:$PATH"
     success "pnpm installed: $(pnpm -v)"
 fi
 
@@ -193,10 +191,10 @@ fi
 # ============================================================================
 info "Checking CLI tools..."
 
-# Helper function for npm global install (prefix already set to ~/.local)
-npm_install_global() {
+# Helper function for global package install (uses pnpm which installs to user dir)
+pkg_install_global() {
     local package="$1"
-    npm install -g "$package"
+    pnpm add -g "$package"
 }
 
 # GitHub CLI
@@ -231,7 +229,7 @@ if command -v vercel &> /dev/null; then
     success "Vercel CLI is installed"
 else
     info "Installing Vercel CLI..."
-    npm_install_global vercel
+    pkg_install_global vercel
     success "Vercel CLI installed"
 fi
 
@@ -240,7 +238,7 @@ if command -v supabase &> /dev/null; then
     success "Supabase CLI is installed"
 else
     info "Installing Supabase CLI..."
-    npm_install_global supabase
+    pkg_install_global supabase
     success "Supabase CLI installed"
 fi
 
@@ -251,7 +249,7 @@ if command -v claude &> /dev/null; then
     success "Claude Code CLI is installed"
 else
     info "Installing Claude Code CLI..."
-    npm_install_global @anthropic-ai/claude-code
+    pkg_install_global @anthropic-ai/claude-code
     success "Claude Code CLI installed"
 fi
 
