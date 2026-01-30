@@ -20,29 +20,42 @@ interface SupabaseOrg {
 }
 
 /**
- * Read GitHub token from gh CLI config
+ * Read GitHub token using gh CLI (handles keychain storage)
  */
 async function readGitHubToken(): Promise<string | null> {
-	const configPaths = [path.join(os.homedir(), ".config", "gh", "hosts.yml")];
+	// Check environment variable first
+	if (process.env.GITHUB_TOKEN || process.env.GH_TOKEN) {
+		return process.env.GITHUB_TOKEN || process.env.GH_TOKEN || null;
+	}
 
-	for (const configPath of configPaths) {
-		if (await fs.pathExists(configPath)) {
-			try {
-				const content = await fs.readFile(configPath, "utf-8");
-				const config = yaml.parse(content);
-				// GitHub config structure: { "github.com": { oauth_token: "..." } }
-				const githubConfig = config?.["github.com"];
-				if (githubConfig?.oauth_token) {
-					return githubConfig.oauth_token;
-				}
-			} catch {
-				// Continue to next path
+	// Use gh auth token command which handles keychain
+	const { execa } = await import("execa");
+	try {
+		const result = await execa("gh", ["auth", "token"]);
+		const token = result.stdout.trim();
+		if (token) {
+			return token;
+		}
+	} catch {
+		// gh auth token failed
+	}
+
+	// Fallback: try reading from config file (older gh versions)
+	const configPath = path.join(os.homedir(), ".config", "gh", "hosts.yml");
+	if (await fs.pathExists(configPath)) {
+		try {
+			const content = await fs.readFile(configPath, "utf-8");
+			const config = yaml.parse(content);
+			const githubConfig = config?.["github.com"];
+			if (githubConfig?.oauth_token) {
+				return githubConfig.oauth_token;
 			}
+		} catch {
+			// Ignore parse errors
 		}
 	}
 
-	// Also check environment variable
-	return process.env.GITHUB_TOKEN || process.env.GH_TOKEN || null;
+	return null;
 }
 
 /**
@@ -82,10 +95,44 @@ async function readVercelToken(): Promise<string | null> {
 }
 
 /**
- * Read Supabase token from supabase CLI config
+ * Read Supabase token from CLI config or keychain
  */
 async function readSupabaseToken(): Promise<string | null> {
-	const configPaths = [path.join(os.homedir(), ".supabase", "access-token")];
+	// Check environment variable first
+	if (process.env.SUPABASE_ACCESS_TOKEN) {
+		return process.env.SUPABASE_ACCESS_TOKEN;
+	}
+
+	const { execa } = await import("execa");
+
+	// Try macOS keychain (where supabase CLI stores it)
+	if (process.platform === "darwin") {
+		try {
+			const result = await execa("security", [
+				"find-generic-password",
+				"-s",
+				"Supabase CLI",
+				"-w",
+			]);
+			const keychainValue = result.stdout.trim();
+			// Supabase stores it as "go-keyring-base64:<base64>" or just the token
+			if (keychainValue.startsWith("go-keyring-base64:")) {
+				const base64Token = keychainValue.replace("go-keyring-base64:", "");
+				return Buffer.from(base64Token, "base64").toString("utf-8");
+			}
+			if (keychainValue) {
+				return keychainValue;
+			}
+		} catch {
+			// Not in keychain
+		}
+	}
+
+	// Fallback: try reading from config file
+	const configPaths = [
+		path.join(os.homedir(), ".supabase", "access-token"),
+		path.join(os.homedir(), ".config", "supabase", "access-token"),
+	];
 
 	for (const configPath of configPaths) {
 		if (await fs.pathExists(configPath)) {
@@ -98,8 +145,7 @@ async function readSupabaseToken(): Promise<string | null> {
 		}
 	}
 
-	// Also check environment variable
-	return process.env.SUPABASE_ACCESS_TOKEN || null;
+	return null;
 }
 
 /**
@@ -109,13 +155,46 @@ async function getVercelTeams(token: string): Promise<VercelTeam[]> {
 	const { execa } = await import("execa");
 
 	try {
-		const result = await execa("vercel", ["teams", "list", "--json"], {
+		// vercel teams list doesn't support --json, so we parse the text output
+		// Format: "  id                            Team name"
+		const result = await execa("vercel", ["teams", "list"], {
 			env: { ...process.env, VERCEL_TOKEN: token },
 		});
 
-		// Parse the JSON output - it's an object with teams array
-		const data = JSON.parse(result.stdout);
-		return data.teams || [];
+		const lines = result.stdout.split("\n");
+		const teams: VercelTeam[] = [];
+
+		for (const line of lines) {
+			// Skip header lines and empty lines
+			if (
+				!line.trim() ||
+				line.includes("id") ||
+				line.includes("---") ||
+				line.includes("Vercel CLI") ||
+				line.includes("Fetching")
+			) {
+				continue;
+			}
+
+			// Parse line: "✔ team-slug                     Team Name" or "  team-slug                     Team Name"
+			// The checkmark indicates currently selected team
+			const cleanLine = line.replace(/^[✔\s]+/, "").trim();
+			const parts = cleanLine.split(/\s{2,}/); // Split on 2+ spaces
+
+			if (parts.length >= 2) {
+				const slug = parts[0].trim();
+				const name = parts[1].trim();
+				if (slug && name) {
+					teams.push({
+						id: slug, // Vercel uses slug as the team identifier for most operations
+						slug: slug,
+						name: name,
+					});
+				}
+			}
+		}
+
+		return teams;
 	} catch {
 		return [];
 	}
