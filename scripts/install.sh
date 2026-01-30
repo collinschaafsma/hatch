@@ -57,7 +57,9 @@ if [[ -n "$CONFIG_PATH" ]]; then
 fi
 echo ""
 
-# Ensure ~/.local/bin is in PATH for user-local installs
+# Set up user-local npm prefix (for environments without sudo)
+mkdir -p ~/.local/bin
+npm config set prefix ~/.local 2>/dev/null || true
 export PATH="$HOME/.local/bin:$PATH"
 
 # Check for config file
@@ -133,19 +135,11 @@ if command -v pnpm &> /dev/null; then
 else
     info "Installing pnpm..."
     # Try corepack first (built into Node.js 16+), then fall back to npm
+    # npm prefix is already set to ~/.local above
     if command -v corepack &> /dev/null; then
-        corepack enable pnpm 2>/dev/null || npm install -g pnpm 2>/dev/null || {
-            # If global install fails, use user-local prefix
-            npm config set prefix ~/.local
-            export PATH="$HOME/.local/bin:$PATH"
-            npm install -g pnpm
-        }
+        corepack enable pnpm 2>/dev/null || npm install -g pnpm
     else
-        npm install -g pnpm 2>/dev/null || {
-            npm config set prefix ~/.local
-            export PATH="$HOME/.local/bin:$PATH"
-            npm install -g pnpm
-        }
+        npm install -g pnpm
     fi
     success "pnpm installed: $(pnpm -v)"
 fi
@@ -199,15 +193,10 @@ fi
 # ============================================================================
 info "Checking CLI tools..."
 
-# Helper function for npm global install with fallback to user-local
+# Helper function for npm global install (prefix already set to ~/.local)
 npm_install_global() {
     local package="$1"
-    npm install -g "$package" 2>/dev/null || {
-        # If global fails, ensure user-local prefix is set
-        npm config set prefix ~/.local 2>/dev/null || true
-        export PATH="$HOME/.local/bin:$PATH"
-        npm install -g "$package"
-    }
+    npm install -g "$package"
 }
 
 # GitHub CLI
