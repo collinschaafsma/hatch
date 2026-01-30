@@ -270,8 +270,13 @@ if command -v supabase &> /dev/null; then
     success "Supabase CLI is installed"
 else
     info "Installing Supabase CLI..."
-    pkg_install_global supabase
-    success "Supabase CLI installed"
+    # Use official installer (works without sudo, installs to ~/.supabase)
+    curl -fsSL https://supabase.com/install.sh | sh -s -- --no-verify
+    # Add to PATH if installed to ~/.supabase/bin
+    if [[ -d "$HOME/.supabase/bin" ]]; then
+        export PATH="$HOME/.supabase/bin:$PATH"
+    fi
+    command -v supabase &> /dev/null && success "Supabase CLI installed" || warn "Supabase CLI installation failed"
 fi
 
 # ============================================================================
