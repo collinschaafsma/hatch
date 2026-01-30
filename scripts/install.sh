@@ -62,8 +62,9 @@ mkdir -p ~/.local/bin
 npm config set prefix ~/.local 2>/dev/null || true
 export PATH="$HOME/.local/bin:$PATH"
 
-# Check for config file
+# Check for config file (expand tilde if present)
 if [[ -n "$CONFIG_PATH" ]]; then
+    CONFIG_PATH="${CONFIG_PATH/#\~/$HOME}"
     if [[ ! -f "$CONFIG_PATH" ]]; then
         error "Config file not found: $CONFIG_PATH"
     fi
@@ -186,8 +187,11 @@ fi
 # ============================================================================
 # Step 4.5: Extract config values (now that jq is available)
 # ============================================================================
+# Refresh command hash table to find newly installed jq
+hash -r 2>/dev/null || true
+
 if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
-    info "Reading config values..."
+    info "Reading config values from $CONFIG_PATH..."
 
     # Tokens
     GITHUB_TOKEN=$(jq -r '.github.token // empty' "$CONFIG_PATH" 2>/dev/null || true)
@@ -209,7 +213,9 @@ if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
     [[ -n "$HATCH_SUPABASE_ORG" ]] && export HATCH_SUPABASE_ORG
     [[ -n "$HATCH_SUPABASE_REGION" ]] && export HATCH_SUPABASE_REGION
 
-    success "Config values loaded"
+    success "Config values loaded (HATCH_VERCEL_TEAM=$HATCH_VERCEL_TEAM)"
+else
+    warn "Could not read config: CONFIG_PATH=$CONFIG_PATH, jq=$(command -v jq || echo 'not found')"
 fi
 
 # ============================================================================
