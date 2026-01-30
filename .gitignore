@@ -21,3 +21,5 @@ Thumbs.db
 # Test output
 test-output/
 coverage/
+
+hatch.json
