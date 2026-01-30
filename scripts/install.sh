@@ -57,6 +57,9 @@ if [[ -n "$CONFIG_PATH" ]]; then
 fi
 echo ""
 
+# Ensure ~/.local/bin is in PATH for user-local installs
+export PATH="$HOME/.local/bin:$PATH"
+
 # Check for config file
 if [[ -n "$CONFIG_PATH" ]]; then
     if [[ ! -f "$CONFIG_PATH" ]]; then
@@ -129,7 +132,21 @@ if command -v pnpm &> /dev/null; then
     success "pnpm $(pnpm -v) is installed"
 else
     info "Installing pnpm..."
-    npm install -g pnpm
+    # Try corepack first (built into Node.js 16+), then fall back to npm
+    if command -v corepack &> /dev/null; then
+        corepack enable pnpm 2>/dev/null || npm install -g pnpm 2>/dev/null || {
+            # If global install fails, use user-local prefix
+            npm config set prefix ~/.local
+            export PATH="$HOME/.local/bin:$PATH"
+            npm install -g pnpm
+        }
+    else
+        npm install -g pnpm 2>/dev/null || {
+            npm config set prefix ~/.local
+            export PATH="$HOME/.local/bin:$PATH"
+            npm install -g pnpm
+        }
+    fi
     success "pnpm installed: $(pnpm -v)"
 fi
 
@@ -178,29 +195,46 @@ else
 fi
 
 # ============================================================================
-# Step 5: Install CLI tools (gh, vercel, supabase)
+# Step 5: Install CLI tools (gh, vercel, supabase, claude)
 # ============================================================================
 info "Checking CLI tools..."
+
+# Helper function for npm global install with fallback to user-local
+npm_install_global() {
+    local package="$1"
+    npm install -g "$package" 2>/dev/null || {
+        # If global fails, ensure user-local prefix is set
+        npm config set prefix ~/.local 2>/dev/null || true
+        export PATH="$HOME/.local/bin:$PATH"
+        npm install -g "$package"
+    }
+}
 
 # GitHub CLI
 if command -v gh &> /dev/null; then
     success "GitHub CLI (gh) is installed"
 else
     info "Installing GitHub CLI..."
-    npm install -g gh 2>/dev/null || {
-        # Fallback to official installation
-        if [[ -f /etc/debian_version ]]; then
-            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-            sudo apt update
-            sudo apt install gh -y
-        elif [[ "$(uname)" == "Darwin" ]]; then
-            brew install gh
+    # gh is not available via npm, use official install methods
+    if [[ -f /etc/debian_version ]] && command -v sudo &> /dev/null; then
+        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+        sudo apt update && sudo apt install gh -y
+    elif [[ "$(uname)" == "Darwin" ]] && command -v brew &> /dev/null; then
+        brew install gh
+    else
+        # Download binary directly
+        GH_VERSION=$(curl -s https://api.github.com/repos/cli/cli/releases/latest | grep '"tag_name"' | cut -d'"' -f4 | sed 's/v//')
+        if [[ -n "$GH_VERSION" ]]; then
+            mkdir -p ~/.local/bin
+            curl -sL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" | tar xz -C /tmp
+            mv "/tmp/gh_${GH_VERSION}_linux_amd64/bin/gh" ~/.local/bin/
+            export PATH="$HOME/.local/bin:$PATH"
         else
-            error "Could not install GitHub CLI. Please install manually."
+            warn "Could not install GitHub CLI. Install manually if needed."
         fi
-    }
-    success "GitHub CLI installed"
+    fi
+    command -v gh &> /dev/null && success "GitHub CLI installed" || warn "GitHub CLI not installed"
 fi
 
 # Vercel CLI
@@ -208,7 +242,7 @@ if command -v vercel &> /dev/null; then
     success "Vercel CLI is installed"
 else
     info "Installing Vercel CLI..."
-    npm install -g vercel
+    npm_install_global vercel
     success "Vercel CLI installed"
 fi
 
@@ -217,20 +251,18 @@ if command -v supabase &> /dev/null; then
     success "Supabase CLI is installed"
 else
     info "Installing Supabase CLI..."
-    npm install -g supabase
+    npm_install_global supabase
     success "Supabase CLI installed"
 fi
 
-# ============================================================================
-# Step 5.5: Install Claude Code CLI
-# ============================================================================
+# Claude Code CLI
 info "Checking Claude Code CLI..."
 
 if command -v claude &> /dev/null; then
     success "Claude Code CLI is installed"
 else
     info "Installing Claude Code CLI..."
-    npm install -g @anthropic-ai/claude-code
+    npm_install_global @anthropic-ai/claude-code
     success "Claude Code CLI installed"
 fi
 
