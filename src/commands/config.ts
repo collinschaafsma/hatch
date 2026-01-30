@@ -164,15 +164,28 @@ async function getVercelTeams(token: string): Promise<VercelTeam[]> {
 		const lines = result.stdout.split("\n");
 		const teams: VercelTeam[] = [];
 
+		// Find where data starts (after the header line "  id  ...  Team name")
+		let dataStarted = false;
+
 		for (const line of lines) {
-			// Skip header lines and empty lines
-			if (
-				!line.trim() ||
-				line.includes("id") ||
-				line.includes("---") ||
-				line.includes("Vercel CLI") ||
-				line.includes("Fetching")
-			) {
+			// Skip empty lines
+			if (!line.trim()) {
+				continue;
+			}
+
+			// Skip info lines at the start
+			if (line.includes("Vercel CLI") || line.includes("Fetching")) {
+				continue;
+			}
+
+			// Detect header line and mark that data follows
+			if (line.trim().startsWith("id") && line.includes("Team name")) {
+				dataStarted = true;
+				continue;
+			}
+
+			// Only parse lines after the header
+			if (!dataStarted) {
 				continue;
 			}
 
