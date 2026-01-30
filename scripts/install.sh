@@ -270,19 +270,15 @@ if command -v supabase &> /dev/null; then
     success "Supabase CLI is installed"
 else
     info "Installing Supabase CLI..."
-    # Download binary directly from GitHub releases
-    SUPABASE_VERSION=$(curl -s https://api.github.com/repos/supabase/cli/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
-    if [[ -n "$SUPABASE_VERSION" ]]; then
-        mkdir -p ~/.local/bin
-        # Version tag is like "v1.200.3", filename needs version without "v"
-        VERSION_NUM="${SUPABASE_VERSION#v}"
-        if [[ "$(uname -m)" == "x86_64" ]]; then
-            curl -sL "https://github.com/supabase/cli/releases/download/${SUPABASE_VERSION}/supabase_${VERSION_NUM}_linux_amd64.tar.gz" | tar xz -C ~/.local/bin supabase
-        elif [[ "$(uname -m)" == "aarch64" ]]; then
-            curl -sL "https://github.com/supabase/cli/releases/download/${SUPABASE_VERSION}/supabase_${VERSION_NUM}_linux_arm64.tar.gz" | tar xz -C ~/.local/bin supabase
-        fi
-        chmod +x ~/.local/bin/supabase 2>/dev/null || true
-    fi
+    # Install via npm to user directory
+    mkdir -p ~/.local/lib ~/.local/bin
+    npm install --prefix ~/.local/lib supabase
+    # Create wrapper script since npm --prefix doesn't create bin links
+    cat > ~/.local/bin/supabase << 'WRAPPER'
+#!/bin/bash
+exec node ~/.local/lib/node_modules/supabase/bin/supabase "$@"
+WRAPPER
+    chmod +x ~/.local/bin/supabase
     command -v supabase &> /dev/null && success "Supabase CLI installed" || warn "Supabase CLI installation failed"
 fi
 
