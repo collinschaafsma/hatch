@@ -184,19 +184,32 @@ else
 fi
 
 # ============================================================================
-# Step 4.5: Extract tokens from config (now that jq is available)
+# Step 4.5: Extract config values (now that jq is available)
 # ============================================================================
 if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
-    info "Reading tokens from config..."
+    info "Reading config values..."
+
+    # Tokens
     GITHUB_TOKEN=$(jq -r '.github.token // empty' "$CONFIG_PATH" 2>/dev/null || true)
     VERCEL_TOKEN=$(jq -r '.vercel.token // empty' "$CONFIG_PATH" 2>/dev/null || true)
     SUPABASE_ACCESS_TOKEN=$(jq -r '.supabase.token // empty' "$CONFIG_PATH" 2>/dev/null || true)
 
-    # Export tokens for CLI tools and hatch
+    # Orgs/teams/regions
+    HATCH_GITHUB_ORG=$(jq -r '.github.org // empty' "$CONFIG_PATH" 2>/dev/null || true)
+    HATCH_VERCEL_TEAM=$(jq -r '.vercel.team // empty' "$CONFIG_PATH" 2>/dev/null || true)
+    HATCH_SUPABASE_ORG=$(jq -r '.supabase.org // empty' "$CONFIG_PATH" 2>/dev/null || true)
+    HATCH_SUPABASE_REGION=$(jq -r '.supabase.region // empty' "$CONFIG_PATH" 2>/dev/null || true)
+
+    # Export for CLI tools and hatch
     [[ -n "$GITHUB_TOKEN" ]] && export GITHUB_TOKEN
     [[ -n "$VERCEL_TOKEN" ]] && export VERCEL_TOKEN
     [[ -n "$SUPABASE_ACCESS_TOKEN" ]] && export SUPABASE_ACCESS_TOKEN
-    success "Tokens loaded from config"
+    [[ -n "$HATCH_GITHUB_ORG" ]] && export HATCH_GITHUB_ORG
+    [[ -n "$HATCH_VERCEL_TEAM" ]] && export HATCH_VERCEL_TEAM
+    [[ -n "$HATCH_SUPABASE_ORG" ]] && export HATCH_SUPABASE_ORG
+    [[ -n "$HATCH_SUPABASE_REGION" ]] && export HATCH_SUPABASE_REGION
+
+    success "Config values loaded"
 fi
 
 # ============================================================================
