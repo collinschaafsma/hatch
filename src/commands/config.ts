@@ -447,6 +447,10 @@ export const configCommand = new Command()
 			log.blank();
 			log.success(`Configuration saved to ${outputPath}`);
 			log.blank();
+			log.warn(
+				"This file contains sensitive tokens - treat it like a password file.",
+			);
+			log.blank();
 
 			// Show summary
 			log.info("Configuration summary:");
