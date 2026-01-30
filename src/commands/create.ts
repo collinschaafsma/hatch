@@ -1,7 +1,14 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
+import {
+	outputResult,
+	resolveConfig,
+	runHeadlessSetup,
+	validateHeadlessOptions,
+} from "../headless/index.js";
 import * as templates from "../templates/index.js";
+import type { HeadlessOptions } from "../types/index.js";
 import {
 	gitAdd,
 	gitCommit,
@@ -26,6 +33,26 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const packageRoot = path.resolve(__dirname, "../..");
 
+interface CreateCommandOptions {
+	workos: boolean;
+	docker: boolean;
+	vscode: boolean;
+	// Headless mode options
+	headless: boolean;
+	bootstrap: boolean;
+	config?: string;
+	githubToken?: string;
+	githubOrg?: string;
+	vercelToken?: string;
+	vercelTeam?: string;
+	supabaseToken?: string;
+	supabaseOrg?: string;
+	supabaseRegion: string;
+	conflictStrategy: "suffix" | "fail";
+	json: boolean;
+	quiet: boolean;
+}
+
 export const createCommand = new Command()
 	.name("create")
 	.description("Create a new Hatch project")
@@ -33,18 +60,63 @@ export const createCommand = new Command()
 	.option("--workos", "Use WorkOS instead of Better Auth", false)
 	.option("--docker", "Use local Docker PostgreSQL instead of Supabase", false)
 	.option("--no-vscode", "Skip generating VS Code configuration files")
+	// Headless mode options
+	.option("--headless", "Run in non-interactive headless mode", false)
+	.option(
+		"--bootstrap",
+		"Install missing CLIs (gh, vercel, supabase) before running",
+		false,
+	)
+	.option(
+		"--config <path>",
+		"Path to hatch.json config file (default: ./hatch.json or ~/.hatch.json)",
+	)
+	.option("--github-token <token>", "GitHub PAT (env: GITHUB_TOKEN)")
+	.option("--github-org <org>", "GitHub organization (env: HATCH_GITHUB_ORG)")
+	.option("--vercel-token <token>", "Vercel access token (env: VERCEL_TOKEN)")
+	.option("--vercel-team <id>", "Vercel team ID (env: HATCH_VERCEL_TEAM)")
+	.option(
+		"--supabase-token <token>",
+		"Supabase access token (env: SUPABASE_ACCESS_TOKEN)",
+	)
+	.option("--supabase-org <id>", "Supabase org ID (env: HATCH_SUPABASE_ORG)")
+	.option(
+		"--supabase-region <region>",
+		"Supabase region (default: us-east-1)",
+		"us-east-1",
+	)
+	.option(
+		"--conflict-strategy <strategy>",
+		"How to handle name conflicts: suffix or fail",
+		"suffix",
+	)
+	.option("--json", "Output results as JSON (headless mode only)", false)
+	.option("--quiet", "Suppress progress output (headless mode only)", false)
 	.action(
-		async (
-			projectName: string | undefined,
-			options: { workos: boolean; docker: boolean; vscode: boolean },
-		) => {
+		async (projectName: string | undefined, options: CreateCommandOptions) => {
 			try {
-				// Get project options
-				const projectOptions = await getProjectPrompts(
-					projectName,
-					options.workos,
-				);
-				const { projectName: inputName, useWorkOS } = projectOptions;
+				// Headless mode requires project name
+				if (options.headless && !projectName) {
+					log.error("Project name is required in headless mode");
+					process.exit(1);
+				}
+
+				// Get project options (skip prompts in headless mode)
+				let inputName: string;
+				let useWorkOS: boolean;
+
+				if (options.headless) {
+					inputName = projectName as string;
+					useWorkOS = options.workos;
+				} else {
+					const projectOptions = await getProjectPrompts(
+						projectName,
+						options.workos,
+					);
+					inputName = projectOptions.projectName;
+					useWorkOS = projectOptions.useWorkOS;
+				}
+
 				const includeVSCode = options.vscode;
 				const useDocker = options.docker;
 
@@ -54,20 +126,39 @@ export const createCommand = new Command()
 
 				// Check if directory exists
 				if (await fileExists(projectPath)) {
+					if (options.headless) {
+						if (options.json) {
+							console.log(
+								JSON.stringify({
+									success: false,
+									error: `Directory "${name}" already exists.`,
+								}),
+							);
+						} else if (!options.quiet) {
+							log.error(`Directory "${name}" already exists.`);
+						}
+						process.exit(1);
+					}
 					log.error(`Directory "${name}" already exists.`);
 					process.exit(1);
 				}
 
-				log.blank();
-				log.info(`Creating project "${name}"...`);
-				log.info(
-					`Auth provider: ${useWorkOS ? "WorkOS" : "Better Auth (Email OTP)"}`,
-				);
-				log.info(
-					`Database: ${useDocker ? "Local Docker PostgreSQL" : "Supabase (cloud)"}`,
-				);
-				log.info(`VS Code config: ${includeVSCode ? "included" : "skipped"}`);
-				log.blank();
+				// In headless mode with quiet, suppress initial logging
+				if (!options.headless || !options.quiet) {
+					log.blank();
+					log.info(`Creating project "${name}"...`);
+					log.info(
+						`Auth provider: ${useWorkOS ? "WorkOS" : "Better Auth (Email OTP)"}`,
+					);
+					log.info(
+						`Database: ${useDocker ? "Local Docker PostgreSQL" : "Supabase (cloud)"}`,
+					);
+					log.info(`VS Code config: ${includeVSCode ? "included" : "skipped"}`);
+					if (options.headless) {
+						log.info("Mode: headless");
+					}
+					log.blank();
+				}
 
 				// Create root directory and config files
 				await withSpinner("Creating project structure", async () => {
@@ -783,7 +874,41 @@ export const createCommand = new Command()
 					await gitCommit("Initial commit from create-hatch", projectPath);
 				});
 
-				// Success message
+				// If headless mode, run the full setup
+				if (options.headless) {
+					const headlessOptions: HeadlessOptions = {
+						githubToken: options.githubToken,
+						githubOrg: options.githubOrg,
+						vercelToken: options.vercelToken,
+						vercelTeam: options.vercelTeam || "",
+						supabaseToken: options.supabaseToken,
+						supabaseOrg: options.supabaseOrg || "",
+						supabaseRegion: options.supabaseRegion,
+						conflictStrategy: options.conflictStrategy,
+						json: options.json,
+						quiet: options.quiet,
+						bootstrap: options.bootstrap,
+						configPath: options.config,
+					};
+
+					const result = await runHeadlessSetup(
+						name,
+						projectPath,
+						headlessOptions,
+						useWorkOS,
+						useDocker,
+					);
+
+					outputResult(result, options.json, options.quiet);
+
+					if (!result.success) {
+						process.exit(1);
+					}
+
+					return;
+				}
+
+				// Success message (interactive mode only)
 				log.blank();
 				log.success(`Project "${name}" created successfully!`);
 				log.blank();
@@ -804,6 +929,15 @@ export const createCommand = new Command()
 				log.step("AI_GATEWAY_API_KEY    # From Vercel AI Gateway");
 				log.blank();
 			} catch (error) {
+				if (options.headless && options.json) {
+					console.log(
+						JSON.stringify({
+							success: false,
+							error: error instanceof Error ? error.message : String(error),
+						}),
+					);
+					process.exit(1);
+				}
 				log.error(
 					`Failed to create project: ${error instanceof Error ? error.message : error}`,
 				);

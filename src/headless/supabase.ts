@@ -1,0 +1,297 @@
+import type { ResolvedHeadlessConfig } from "../types/index.js";
+import { log } from "../utils/logger.js";
+import { withSpinner } from "../utils/spinner.js";
+import {
+	supabaseBranchCreate,
+	supabaseBranchesList,
+	supabaseDbPush,
+	supabaseLink,
+	supabaseProjectApiKeys,
+	supabaseProjectCreate,
+	supabaseProjectExists,
+	supabaseProjectsList,
+} from "./cli-wrappers.js";
+import { generateDbPassword, resolveNameConflict } from "./conflicts.js";
+
+export interface SupabaseSetupResult {
+	projectRef: string;
+	projectName: string;
+	region: string;
+	dbPassword: string;
+	anonKey: string;
+	serviceRoleKey: string;
+	databaseUrl: string;
+	wasRenamed: boolean;
+	originalName: string;
+	branches: {
+		dev?: string;
+		devTest?: string;
+	};
+}
+
+/**
+ * Wait for Supabase project to be ready (ACTIVE_HEALTHY status)
+ */
+async function waitForProjectReady(
+	projectRef: string,
+	token: string,
+	maxAttempts = 60,
+	intervalMs = 5000,
+): Promise<void> {
+	for (let attempt = 0; attempt < maxAttempts; attempt++) {
+		const projects = await supabaseProjectsList(token);
+		const project = projects.find((p) => p.id === projectRef);
+
+		if (project?.status === "ACTIVE_HEALTHY") {
+			return;
+		}
+
+		await new Promise((resolve) => setTimeout(resolve, intervalMs));
+	}
+
+	throw new Error(
+		`Supabase project ${projectRef} did not become ready within the timeout period`,
+	);
+}
+
+/**
+ * Wait for Supabase branch to be ready
+ */
+async function waitForBranchReady(
+	branchName: string,
+	cwd: string,
+	token: string,
+	maxAttempts = 30,
+	intervalMs = 5000,
+): Promise<void> {
+	for (let attempt = 0; attempt < maxAttempts; attempt++) {
+		const branches = await supabaseBranchesList({ cwd, token });
+		const branch = branches.find((b) => b.name === branchName);
+
+		if (branch?.status === "ACTIVE_HEALTHY") {
+			return;
+		}
+
+		await new Promise((resolve) => setTimeout(resolve, intervalMs));
+	}
+
+	throw new Error(
+		`Supabase branch ${branchName} did not become ready within the timeout period`,
+	);
+}
+
+/**
+ * Set up Supabase project with conflict resolution
+ */
+export async function setupSupabase(
+	projectName: string,
+	projectPath: string,
+	config: ResolvedHeadlessConfig,
+): Promise<SupabaseSetupResult> {
+	const token = config.supabase.token;
+	const orgId = config.supabase.org;
+	const region = config.supabase.region;
+
+	let supabaseName = projectName;
+	let wasRenamed = false;
+	const originalName = projectName;
+
+	// Check if project exists and handle conflict
+	const exists = await supabaseProjectExists(supabaseName, orgId, token);
+	if (exists) {
+		if (!config.quiet) {
+			log.warn(
+				`Supabase project ${supabaseName} already exists in org ${orgId}`,
+			);
+		}
+		supabaseName = resolveNameConflict(supabaseName, config.conflictStrategy);
+		wasRenamed = true;
+		if (!config.quiet) {
+			log.info(`Using ${supabaseName} instead`);
+		}
+	}
+
+	// Generate database password
+	const dbPassword = generateDbPassword();
+
+	// Create the project
+	let projectRef: string;
+
+	if (!config.quiet) {
+		const result = await withSpinner(
+			`Creating Supabase project ${supabaseName}`,
+			async () => {
+				return supabaseProjectCreate({
+					name: supabaseName,
+					orgId,
+					region,
+					dbPassword,
+					token,
+				});
+			},
+		);
+		projectRef = result.projectRef;
+	} else {
+		const result = await supabaseProjectCreate({
+			name: supabaseName,
+			orgId,
+			region,
+			dbPassword,
+			token,
+		});
+		projectRef = result.projectRef;
+	}
+
+	// Wait for project to be ready
+	if (!config.quiet) {
+		await withSpinner("Waiting for Supabase project to be ready", async () => {
+			await waitForProjectReady(projectRef, token);
+		});
+	} else {
+		await waitForProjectReady(projectRef, token);
+	}
+
+	// Link the project
+	if (!config.quiet) {
+		await withSpinner("Linking Supabase project", async () => {
+			await supabaseLink({
+				projectRef,
+				dbPassword,
+				cwd: projectPath,
+				token,
+			});
+		});
+	} else {
+		await supabaseLink({
+			projectRef,
+			dbPassword,
+			cwd: projectPath,
+			token,
+		});
+	}
+
+	// Get API keys
+	let anonKey: string;
+	let serviceRoleKey: string;
+
+	if (!config.quiet) {
+		const keys = await withSpinner("Getting Supabase API keys", async () => {
+			return supabaseProjectApiKeys({ projectRef, token });
+		});
+		anonKey = keys.anonKey;
+		serviceRoleKey = keys.serviceRoleKey;
+	} else {
+		const keys = await supabaseProjectApiKeys({ projectRef, token });
+		anonKey = keys.anonKey;
+		serviceRoleKey = keys.serviceRoleKey;
+	}
+
+	// Create branches (dev and dev-test)
+	const branches: { dev?: string; devTest?: string } = {};
+
+	try {
+		if (!config.quiet) {
+			const devBranch = await withSpinner(
+				"Creating Supabase dev branch",
+				async () => {
+					return supabaseBranchCreate({
+						name: "dev",
+						cwd: projectPath,
+						token,
+					});
+				},
+			);
+			branches.dev = devBranch.branchId;
+
+			await withSpinner("Waiting for dev branch to be ready", async () => {
+				await waitForBranchReady("dev", projectPath, token);
+			});
+
+			const devTestBranch = await withSpinner(
+				"Creating Supabase dev-test branch",
+				async () => {
+					return supabaseBranchCreate({
+						name: "dev-test",
+						cwd: projectPath,
+						token,
+					});
+				},
+			);
+			branches.devTest = devTestBranch.branchId;
+
+			await withSpinner("Waiting for dev-test branch to be ready", async () => {
+				await waitForBranchReady("dev-test", projectPath, token);
+			});
+		} else {
+			const devBranch = await supabaseBranchCreate({
+				name: "dev",
+				cwd: projectPath,
+				token,
+			});
+			branches.dev = devBranch.branchId;
+			await waitForBranchReady("dev", projectPath, token);
+
+			const devTestBranch = await supabaseBranchCreate({
+				name: "dev-test",
+				cwd: projectPath,
+				token,
+			});
+			branches.devTest = devTestBranch.branchId;
+			await waitForBranchReady("dev-test", projectPath, token);
+		}
+	} catch (error) {
+		// Branching might not be enabled (requires Pro plan)
+		if (!config.quiet) {
+			log.warn(
+				"Failed to create Supabase branches. Branching requires a Pro plan.",
+			);
+		}
+	}
+
+	// Construct database URL
+	const databaseUrl = `postgresql://postgres.${projectRef}:${dbPassword}@aws-0-${region}.pooler.supabase.com:6543/postgres`;
+
+	return {
+		projectRef,
+		projectName: supabaseName,
+		region,
+		dbPassword,
+		anonKey,
+		serviceRoleKey,
+		databaseUrl,
+		wasRenamed,
+		originalName,
+		branches,
+	};
+}
+
+/**
+ * Run database migrations
+ */
+export async function runMigrations(
+	projectPath: string,
+	config: ResolvedHeadlessConfig,
+): Promise<void> {
+	const webPath = `${projectPath}/apps/web`;
+
+	if (!config.quiet) {
+		await withSpinner("Generating database migrations", async () => {
+			const { pnpmRun } = await import("../utils/exec.js");
+			await pnpmRun("db:generate", webPath);
+		});
+
+		await withSpinner("Pushing database migrations", async () => {
+			await supabaseDbPush({
+				cwd: projectPath,
+				token: config.supabase.token,
+			});
+		});
+	} else {
+		const { pnpmRun } = await import("../utils/exec.js");
+		await pnpmRun("db:generate", webPath);
+		await supabaseDbPush({
+			cwd: projectPath,
+			token: config.supabase.token,
+		});
+	}
+}
