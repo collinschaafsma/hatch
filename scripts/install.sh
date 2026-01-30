@@ -67,18 +67,6 @@ if [[ -n "$CONFIG_PATH" ]]; then
     if [[ ! -f "$CONFIG_PATH" ]]; then
         error "Config file not found: $CONFIG_PATH"
     fi
-
-    # Extract tokens from config file for CLI authentication
-    if command -v jq &> /dev/null; then
-        GITHUB_TOKEN=$(jq -r '.github.token // empty' "$CONFIG_PATH" 2>/dev/null || true)
-        VERCEL_TOKEN=$(jq -r '.vercel.token // empty' "$CONFIG_PATH" 2>/dev/null || true)
-        SUPABASE_ACCESS_TOKEN=$(jq -r '.supabase.token // empty' "$CONFIG_PATH" 2>/dev/null || true)
-
-        # Export tokens for CLI tools
-        [[ -n "$GITHUB_TOKEN" ]] && export GITHUB_TOKEN
-        [[ -n "$VERCEL_TOKEN" ]] && export VERCEL_TOKEN
-        [[ -n "$SUPABASE_ACCESS_TOKEN" ]] && export SUPABASE_ACCESS_TOKEN
-    fi
 fi
 
 # ============================================================================
@@ -175,15 +163,40 @@ if command -v jq &> /dev/null; then
 else
     info "Installing jq..."
 
-    if [[ -f /etc/debian_version ]]; then
+    if [[ -f /etc/debian_version ]] && command -v sudo &> /dev/null; then
         sudo apt-get install -y jq
-    elif [[ -f /etc/redhat-release ]]; then
+    elif [[ -f /etc/redhat-release ]] && command -v sudo &> /dev/null; then
         sudo yum install -y jq
-    elif [[ "$(uname)" == "Darwin" ]]; then
+    elif [[ "$(uname)" == "Darwin" ]] && command -v brew &> /dev/null; then
         brew install jq
     else
-        warn "Could not install jq. Continuing without it."
+        # Download jq binary directly (works without sudo)
+        JQ_VERSION="1.7.1"
+        mkdir -p ~/.local/bin
+        if [[ "$(uname -m)" == "x86_64" ]]; then
+            curl -sL "https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}/jq-linux-amd64" -o ~/.local/bin/jq
+        elif [[ "$(uname -m)" == "aarch64" ]]; then
+            curl -sL "https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}/jq-linux-arm64" -o ~/.local/bin/jq
+        fi
+        chmod +x ~/.local/bin/jq 2>/dev/null || true
     fi
+    command -v jq &> /dev/null && success "jq installed" || warn "Could not install jq"
+fi
+
+# ============================================================================
+# Step 4.5: Extract tokens from config (now that jq is available)
+# ============================================================================
+if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
+    info "Reading tokens from config..."
+    GITHUB_TOKEN=$(jq -r '.github.token // empty' "$CONFIG_PATH" 2>/dev/null || true)
+    VERCEL_TOKEN=$(jq -r '.vercel.token // empty' "$CONFIG_PATH" 2>/dev/null || true)
+    SUPABASE_ACCESS_TOKEN=$(jq -r '.supabase.token // empty' "$CONFIG_PATH" 2>/dev/null || true)
+
+    # Export tokens for CLI tools and hatch
+    [[ -n "$GITHUB_TOKEN" ]] && export GITHUB_TOKEN
+    [[ -n "$VERCEL_TOKEN" ]] && export VERCEL_TOKEN
+    [[ -n "$SUPABASE_ACCESS_TOKEN" ]] && export SUPABASE_ACCESS_TOKEN
+    success "Tokens loaded from config"
 fi
 
 # ============================================================================
