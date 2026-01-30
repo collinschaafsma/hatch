@@ -268,36 +268,6 @@ export const createCommand = new Command()
 						templates.generateDbMigrateSkill(),
 					);
 
-					// Copy react-best-practices skill (static files)
-					const reactSkillSrc = path.join(
-						packageRoot,
-						".claude",
-						"skills",
-						"vercel-react-best-practices",
-					);
-					const reactSkillDest = path.join(
-						projectPath,
-						".claude",
-						"skills",
-						"react-best-practices",
-					);
-					await copyDir(reactSkillSrc, reactSkillDest);
-
-					// Copy agent-browser skill (static files)
-					const browserSkillSrc = path.join(
-						packageRoot,
-						".claude",
-						"skills",
-						"agent-browser",
-					);
-					const browserSkillDest = path.join(
-						projectPath,
-						".claude",
-						"skills",
-						"agent-browser",
-					);
-					await copyDir(browserSkillSrc, browserSkillDest);
-
 					// Make scripts executable
 					await setExecutable(wtsPath);
 					await setExecutable(wtcsPath);
