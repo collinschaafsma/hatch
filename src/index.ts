@@ -2,6 +2,7 @@
 import { Command } from "commander";
 import { configCommand } from "./commands/config.js";
 import { createCommand } from "./commands/create.js";
+import { vmCommand } from "./commands/vm/index.js";
 
 const program = new Command()
 	.name("create-hatch")
@@ -10,6 +11,7 @@ const program = new Command()
 
 program.addCommand(createCommand);
 program.addCommand(configCommand);
+program.addCommand(vmCommand);
 
 // If no command is specified, default to create
 if (process.argv.length === 2) {

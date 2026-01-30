@@ -92,3 +92,20 @@ export interface ResolvedHeadlessConfig {
 	json: boolean;
 	quiet: boolean;
 }
+
+// VM types for exe.dev integration
+
+export interface VMRecord {
+	name: string; // e.g., "peaceful-duckling"
+	sshHost: string; // e.g., "peaceful-duckling.exe.xyz"
+	project: string; // e.g., "my-app"
+	feature?: string; // e.g., "add-user-profiles"
+	createdAt: string; // ISO timestamp
+	supabaseBranches: string[]; // e.g., ["add-user-profiles", "add-user-profiles-test"]
+	githubBranch?: string; // e.g., "add-user-profiles"
+}
+
+export interface VMStore {
+	version: 1;
+	vms: VMRecord[];
+}
