@@ -241,13 +241,19 @@ fi
 # ============================================================================
 # Step 7: Clone and build Hatch
 # ============================================================================
-HATCH_DIR="/tmp/hatch-$(date +%s)"
+HATCH_DIR="$HOME/hatch"
 
-info "Cloning Hatch repository..."
-git clone --depth 1 https://github.com/collinschaafsma/hatch.git "$HATCH_DIR"
+if [[ -d "$HATCH_DIR" ]]; then
+    info "Hatch already cloned at $HATCH_DIR, pulling latest..."
+    cd "$HATCH_DIR"
+    git pull
+else
+    info "Cloning Hatch repository to $HATCH_DIR..."
+    git clone --depth 1 https://github.com/collinschaafsma/hatch.git "$HATCH_DIR"
+    cd "$HATCH_DIR"
+fi
 
 info "Installing Hatch dependencies..."
-cd "$HATCH_DIR"
 pnpm install
 
 info "Building Hatch..."
@@ -257,11 +263,12 @@ pnpm build
 # Step 8: Run Hatch in headless mode
 # ============================================================================
 echo ""
-info "Creating project: $PROJECT_NAME"
+PROJECT_PATH="$HOME/$PROJECT_NAME"
+info "Creating project: $PROJECT_PATH"
 echo ""
 
-# Build the command
-HATCH_CMD="pnpm dev create $PROJECT_NAME --headless --bootstrap"
+# Build the command - use absolute path for project so it's created in home directory
+HATCH_CMD="pnpm dev create $PROJECT_PATH --headless --bootstrap"
 
 if [[ -n "$CONFIG_PATH" ]]; then
     # Use absolute path for config
@@ -274,17 +281,10 @@ fi
 # Add any extra arguments
 HATCH_CMD="$HATCH_CMD $EXTRA_ARGS"
 
-# Change to original directory before running
-cd - > /dev/null
-
-# Run Hatch
+# Run Hatch (stay in hatch dir so pnpm dev works)
 eval "$HATCH_CMD"
-
-# ============================================================================
-# Cleanup
-# ============================================================================
-info "Cleaning up..."
-rm -rf "$HATCH_DIR"
 
 echo ""
 success "Bootstrap complete!"
+success "Project created at: $PROJECT_PATH"
+success "Hatch CLI available at: $HATCH_DIR"
