@@ -242,17 +242,6 @@ else
     success "Supabase CLI installed"
 fi
 
-# Claude Code CLI
-info "Checking Claude Code CLI..."
-
-if command -v claude &> /dev/null; then
-    success "Claude Code CLI is installed"
-else
-    info "Installing Claude Code CLI..."
-    pkg_install_global @anthropic-ai/claude-code
-    success "Claude Code CLI installed"
-fi
-
 # ============================================================================
 # Step 6: Authenticate CLIs (if tokens available)
 # ============================================================================
