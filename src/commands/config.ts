@@ -157,11 +157,14 @@ async function getVercelTeams(token: string): Promise<VercelTeam[]> {
 	try {
 		// vercel teams list doesn't support --json, so we parse the text output
 		// Format: "  id                            Team name"
+		// Note: Vercel CLI outputs to stderr, not stdout
 		const result = await execa("vercel", ["teams", "list"], {
 			env: { ...process.env, VERCEL_TOKEN: token },
 		});
 
-		const lines = result.stdout.split("\n");
+		// Vercel CLI writes to stderr
+		const output = result.stderr || result.stdout;
+		const lines = output.split("\n");
 		const teams: VercelTeam[] = [];
 
 		// Find where data starts (after the header line "  id  ...  Team name")
