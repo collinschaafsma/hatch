@@ -3,7 +3,6 @@ import {
 	checkRequiredClis,
 	ghAuthStatus,
 	supabaseAuthStatus,
-	vercelAuthStatus,
 } from "./cli-wrappers.js";
 
 export interface PrerequisiteCheckResult {
@@ -35,13 +34,7 @@ export async function checkPrerequisites(
 		errors.push(`GitHub CLI not authenticated: ${ghStatus.error}`);
 	}
 
-	// Check Vercel authentication (non-fatal - commands use --token directly)
-	const vercelStatus = await vercelAuthStatus(config.vercel.token);
-	if (!vercelStatus.isAuthenticated) {
-		warnings.push(
-			`Vercel whoami check failed (will try token directly): ${vercelStatus.error}`,
-		);
-	}
+	// Skip Vercel auth check - whoami is unreliable, commands use --token directly
 
 	// Check Supabase authentication
 	const supabaseStatus = await supabaseAuthStatus(config.supabase.token);

@@ -7,7 +7,6 @@ import {
 	ghAuthStatus,
 	isCliInstalled,
 	supabaseAuthStatus,
-	vercelAuthStatus,
 } from "./cli-wrappers.js";
 
 /**
@@ -97,16 +96,9 @@ export async function authenticateClis(
 		log.success(`GitHub CLI authenticated as ${ghStatus.username}`);
 	}
 
-	// Vercel - verify auth but don't fail (commands use --token flag directly)
-	const vercelStatus = await vercelAuthStatus(config.vercel.token);
-	if (!vercelStatus.isAuthenticated) {
-		if (!quiet) {
-			log.warn(
-				"Vercel whoami check failed - will try using token directly on commands",
-			);
-		}
-	} else if (!quiet) {
-		log.success(`Vercel CLI authenticated as ${vercelStatus.username}`);
+	// Skip Vercel auth check - whoami is unreliable, commands use --token directly
+	if (!quiet) {
+		log.success("Vercel CLI ready (using token directly)");
 	}
 
 	// Supabase - uses SUPABASE_ACCESS_TOKEN env var automatically, just verify
