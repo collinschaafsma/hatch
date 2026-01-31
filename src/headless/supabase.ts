@@ -43,6 +43,9 @@ async function waitForProjectReady(
 		const project = projects.find((p) => p.id === projectRef);
 
 		if (project?.status === "ACTIVE_HEALTHY") {
+			// Give pooler endpoints a moment to become fully available
+			// (matching behavior from setup script)
+			await new Promise((resolve) => setTimeout(resolve, 5000));
 			return;
 		}
 
@@ -328,27 +331,42 @@ export async function runMigrations(
 	// Use session pooler for DDL operations (migrations)
 	const directDbUrl = getDirectDatabaseUrl(projectRef, dbPassword, region);
 
+	const { execa } = await import("execa");
+	const { pnpmRun } = await import("../utils/exec.js");
+
 	if (!config.quiet) {
 		await withSpinner("Generating database migrations", async () => {
-			const { pnpmRun } = await import("../utils/exec.js");
 			await pnpmRun("db:generate", webPath);
 		});
 
 		await withSpinner("Applying database migrations", async () => {
-			const { execa } = await import("execa");
+			try {
+				const result = await execa("pnpm", ["db:migrate"], {
+					cwd: webPath,
+					env: { ...process.env, DATABASE_URL: directDbUrl },
+				});
+				if (result.stderr && result.stderr.includes("error")) {
+					log.warn(`Migration warnings: ${result.stderr}`);
+				}
+			} catch (error) {
+				const execError = error as { stderr?: string; message?: string };
+				throw new Error(
+					`Database migration failed: ${execError.stderr || execError.message}`,
+				);
+			}
+		});
+	} else {
+		await pnpmRun("db:generate", webPath);
+		try {
 			await execa("pnpm", ["db:migrate"], {
 				cwd: webPath,
 				env: { ...process.env, DATABASE_URL: directDbUrl },
 			});
-		});
-	} else {
-		const { pnpmRun } = await import("../utils/exec.js");
-		const { execa } = await import("execa");
-
-		await pnpmRun("db:generate", webPath);
-		await execa("pnpm", ["db:migrate"], {
-			cwd: webPath,
-			env: { ...process.env, DATABASE_URL: directDbUrl },
-		});
+		} catch (error) {
+			const execError = error as { stderr?: string; message?: string };
+			throw new Error(
+				`Database migration failed: ${execError.stderr || execError.message}`,
+			);
+		}
 	}
 }

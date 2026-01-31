@@ -102,6 +102,13 @@ export async function runHeadlessSetup(
 				config,
 			);
 
+			// Wait for migrations to be fully committed before creating branches
+			// Supabase needs time to process schema changes before branching
+			if (!config.quiet) {
+				log.info("Waiting for schema to be ready for branching...");
+			}
+			await new Promise((resolve) => setTimeout(resolve, 10000));
+
 			// Create branches AFTER migrations are run
 			if (!config.quiet) {
 				log.blank();
