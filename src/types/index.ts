@@ -33,6 +33,15 @@ export interface HeadlessOptions {
 	configPath?: string;
 }
 
+export interface ClaudeOAuthAccount {
+	accountUuid: string;
+	emailAddress: string;
+	organizationUuid: string;
+	displayName?: string;
+	organizationName?: string;
+	organizationRole?: string;
+}
+
 export interface ClaudeConfig {
 	accessToken: string;
 	refreshToken: string;
@@ -40,6 +49,7 @@ export interface ClaudeConfig {
 	scopes: string[];
 	subscriptionType?: string;
 	rateLimitTier?: string;
+	oauthAccount?: ClaudeOAuthAccount;
 }
 
 export interface HatchConfig {

@@ -313,27 +313,51 @@ if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
     CLAUDE_SUBSCRIPTION_TYPE=$(jq -r '.claude.subscriptionType // empty' "$CONFIG_PATH" 2>/dev/null || true)
     CLAUDE_RATE_LIMIT_TIER=$(jq -r '.claude.rateLimitTier // empty' "$CONFIG_PATH" 2>/dev/null || true)
 
+    # Read oauthAccount fields
+    CLAUDE_ACCOUNT_UUID=$(jq -r '.claude.oauthAccount.accountUuid // empty' "$CONFIG_PATH" 2>/dev/null || true)
+    CLAUDE_EMAIL=$(jq -r '.claude.oauthAccount.emailAddress // empty' "$CONFIG_PATH" 2>/dev/null || true)
+    CLAUDE_ORG_UUID=$(jq -r '.claude.oauthAccount.organizationUuid // empty' "$CONFIG_PATH" 2>/dev/null || true)
+    CLAUDE_DISPLAY_NAME=$(jq -r '.claude.oauthAccount.displayName // empty' "$CONFIG_PATH" 2>/dev/null || true)
+    CLAUDE_ORG_NAME=$(jq -r '.claude.oauthAccount.organizationName // empty' "$CONFIG_PATH" 2>/dev/null || true)
+    CLAUDE_ORG_ROLE=$(jq -r '.claude.oauthAccount.organizationRole // empty' "$CONFIG_PATH" 2>/dev/null || true)
+
     # Debug: show what we found
     info "  accessToken present: ${CLAUDE_ACCESS_TOKEN:+yes}${CLAUDE_ACCESS_TOKEN:-no}"
     info "  refreshToken present: ${CLAUDE_REFRESH_TOKEN:+yes}${CLAUDE_REFRESH_TOKEN:-no}"
-    info "  expiresAt: ${CLAUDE_EXPIRES_AT:-empty}"
+    info "  oauthAccount present: ${CLAUDE_ACCOUNT_UUID:+yes}${CLAUDE_ACCOUNT_UUID:-no}"
 
     if [[ -n "${CLAUDE_ACCESS_TOKEN:-}" && -n "${CLAUDE_REFRESH_TOKEN:-}" ]]; then
         info "Setting up Claude Code credentials..."
         mkdir -p ~/.claude
-        # Build the credentials JSON, including optional fields if present
+
+        # Build the credentials JSON for ~/.claude/.credentials.json
         CLAUDE_CREDS="{\"accessToken\":\"$CLAUDE_ACCESS_TOKEN\",\"refreshToken\":\"$CLAUDE_REFRESH_TOKEN\",\"expiresAt\":$CLAUDE_EXPIRES_AT,\"scopes\":$CLAUDE_SCOPES"
         [[ -n "$CLAUDE_SUBSCRIPTION_TYPE" ]] && CLAUDE_CREDS="$CLAUDE_CREDS,\"subscriptionType\":\"$CLAUDE_SUBSCRIPTION_TYPE\""
         [[ -n "$CLAUDE_RATE_LIMIT_TIER" ]] && CLAUDE_CREDS="$CLAUDE_CREDS,\"rateLimitTier\":\"$CLAUDE_RATE_LIMIT_TIER\""
         CLAUDE_CREDS="$CLAUDE_CREDS}"
         echo "{\"claudeAiOauth\":$CLAUDE_CREDS}" | jq '.' > ~/.claude/.credentials.json
         chmod 600 ~/.claude/.credentials.json
-        success "Claude Code credentials configured"
-        # Verify the file was created
+
+        # Build the main config JSON for ~/.claude.json (needed to skip onboarding)
+        CLAUDE_JSON="{\"hasCompletedOnboarding\":true,\"lastOnboardingVersion\":\"2.1.27\""
+        if [[ -n "$CLAUDE_ACCOUNT_UUID" ]]; then
+            CLAUDE_JSON="$CLAUDE_JSON,\"oauthAccount\":{\"accountUuid\":\"$CLAUDE_ACCOUNT_UUID\",\"emailAddress\":\"$CLAUDE_EMAIL\",\"organizationUuid\":\"$CLAUDE_ORG_UUID\""
+            [[ -n "$CLAUDE_DISPLAY_NAME" ]] && CLAUDE_JSON="$CLAUDE_JSON,\"displayName\":\"$CLAUDE_DISPLAY_NAME\""
+            [[ -n "$CLAUDE_ORG_NAME" ]] && CLAUDE_JSON="$CLAUDE_JSON,\"organizationName\":\"$CLAUDE_ORG_NAME\""
+            [[ -n "$CLAUDE_ORG_ROLE" ]] && CLAUDE_JSON="$CLAUDE_JSON,\"organizationRole\":\"$CLAUDE_ORG_ROLE\""
+            CLAUDE_JSON="$CLAUDE_JSON}"
+        fi
+        CLAUDE_JSON="$CLAUDE_JSON}"
+        echo "$CLAUDE_JSON" | jq '.' > ~/.claude.json
+        chmod 600 ~/.claude.json
+
+        success "Claude Code credentials and config configured"
+        # Verify files were created
         if [[ -f ~/.claude/.credentials.json ]]; then
-            info "  Credentials file created at ~/.claude/.credentials.json"
-        else
-            warn "  Failed to create credentials file"
+            info "  Credentials: ~/.claude/.credentials.json"
+        fi
+        if [[ -f ~/.claude.json ]]; then
+            info "  Config: ~/.claude.json"
         fi
     else
         warn "Claude Code credentials not found in config file"

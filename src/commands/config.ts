@@ -4,7 +4,11 @@ import { select } from "@inquirer/prompts";
 import { Command } from "commander";
 import fs from "fs-extra";
 import yaml from "yaml";
-import type { ClaudeConfig, HatchConfig } from "../types/index.js";
+import type {
+	ClaudeConfig,
+	ClaudeOAuthAccount,
+	HatchConfig,
+} from "../types/index.js";
 import { log } from "../utils/logger.js";
 import { withSpinner } from "../utils/spinner.js";
 
@@ -268,7 +272,7 @@ async function readGitConfig(key: string): Promise<string | null> {
 }
 
 /**
- * Read Claude Code OAuth credentials from macOS Keychain
+ * Read Claude Code OAuth credentials from macOS Keychain and config file
  */
 async function getClaudeCredentials(): Promise<ClaudeConfig | undefined> {
 	// Only supported on macOS
@@ -302,6 +306,27 @@ async function getClaudeCredentials(): Promise<ClaudeConfig | undefined> {
 			if (oauth.rateLimitTier) {
 				config.rateLimitTier = oauth.rateLimitTier;
 			}
+
+			// Also read oauthAccount from ~/.claude.json if it exists
+			const claudeJsonPath = path.join(os.homedir(), ".claude.json");
+			if (await fs.pathExists(claudeJsonPath)) {
+				try {
+					const claudeJson = await fs.readJson(claudeJsonPath);
+					if (claudeJson.oauthAccount) {
+						config.oauthAccount = {
+							accountUuid: claudeJson.oauthAccount.accountUuid,
+							emailAddress: claudeJson.oauthAccount.emailAddress,
+							organizationUuid: claudeJson.oauthAccount.organizationUuid,
+							displayName: claudeJson.oauthAccount.displayName,
+							organizationName: claudeJson.oauthAccount.organizationName,
+							organizationRole: claudeJson.oauthAccount.organizationRole,
+						};
+					}
+				} catch {
+					// Ignore errors reading claude.json
+				}
+			}
+
 			return config;
 		}
 		return undefined;
