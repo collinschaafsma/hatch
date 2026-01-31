@@ -23,10 +23,6 @@ DATABASE_URL=
 # Test Database (Supabase branch)
 TEST_DATABASE_URL=
 
-# Local Docker fallback (optional - run 'pnpm docker:up' first)
-# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/${projectName}
-# TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5434/${projectName}_test
-
 ${authEnv}
 
 # Vercel AI Gateway (https://vercel.com/docs/ai-gateway)

@@ -37,7 +37,6 @@ export async function runHeadlessSetup(
 	projectPath: string,
 	options: HeadlessOptions,
 	useWorkOS: boolean,
-	useDocker: boolean,
 ): Promise<HeadlessResult> {
 	try {
 		// Validate options
@@ -80,47 +79,45 @@ export async function runHeadlessSetup(
 		}
 		const githubResult = await setupGitHub(projectName, projectPath, config);
 
-		// Setup Supabase (skip if using Docker)
+		// Setup Supabase
 		let supabaseResult: Awaited<ReturnType<typeof setupSupabase>> | undefined;
-		if (!useDocker) {
-			if (!config.quiet) {
-				log.blank();
-				log.info("Setting up Supabase...");
-			}
-			supabaseResult = await setupSupabase(projectName, projectPath, config);
-
-			// Run migrations BEFORE creating branches
-			// Branches inherit schema from main, so migrations must exist first
-			if (!config.quiet) {
-				log.blank();
-				log.info("Running database migrations...");
-			}
-			await runMigrations(
-				projectPath,
-				supabaseResult.projectRef,
-				supabaseResult.dbPassword,
-				supabaseResult.region,
-				config,
-			);
-
-			// Wait for migrations to be fully committed before creating branches
-			// Supabase needs time to process schema changes before branching
-			if (!config.quiet) {
-				log.info("Waiting for schema to be ready for branching...");
-			}
-			await new Promise((resolve) => setTimeout(resolve, 10000));
-
-			// Create branches AFTER migrations are run
-			if (!config.quiet) {
-				log.blank();
-				log.info("Creating Supabase branches...");
-			}
-			await createSupabaseBranches(
-				projectPath,
-				supabaseResult.projectRef,
-				config,
-			);
+		if (!config.quiet) {
+			log.blank();
+			log.info("Setting up Supabase...");
 		}
+		supabaseResult = await setupSupabase(projectName, projectPath, config);
+
+		// Run migrations BEFORE creating branches
+		// Branches inherit schema from main, so migrations must exist first
+		if (!config.quiet) {
+			log.blank();
+			log.info("Running database migrations...");
+		}
+		await runMigrations(
+			projectPath,
+			supabaseResult.projectRef,
+			supabaseResult.dbPassword,
+			supabaseResult.region,
+			config,
+		);
+
+		// Wait for migrations to be fully committed before creating branches
+		// Supabase needs time to process schema changes before branching
+		if (!config.quiet) {
+			log.info("Waiting for schema to be ready for branching...");
+		}
+		await new Promise((resolve) => setTimeout(resolve, 10000));
+
+		// Create branches AFTER migrations are run
+		if (!config.quiet) {
+			log.blank();
+			log.info("Creating Supabase branches...");
+		}
+		await createSupabaseBranches(
+			projectPath,
+			supabaseResult.projectRef,
+			config,
+		);
 
 		// Setup Vercel
 		if (!config.quiet) {

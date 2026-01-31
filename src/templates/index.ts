@@ -37,9 +37,6 @@ export * from "./app/index.js";
 // UI package templates
 export * from "./ui/index.js";
 
-// Docker templates
-export * from "./docker/index.js";
-
 // Supabase templates
 export * from "./supabase/index.js";
 

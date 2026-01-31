@@ -1,5 +1,4 @@
 export function generateSetupScript(
-	useDocker: boolean,
 	projectName: string,
 	useWorkOS: boolean,
 ): string {
@@ -20,7 +19,6 @@ NC='\\033[0m' # No Color
 
 # Project configuration (embedded at generation time)
 PROJECT_NAME="${projectName}"
-USE_DOCKER=${useDocker ? "true" : "false"}
 USE_WORKOS=${useWorkOS ? "true" : "false"}
 
 # State tracking file for idempotency
@@ -124,14 +122,12 @@ check_prerequisites() {
     print_error "Vercel CLI not installed"
   fi
 
-  # Check supabase CLI (only if not using Docker)
-  if [[ "\$USE_DOCKER" != "true" ]]; then
-    if command -v supabase &> /dev/null; then
-      print_success "Supabase CLI installed"
-    else
-      missing+=("supabase")
-      print_error "Supabase CLI not installed"
-    fi
+  # Check supabase CLI
+  if command -v supabase &> /dev/null; then
+    print_success "Supabase CLI installed"
+  else
+    missing+=("supabase")
+    print_error "Supabase CLI not installed"
   fi
 
   # Check jq (needed for parsing JSON)
@@ -194,15 +190,10 @@ auth_github() {
 }
 
 # =============================================================================
-# Step 3: Authenticate with Supabase (skipped if USE_DOCKER=true)
+# Step 3: Authenticate with Supabase
 # =============================================================================
 
 auth_supabase() {
-  if [[ "\$USE_DOCKER" == "true" ]]; then
-    print_step "Skipping Supabase authentication (Docker mode)"
-    return 0
-  fi
-
   print_header "Supabase Authentication"
 
   # Check if already authenticated
@@ -360,15 +351,10 @@ create_github_repo() {
 }
 
 # =============================================================================
-# Step 6: Create Supabase Project (skipped if USE_DOCKER=true)
+# Step 6: Create Supabase Project
 # =============================================================================
 
 create_supabase_project() {
-  if [[ "\$USE_DOCKER" == "true" ]]; then
-    print_step "Skipping Supabase project creation (Docker mode)"
-    return 0
-  fi
-
   print_header "Supabase Project Setup"
 
   # Check if already linked
@@ -526,15 +512,10 @@ create_new_supabase_project() {
 }
 
 # =============================================================================
-# Step 7: Link Supabase Project (skipped if USE_DOCKER=true)
+# Step 7: Link Supabase Project
 # =============================================================================
 
 link_supabase() {
-  if [[ "\$USE_DOCKER" == "true" ]]; then
-    print_step "Skipping Supabase linking (Docker mode)"
-    return 0
-  fi
-
   print_header "Linking Supabase Project"
 
   if [[ ! -f ".supabase/.project-ref" ]]; then
@@ -551,15 +532,10 @@ link_supabase() {
 }
 
 # =============================================================================
-# Step 8: Run Database Migrations (skipped if USE_DOCKER=true)
+# Step 8: Run Database Migrations
 # =============================================================================
 
 run_migrations() {
-  if [[ "\$USE_DOCKER" == "true" ]]; then
-    print_step "Skipping Supabase migrations (Docker mode)"
-    return 0
-  fi
-
   print_header "Running Database Migrations"
 
   if [[ ! -f ".supabase/.project-ref" ]]; then
@@ -861,15 +837,10 @@ pull_vercel_env() {
 }
 
 # =============================================================================
-# Step 11: Configure Database Environments (skipped if USE_DOCKER=true)
+# Step 11: Configure Database Environments
 # =============================================================================
 
 configure_database_environments() {
-  if [[ "\$USE_DOCKER" == "true" ]]; then
-    print_step "Skipping Supabase env configuration (Docker mode)"
-    return 0
-  fi
-
   print_header "Configuring Database Environments"
 
   if [[ ! -f ".supabase/.project-ref" ]]; then
@@ -1105,49 +1076,25 @@ print_summary() {
     echo -e "  \${GREEN}✓\${NC} Vercel: Project linked (apps/web)"
   fi
 
-  # Supabase status (only if not Docker mode)
-  if [[ "\$USE_DOCKER" != "true" ]]; then
-    if [[ -f ".supabase/.project-ref" ]]; then
-      local project_ref=\$(cat .supabase/.project-ref)
-      echo -e "  \${GREEN}✓\${NC} Supabase: \$project_ref"
-    fi
-  else
-    echo -e "  \${BLUE}→\${NC} Database: Docker (local)"
+  # Supabase status
+  if [[ -f ".supabase/.project-ref" ]]; then
+    local project_ref=\$(cat .supabase/.project-ref)
+    echo -e "  \${GREEN}✓\${NC} Supabase: \$project_ref"
   fi
 
   echo ""
   echo "Next steps:"
   echo ""
   echo "  1. Review apps/web/.env.local and fill in any missing values:"
-  if [[ "\$USE_DOCKER" != "true" ]]; then
-    echo "     - RESEND_API_KEY (for email authentication)"
-  fi
+  echo "     - RESEND_API_KEY (for email authentication)"
   echo "     - OPENAI_API_KEY or AI_GATEWAY_API_KEY"
   echo "     - NEXT_PUBLIC_POSTHOG_KEY (optional)"
   echo ""
-
-  if [[ "\$USE_DOCKER" == "true" ]]; then
-    echo "  2. Start the local database:"
-    echo "     pnpm docker:up"
-    echo ""
-    echo "  3. Run migrations:"
-    echo "     pnpm db:generate && pnpm db:migrate"
-    echo ""
-    echo "  4. Start development:"
-    echo "     pnpm dev"
-  else
-    echo "  2. Start development:"
-    echo "     pnpm dev"
-  fi
-
+  echo "  2. Start development:"
+  echo "     pnpm dev"
   echo ""
-  if [[ "\$USE_DOCKER" != "true" ]]; then
-    echo "  Vercel production DATABASE_URL has been configured."
-    echo "  Add any additional env vars in the Vercel dashboard."
-  else
-    echo "  For deployment, configure DATABASE_URL in Vercel:"
-    echo "     vercel env add DATABASE_URL production"
-  fi
+  echo "  Vercel production DATABASE_URL has been configured."
+  echo "  Add any additional env vars in the Vercel dashboard."
   echo ""
 }
 
@@ -1241,12 +1188,7 @@ main() {
   echo "       \$PROJECT_NAME Setup"
   echo "========================================"
   echo ""
-
-  if [[ "\$USE_DOCKER" == "true" ]]; then
-    echo "Mode: Docker (local PostgreSQL)"
-  else
-    echo "Mode: Supabase (cloud PostgreSQL)"
-  fi
+  echo "Mode: Supabase (cloud PostgreSQL)"
   echo ""
 
   check_prerequisites

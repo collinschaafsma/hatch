@@ -35,7 +35,6 @@ const packageRoot = path.resolve(__dirname, "../..");
 
 interface CreateCommandOptions {
 	workos: boolean;
-	docker: boolean;
 	vscode: boolean;
 	// Headless mode options
 	headless: boolean;
@@ -58,7 +57,6 @@ export const createCommand = new Command()
 	.description("Create a new Hatch project")
 	.argument("[project-name]", "Name of the project")
 	.option("--workos", "Use WorkOS instead of Better Auth", false)
-	.option("--docker", "Use local Docker PostgreSQL instead of Supabase", false)
 	.option("--no-vscode", "Skip generating VS Code configuration files")
 	// Headless mode options
 	.option("--headless", "Run in non-interactive headless mode", false)
@@ -118,7 +116,6 @@ export const createCommand = new Command()
 				}
 
 				const includeVSCode = options.vscode;
-				const useDocker = options.docker;
 
 				const projectPath = path.resolve(process.cwd(), inputName);
 				// Extract just the directory name for use in templates
@@ -150,9 +147,7 @@ export const createCommand = new Command()
 					log.info(
 						`Auth provider: ${useWorkOS ? "WorkOS" : "Better Auth (Email OTP)"}`,
 					);
-					log.info(
-						`Database: ${useDocker ? "Local Docker PostgreSQL" : "Supabase (cloud)"}`,
-					);
+					log.info("Database: Supabase (cloud)");
 					log.info(`VS Code config: ${includeVSCode ? "included" : "skipped"}`);
 					if (options.headless) {
 						log.info("Mode: headless");
@@ -189,11 +184,6 @@ export const createCommand = new Command()
 						path.join(projectPath, ".gitignore"),
 						templates.generateGitignore(),
 					);
-					// Docker Compose is always generated for CI/CD and as a local fallback
-					await writeFile(
-						path.join(projectPath, "docker-compose.yml"),
-						templates.generateDockerCompose(name),
-					);
 					await writeFile(
 						path.join(projectPath, ".nvmrc"),
 						templates.generateNvmrc(),
@@ -208,25 +198,23 @@ export const createCommand = new Command()
 					);
 					await writeFile(
 						path.join(projectPath, "README.md"),
-						templates.generateReadme(name, useDocker),
+						templates.generateReadme(name),
 					);
 				});
 
-				// Generate Supabase configuration (unless using Docker)
-				if (!useDocker) {
-					await withSpinner("Setting up Supabase configuration", async () => {
-						await ensureDir(path.join(projectPath, "supabase"));
+				// Generate Supabase configuration
+				await withSpinner("Setting up Supabase configuration", async () => {
+					await ensureDir(path.join(projectPath, "supabase"));
 
-						await writeFile(
-							path.join(projectPath, "supabase", "config.toml"),
-							templates.generateSupabaseConfig(),
-						);
-						await writeFile(
-							path.join(projectPath, "supabase", "seed.sql"),
-							templates.generateSupabaseSeedSql(useWorkOS),
-						);
-					});
-				}
+					await writeFile(
+						path.join(projectPath, "supabase", "config.toml"),
+						templates.generateSupabaseConfig(),
+					);
+					await writeFile(
+						path.join(projectPath, "supabase", "seed.sql"),
+						templates.generateSupabaseSeedSql(useWorkOS),
+					);
+				});
 
 				// Generate VS Code configuration
 				if (includeVSCode) {
@@ -259,55 +247,53 @@ export const createCommand = new Command()
 						"build-sandbox",
 					);
 
-					await writeFile(wtsPath, templates.generateWtsScript(useDocker));
-					await writeFile(wtcsPath, templates.generateWtcsScript(useDocker));
+					await writeFile(wtsPath, templates.generateWtsScript());
+					await writeFile(wtcsPath, templates.generateWtcsScript());
 					await writeFile(buildSandboxPath, templates.generateBuildSandbox());
 					await writeFile(
 						path.join(projectPath, "scripts", "sandbox", "Dockerfile"),
 						templates.generateSandboxDockerfile(),
 					);
 
-					// Supabase scripts (generated unless using Docker)
-					if (!useDocker) {
-						const supabaseSetupPath = path.join(
-							projectPath,
-							"scripts",
-							"supabase-setup",
-						);
-						const supabaseBranchPath = path.join(
-							projectPath,
-							"scripts",
-							"supabase-branch",
-						);
-						const supabaseEnvPath = path.join(
-							projectPath,
-							"scripts",
-							"supabase-env",
-						);
+					// Supabase scripts
+					const supabaseSetupPath = path.join(
+						projectPath,
+						"scripts",
+						"supabase-setup",
+					);
+					const supabaseBranchPath = path.join(
+						projectPath,
+						"scripts",
+						"supabase-branch",
+					);
+					const supabaseEnvPath = path.join(
+						projectPath,
+						"scripts",
+						"supabase-env",
+					);
 
-						await writeFile(
-							supabaseSetupPath,
-							templates.generateSupabaseSetupScript(),
-						);
-						await writeFile(
-							supabaseBranchPath,
-							templates.generateSupabaseBranchScript(),
-						);
-						await writeFile(
-							supabaseEnvPath,
-							templates.generateSupabaseEnvScript(),
-						);
+					await writeFile(
+						supabaseSetupPath,
+						templates.generateSupabaseSetupScript(),
+					);
+					await writeFile(
+						supabaseBranchPath,
+						templates.generateSupabaseBranchScript(),
+					);
+					await writeFile(
+						supabaseEnvPath,
+						templates.generateSupabaseEnvScript(),
+					);
 
-						await setExecutable(supabaseSetupPath);
-						await setExecutable(supabaseBranchPath);
-						await setExecutable(supabaseEnvPath);
-					}
+					await setExecutable(supabaseSetupPath);
+					await setExecutable(supabaseBranchPath);
+					await setExecutable(supabaseEnvPath);
 
 					// Setup script (generated for all projects)
 					const setupScriptPath = path.join(projectPath, "scripts", "setup");
 					await writeFile(
 						setupScriptPath,
-						templates.generateSetupScript(useDocker, name, useWorkOS),
+						templates.generateSetupScript(name, useWorkOS),
 					);
 					await setExecutable(setupScriptPath);
 
@@ -896,7 +882,6 @@ export const createCommand = new Command()
 						projectPath,
 						headlessOptions,
 						useWorkOS,
-						useDocker,
 					);
 
 					outputResult(result, options.json, options.quiet);

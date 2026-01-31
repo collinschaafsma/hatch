@@ -1,38 +1,4 @@
-export function generateReadme(
-	projectName: string,
-	useDocker: boolean,
-): string {
-	const supabaseSection = useDocker
-		? ""
-		: `
-### Supabase Commands
-
-| Command | Description |
-|---------|-------------|
-| \`pnpm supabase:setup\` | Link or create Supabase project with dev branches |
-| \`pnpm supabase:branch <cmd> <name>\` | Manage database branches (create/delete/list) |
-| \`pnpm supabase:env [branch]\` | Fetch credentials for a branch (default: dev) |
-`;
-
-	const supabaseWorktreeNote = useDocker
-		? "Creates isolated Docker PostgreSQL containers with unique ports"
-		: "Creates Supabase database branches for isolated development";
-
-	const supabaseCleanupNote = useDocker
-		? "Stops Docker containers and removes volumes"
-		: "Deletes Supabase branches and stops any Docker containers";
-
-	const databaseSetupStep = useDocker
-		? `3. Start the database:
-   \`\`\`bash
-   pnpm docker:up
-   pnpm db:generate && pnpm db:migrate
-   \`\`\``
-		: `3. Set up Supabase:
-   \`\`\`bash
-   pnpm supabase:setup
-   \`\`\``;
-
+export function generateReadme(projectName: string): string {
 	return `# ${projectName}
 
 A full-stack monorepo built with [Hatch](https://github.com/collinschaafsma/hatch).
@@ -43,12 +9,12 @@ A full-stack monorepo built with [Hatch](https://github.com/collinschaafsma/hatc
 
 - [Node.js 22+](https://nodejs.org/) (see \`.nvmrc\`)
 - [pnpm](https://pnpm.io/) (\`corepack enable\`)
-- [Docker](https://www.docker.com/) (for local PostgreSQL)
-${useDocker ? "" : "- [Supabase CLI](https://supabase.com/docs/guides/cli) (for cloud database)"}
+- [Docker](https://www.docker.com/) (for Claude Code sandbox mode)
+- [Supabase CLI](https://supabase.com/docs/guides/cli) (for cloud database)
 
 ### Automated Setup (Recommended)
 
-Run the interactive setup script to configure GitHub, Vercel, and ${useDocker ? "local Docker database" : "Supabase"}:
+Run the interactive setup script to configure GitHub, Vercel, and Supabase:
 
 \`\`\`bash
 pnpm app:setup
@@ -57,7 +23,7 @@ pnpm app:setup
 This will:
 - Create a GitHub repository (or link to existing)
 - Set up a Vercel project
-${useDocker ? "- Configure local Docker PostgreSQL" : "- Create a Supabase project with dev branches"}
+- Create a Supabase project with dev branches
 - Pull environment variables
 
 ### Manual Setup
@@ -69,7 +35,10 @@ ${useDocker ? "- Configure local Docker PostgreSQL" : "- Create a Supabase proje
 
 2. Fill in your environment variables in \`apps/web/.env.local\`
 
-${databaseSetupStep}
+3. Set up Supabase:
+   \`\`\`bash
+   pnpm supabase:setup
+   \`\`\`
 
 4. Start the development server:
    \`\`\`bash
@@ -96,7 +65,8 @@ ${projectName}/
 ├── packages/
 │   └── ui/               # Shared UI components
 ├── scripts/              # Setup and worktree scripts
-└── ${useDocker ? "" : "supabase/             # Supabase configuration\n└── "}.github/workflows/   # CI/CD workflows
+└── supabase/             # Supabase configuration
+└── .github/workflows/   # CI/CD workflows
 \`\`\`
 
 ---
@@ -127,29 +97,21 @@ ${projectName}/
 
 ---
 
-## Docker Commands
-
-Local PostgreSQL runs in Docker for development and testing.
+## Supabase Commands
 
 | Command | Description |
 |---------|-------------|
-| \`pnpm docker:up\` | Start PostgreSQL container (port 5432) |
-| \`pnpm docker:down\` | Stop PostgreSQL container |
-| \`pnpm docker:logs\` | Stream container logs |
-| \`pnpm docker:up:test\` | Start test database (port 5434) |
-| \`pnpm docker:down:all\` | Stop all containers and delete volumes |
-| \`pnpm docker:reset\` | Reset database (delete all data and restart) |
-${supabaseSection}
+| \`pnpm supabase:setup\` | Link or create Supabase project with dev branches |
+| \`pnpm supabase:branch <cmd> <name>\` | Manage database branches (create/delete/list) |
+| \`pnpm supabase:env [branch]\` | Fetch credentials for a branch (default: dev) |
+
 ---
 
 ## Running Tests
 
-Tests use a separate PostgreSQL container to avoid affecting development data.
+Tests use a separate Supabase database branch to avoid affecting development data.
 
 \`\`\`bash
-# Start the test database
-pnpm docker:up:test
-
 # Run all tests
 pnpm test
 
@@ -188,7 +150,7 @@ pnpm agent:sandbox <branch-name>
 
 This will:
 1. Create a git worktree for the branch
-2. ${supabaseWorktreeNote}
+2. Create Supabase database branches for isolated development
 3. Copy environment files and Vercel config
 4. Install dependencies and run migrations
 5. Copy data from the main database
@@ -211,7 +173,7 @@ pnpm agent:clean:sandbox
 \`\`\`
 
 This will:
-1. ${supabaseCleanupNote}
+1. Delete Supabase branches and stops any Docker containers
 2. Remove the git worktree
 3. Delete the local branch
 4. (Sandbox only) Stop and remove the Docker sandbox and node_modules volumes
@@ -227,7 +189,7 @@ Copy \`apps/web/.env.local.example\` to \`apps/web/.env.local\` and configure:
 - \`TEST_DATABASE_URL\` - Test database connection string
 
 ### Authentication
-${useDocker ? "Better Auth (Email OTP):" : "Better Auth (Email OTP) or WorkOS:"}
+Better Auth (Email OTP) or WorkOS:
 - \`BETTER_AUTH_SECRET\` - Auth encryption secret
 - \`BETTER_AUTH_URL\` - Auth callback URL
 - \`RESEND_API_KEY\` - Email service for OTP (get your key at [resend.com](https://resend.com))
@@ -307,10 +269,7 @@ npx workflow web
 
 ## Database Environments
 
-${
-	useDocker
-		? "This project uses Docker PostgreSQL for local development. For production, configure a PostgreSQL database in Vercel."
-		: `This project uses Supabase with database branching for isolated environments:
+This project uses Supabase with database branching for isolated environments:
 
 | Environment | Database | Purpose |
 |-------------|----------|---------|
@@ -334,8 +293,7 @@ To set up the integration (if not done during setup):
 supabase integrations create vercel
 \`\`\`
 
-Or configure it at: \`https://supabase.com/dashboard/project/<ref>/settings/integrations\``
-}
+Or configure it at: \`https://supabase.com/dashboard/project/<ref>/settings/integrations\`
 
 ---
 
@@ -350,7 +308,7 @@ The project is configured for Vercel deployment:
    vercel link
    \`\`\`
 
-2. Set environment variables in Vercel dashboard${useDocker ? "" : " (copy DATABASE_URL from Supabase)"}
+2. Set environment variables in Vercel dashboard (copy DATABASE_URL from Supabase)
 
 3. Deploy:
    \`\`\`bash

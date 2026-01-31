@@ -2466,48 +2466,6 @@ export const organizationMemberships = pgTable(
 "
 `;
 
-exports[`template snapshots > docker templates > generateDockerCompose 1`] = `
-"services:
-  postgres:
-    image: pgvector/pgvector:pg18
-    container_name: undefined-postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: undefined
-    ports:
-      - '5432:5432'
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  postgres-test:
-    image: pgvector/pgvector:pg18
-    container_name: undefined-postgres-test
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: undefined_test
-    ports:
-      - '5434:5432'
-    volumes:
-      - postgres_test_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  postgres_data:
-  postgres_test_data:
-"
-`;
-
 exports[`template snapshots > hooks templates > generateUseLatest 1`] = `
 ""use client";
 
@@ -3367,7 +3325,7 @@ A full-stack monorepo built with [Hatch](https://github.com/collinschaafsma/hatc
 
 - [Node.js 22+](https://nodejs.org/) (see \`.nvmrc\`)
 - [pnpm](https://pnpm.io/) (\`corepack enable\`)
-- [Docker](https://www.docker.com/) (for local PostgreSQL)
+- [Docker](https://www.docker.com/) (for Claude Code sandbox mode)
 - [Supabase CLI](https://supabase.com/docs/guides/cli) (for cloud database)
 
 ### Automated Setup (Recommended)
@@ -3455,20 +3413,7 @@ test-app/
 
 ---
 
-## Docker Commands
-
-Local PostgreSQL runs in Docker for development and testing.
-
-| Command | Description |
-|---------|-------------|
-| \`pnpm docker:up\` | Start PostgreSQL container (port 5432) |
-| \`pnpm docker:down\` | Stop PostgreSQL container |
-| \`pnpm docker:logs\` | Stream container logs |
-| \`pnpm docker:up:test\` | Start test database (port 5434) |
-| \`pnpm docker:down:all\` | Stop all containers and delete volumes |
-| \`pnpm docker:reset\` | Reset database (delete all data and restart) |
-
-### Supabase Commands
+## Supabase Commands
 
 | Command | Description |
 |---------|-------------|
@@ -3480,12 +3425,9 @@ Local PostgreSQL runs in Docker for development and testing.
 
 ## Running Tests
 
-Tests use a separate PostgreSQL container to avoid affecting development data.
+Tests use a separate Supabase database branch to avoid affecting development data.
 
 \`\`\`bash
-# Start the test database
-pnpm docker:up:test
-
 # Run all tests
 pnpm test
 
@@ -3524,7 +3466,7 @@ pnpm agent:sandbox <branch-name>
 
 This will:
 1. Create a git worktree for the branch
-2. Creates Supabase database branches for isolated development
+2. Create Supabase database branches for isolated development
 3. Copy environment files and Vercel config
 4. Install dependencies and run migrations
 5. Copy data from the main database
@@ -3547,7 +3489,7 @@ pnpm agent:clean:sandbox
 \`\`\`
 
 This will:
-1. Deletes Supabase branches and stops any Docker containers
+1. Delete Supabase branches and stops any Docker containers
 2. Remove the git worktree
 3. Delete the local branch
 4. (Sandbox only) Stop and remove the Docker sandbox and node_modules volumes
@@ -3738,12 +3680,6 @@ exports[`template snapshots > root templates > generateRootPackageJson 1`] = `
     "supabase:setup": "./scripts/supabase-setup",
     "supabase:branch": "./scripts/supabase-branch",
     "supabase:env": "./scripts/supabase-env",
-    "docker:up": "docker compose up -d postgres",
-    "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f",
-    "docker:up:test": "docker compose up -d postgres-test",
-    "docker:down:all": "docker compose down -v",
-    "docker:reset": "docker compose down -v && docker compose up -d postgres",
     "app:setup": "./scripts/setup",
     "agent": "./scripts/wts",
     "agent:sandbox": "./scripts/wts --sandbox",
@@ -4446,8 +4382,7 @@ BLUE='\\033[0;34m'
 NC='\\033[0m' # No Color
 
 # Project configuration (embedded at generation time)
-PROJECT_NAME="undefined"
-USE_DOCKER=false
+PROJECT_NAME="test-app"
 USE_WORKOS=false
 
 # State tracking file for idempotency
@@ -4551,14 +4486,12 @@ check_prerequisites() {
     print_error "Vercel CLI not installed"
   fi
 
-  # Check supabase CLI (only if not using Docker)
-  if [[ "$USE_DOCKER" != "true" ]]; then
-    if command -v supabase &> /dev/null; then
-      print_success "Supabase CLI installed"
-    else
-      missing+=("supabase")
-      print_error "Supabase CLI not installed"
-    fi
+  # Check supabase CLI
+  if command -v supabase &> /dev/null; then
+    print_success "Supabase CLI installed"
+  else
+    missing+=("supabase")
+    print_error "Supabase CLI not installed"
   fi
 
   # Check jq (needed for parsing JSON)
@@ -4621,15 +4554,10 @@ auth_github() {
 }
 
 # =============================================================================
-# Step 3: Authenticate with Supabase (skipped if USE_DOCKER=true)
+# Step 3: Authenticate with Supabase
 # =============================================================================
 
 auth_supabase() {
-  if [[ "$USE_DOCKER" == "true" ]]; then
-    print_step "Skipping Supabase authentication (Docker mode)"
-    return 0
-  fi
-
   print_header "Supabase Authentication"
 
   # Check if already authenticated
@@ -4787,15 +4715,10 @@ create_github_repo() {
 }
 
 # =============================================================================
-# Step 6: Create Supabase Project (skipped if USE_DOCKER=true)
+# Step 6: Create Supabase Project
 # =============================================================================
 
 create_supabase_project() {
-  if [[ "$USE_DOCKER" == "true" ]]; then
-    print_step "Skipping Supabase project creation (Docker mode)"
-    return 0
-  fi
-
   print_header "Supabase Project Setup"
 
   # Check if already linked
@@ -4953,15 +4876,10 @@ create_new_supabase_project() {
 }
 
 # =============================================================================
-# Step 7: Link Supabase Project (skipped if USE_DOCKER=true)
+# Step 7: Link Supabase Project
 # =============================================================================
 
 link_supabase() {
-  if [[ "$USE_DOCKER" == "true" ]]; then
-    print_step "Skipping Supabase linking (Docker mode)"
-    return 0
-  fi
-
   print_header "Linking Supabase Project"
 
   if [[ ! -f ".supabase/.project-ref" ]]; then
@@ -4978,15 +4896,10 @@ link_supabase() {
 }
 
 # =============================================================================
-# Step 8: Run Database Migrations (skipped if USE_DOCKER=true)
+# Step 8: Run Database Migrations
 # =============================================================================
 
 run_migrations() {
-  if [[ "$USE_DOCKER" == "true" ]]; then
-    print_step "Skipping Supabase migrations (Docker mode)"
-    return 0
-  fi
-
   print_header "Running Database Migrations"
 
   if [[ ! -f ".supabase/.project-ref" ]]; then
@@ -5288,15 +5201,10 @@ pull_vercel_env() {
 }
 
 # =============================================================================
-# Step 11: Configure Database Environments (skipped if USE_DOCKER=true)
+# Step 11: Configure Database Environments
 # =============================================================================
 
 configure_database_environments() {
-  if [[ "$USE_DOCKER" == "true" ]]; then
-    print_step "Skipping Supabase env configuration (Docker mode)"
-    return 0
-  fi
-
   print_header "Configuring Database Environments"
 
   if [[ ! -f ".supabase/.project-ref" ]]; then
@@ -5532,54 +5440,52 @@ print_summary() {
     echo -e "  \${GREEN}✓\${NC} Vercel: Project linked (apps/web)"
   fi
 
-  # Supabase status (only if not Docker mode)
-  if [[ "$USE_DOCKER" != "true" ]]; then
-    if [[ -f ".supabase/.project-ref" ]]; then
-      local project_ref=$(cat .supabase/.project-ref)
-      echo -e "  \${GREEN}✓\${NC} Supabase: $project_ref"
-    fi
-  else
-    echo -e "  \${BLUE}→\${NC} Database: Docker (local)"
+  # Supabase status
+  if [[ -f ".supabase/.project-ref" ]]; then
+    local project_ref=$(cat .supabase/.project-ref)
+    echo -e "  \${GREEN}✓\${NC} Supabase: $project_ref"
   fi
 
   echo ""
   echo "Next steps:"
   echo ""
   echo "  1. Review apps/web/.env.local and fill in any missing values:"
-  if [[ "$USE_DOCKER" != "true" ]]; then
-    echo "     - RESEND_API_KEY (for email authentication)"
-  fi
+  echo "     - RESEND_API_KEY (for email authentication)"
   echo "     - OPENAI_API_KEY or AI_GATEWAY_API_KEY"
   echo "     - NEXT_PUBLIC_POSTHOG_KEY (optional)"
   echo ""
-
-  if [[ "$USE_DOCKER" == "true" ]]; then
-    echo "  2. Start the local database:"
-    echo "     pnpm docker:up"
-    echo ""
-    echo "  3. Run migrations:"
-    echo "     pnpm db:generate && pnpm db:migrate"
-    echo ""
-    echo "  4. Start development:"
-    echo "     pnpm dev"
-  else
-    echo "  2. Start development:"
-    echo "     pnpm dev"
-  fi
-
+  echo "  2. Start development:"
+  echo "     pnpm dev"
   echo ""
-  if [[ "$USE_DOCKER" != "true" ]]; then
-    echo "  Vercel production DATABASE_URL has been configured."
-    echo "  Add any additional env vars in the Vercel dashboard."
-  else
-    echo "  For deployment, configure DATABASE_URL in Vercel:"
-    echo "     vercel env add DATABASE_URL production"
-  fi
+  echo "  Vercel production DATABASE_URL has been configured."
+  echo "  Add any additional env vars in the Vercel dashboard."
   echo ""
 }
 
 # =============================================================================
-# Step 12: Commit Setup Changes and Deploy
+# Step 12: Install Claude Code Skills
+# =============================================================================
+
+install_skills() {
+  print_header "Installing Claude Code Skills"
+
+  print_step "Installing vercel-react-best-practices skill..."
+  if npx -y skills add vercel-labs/agent-skills --skill vercel-react-best-practices --agent claude-code -y; then
+    print_success "vercel-react-best-practices skill installed"
+  else
+    print_warning "Could not install vercel-react-best-practices skill"
+  fi
+
+  print_step "Installing agent-browser skill..."
+  if npx -y skills add vercel-labs/agent-browser --skill agent-browser --agent claude-code -y; then
+    print_success "agent-browser skill installed"
+  else
+    print_warning "Could not install agent-browser skill"
+  fi
+}
+
+# =============================================================================
+# Step 13: Commit Setup Changes and Deploy
 # =============================================================================
 
 commit_and_deploy() {
@@ -5646,12 +5552,7 @@ main() {
   echo "       $PROJECT_NAME Setup"
   echo "========================================"
   echo ""
-
-  if [[ "$USE_DOCKER" == "true" ]]; then
-    echo "Mode: Docker (local PostgreSQL)"
-  else
-    echo "Mode: Supabase (cloud PostgreSQL)"
-  fi
+  echo "Mode: Supabase (cloud PostgreSQL)"
   echo ""
 
   check_prerequisites
@@ -5667,6 +5568,7 @@ main() {
   setup_auth_secrets
   pull_vercel_env
   configure_database_environments
+  install_skills
   commit_and_deploy
   print_summary
 }
@@ -6717,10 +6619,6 @@ DATABASE_URL=
 
 # Test Database (Supabase branch)
 TEST_DATABASE_URL=
-
-# Local Docker fallback (optional - run 'pnpm docker:up' first)
-# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/undefined
-# TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5434/undefined_test
 
 # Better Auth
 BETTER_AUTH_SECRET=  # Generate with: openssl rand -base64 32

@@ -494,7 +494,8 @@ export const configCommand = new Command()
 				const githubParts = [
 					config.github.org ? `org=${config.github.org}` : "personal account",
 				];
-				if (config.github.email) githubParts.push(`email=${config.github.email}`);
+				if (config.github.email)
+					githubParts.push(`email=${config.github.email}`);
 				if (config.github.name) githubParts.push(`name=${config.github.name}`);
 				log.step(`GitHub: ${githubParts.join(", ")}`);
 			}

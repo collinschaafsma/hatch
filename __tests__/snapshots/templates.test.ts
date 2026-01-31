@@ -272,12 +272,6 @@ describe("template snapshots", () => {
 		});
 	});
 
-	describe("docker templates", () => {
-		it("generateDockerCompose", () => {
-			expect(templates.generateDockerCompose()).toMatchSnapshot();
-		});
-	});
-
 	describe("test templates", () => {
 		it("generateVitestConfig", () => {
 			expect(templates.generateVitestConfig()).toMatchSnapshot();
@@ -454,7 +448,7 @@ describe("template snapshots", () => {
 
 	describe("setup templates", () => {
 		it("generateSetupScript", () => {
-			expect(templates.generateSetupScript()).toMatchSnapshot();
+			expect(templates.generateSetupScript("test-app", false)).toMatchSnapshot();
 		});
 	});
 });

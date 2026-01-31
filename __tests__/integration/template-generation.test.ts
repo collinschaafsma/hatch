@@ -252,16 +252,4 @@ describe("template generation integration", () => {
 			expect(parsed.name).toBe("@workspace/ui");
 		});
 	});
-
-	describe("docker templates", () => {
-		it("should generate valid docker-compose.yml", async () => {
-			const content = templates.generateDockerCompose();
-			const filePath = path.join(tempDir, "docker-compose.yml");
-			await writeFile(filePath, content);
-
-			const readContent = await fs.readFile(filePath, "utf-8");
-			expect(readContent).toContain("services:");
-			expect(readContent).toContain("postgres");
-		});
-	});
 });

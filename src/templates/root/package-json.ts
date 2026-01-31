@@ -19,13 +19,6 @@ export function generateRootPackageJson(projectName: string): string {
 				"supabase:setup": "./scripts/supabase-setup",
 				"supabase:branch": "./scripts/supabase-branch",
 				"supabase:env": "./scripts/supabase-env",
-				"docker:up": "docker compose up -d postgres",
-				"docker:down": "docker compose down",
-				"docker:logs": "docker compose logs -f",
-				"docker:up:test": "docker compose up -d postgres-test",
-				"docker:down:all": "docker compose down -v",
-				"docker:reset":
-					"docker compose down -v && docker compose up -d postgres",
 				"app:setup": "./scripts/setup",
 				agent: "./scripts/wts",
 				"agent:sandbox": "./scripts/wts --sandbox",

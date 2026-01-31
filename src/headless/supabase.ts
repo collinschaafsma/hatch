@@ -350,7 +350,7 @@ export async function runMigrations(
 					cwd: webPath,
 					env: { ...process.env, DATABASE_URL: directDbUrl },
 				});
-				if (result.stderr && result.stderr.includes("error")) {
+				if (result.stderr?.includes("error")) {
 					log.warn(`Migration warnings: ${result.stderr}`);
 				}
 			} catch (error) {

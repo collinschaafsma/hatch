@@ -60,7 +60,6 @@ pnpm dev create [project-name] [options]
 | Option | Description |
 |--------|-------------|
 | `--workos` | Use WorkOS instead of Better Auth for enterprise SSO |
-| `--docker` | Use local Docker PostgreSQL instead of Supabase |
 | `--no-vscode` | Skip generating VS Code configuration files |
 
 ### Examples
@@ -71,12 +70,6 @@ pnpm dev create ../my-app
 
 # Enterprise SSO with WorkOS
 pnpm dev create ../my-app --workos
-
-# Local development with Docker PostgreSQL
-pnpm dev create ../my-app --docker
-
-# WorkOS + Docker (no cloud dependencies)
-pnpm dev create ../my-app --workos --docker
 ```
 
 ## Generated Project Structure
@@ -116,28 +109,15 @@ my-app/
 └── README.md                 # Generated project documentation
 ```
 
-## Database Options
+## Database
 
-### Supabase (Default)
-
-Cloud-hosted PostgreSQL with:
+Hatch uses Supabase for cloud-hosted PostgreSQL with:
 - Automatic branch management for isolated development
 - Connection pooling for serverless
 - Built-in auth and storage (optional)
 
 ```bash
 pnpm dev create ../my-app
-```
-
-### Docker (Local)
-
-Local PostgreSQL containers for offline development:
-- No cloud account required
-- Faster local iteration
-- Isolated test database
-
-```bash
-pnpm dev create ../my-app --docker
 ```
 
 ## Authentication Options
