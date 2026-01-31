@@ -170,15 +170,55 @@ export async function runHeadlessSetup(
 					],
 					{ cwd: projectPath },
 				);
-			}
 
-			// Push to trigger deployment
-			if (!config.quiet) {
-				await withSpinner("Pushing to trigger deployment", async () => {
-					await execa("git", ["push", "origin", "main"], { cwd: projectPath });
-				});
+				// Push with GITHUB_TOKEN authentication
+				// GH_TOKEN/GITHUB_TOKEN is used by git credential helper
+				const env = config.github.token
+					? {
+							...process.env,
+							GITHUB_TOKEN: config.github.token,
+							GH_TOKEN: config.github.token,
+						}
+					: process.env;
+
+				if (!config.quiet) {
+					await withSpinner("Pushing to trigger deployment", async () => {
+						// Use git push with credential helper that reads from env
+						await execa(
+							"git",
+							[
+								"-c",
+								"credential.helper=!f() { echo username=x-access-token; echo password=$GITHUB_TOKEN; }; f",
+								"push",
+								"origin",
+								"main",
+							],
+							{
+								cwd: projectPath,
+								env,
+							},
+						);
+					});
+				} else {
+					await execa(
+						"git",
+						[
+							"-c",
+							"credential.helper=!f() { echo username=x-access-token; echo password=$GITHUB_TOKEN; }; f",
+							"push",
+							"origin",
+							"main",
+						],
+						{
+							cwd: projectPath,
+							env,
+						},
+					);
+				}
 			} else {
-				await execa("git", ["push", "origin", "main"], { cwd: projectPath });
+				if (!config.quiet) {
+					log.info("No setup changes to commit - deployment already triggered");
+				}
 			}
 		} catch (error) {
 			if (!config.quiet) {
