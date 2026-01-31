@@ -209,19 +209,24 @@ export const vmFeatureCommand = new Command()
 			const vercelEnvSpinner = createSpinner(
 				"Pulling environment variables from Vercel",
 			).start();
-			try {
-				// Link Vercel project first
-				await sshExec(
-					sshHost,
-					`${envPrefix} cd ${projectPath}/apps/web && VERCEL_TOKEN="${vercelToken}" vercel link --yes --project ${project.vercel.projectId} 2>/dev/null || true`,
-				);
-				// Pull development environment variables
-				await sshExec(
-					sshHost,
-					`${envPrefix} cd ${projectPath}/apps/web && VERCEL_TOKEN="${vercelToken}" vercel env pull .env.local --environment=development`,
-				);
+			// Link Vercel project first
+			await sshExec(
+				sshHost,
+				`${envPrefix} cd ${projectPath}/apps/web && VERCEL_TOKEN="${vercelToken}" vercel link --yes --project ${project.vercel.projectId} 2>/dev/null || true`,
+			);
+			// Pull development environment variables (may output warnings to stderr)
+			await sshExec(
+				sshHost,
+				`${envPrefix} cd ${projectPath}/apps/web && VERCEL_TOKEN="${vercelToken}" vercel env pull .env.local --environment=development 2>&1 || true`,
+			);
+			// Check if .env.local was created
+			const { stdout: envCheck } = await sshExec(
+				sshHost,
+				`test -f ${projectPath}/apps/web/.env.local && echo "exists" || echo "missing"`,
+			);
+			if (envCheck.trim() === "exists") {
 				vercelEnvSpinner.succeed("Environment variables pulled from Vercel");
-			} catch {
+			} else {
 				vercelEnvSpinner.warn(
 					"Could not pull env from Vercel. You may need to create .env.local manually.",
 				);
