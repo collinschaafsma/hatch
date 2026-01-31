@@ -183,14 +183,12 @@ export const vmFeatureCommand = new Command()
 				"Configuring Next.js for exe.dev preview",
 			).start();
 			try {
-				// Add allowedDevOrigins to next.config.ts for the VM's exe.dev URL
-				// Use sed substitution to add the property after the opening brace
+				// Set ALLOWED_DEV_ORIGINS env var (read by next.config.ts)
 				// Note: allowedDevOrigins takes hostnames, not full URLs
-				// Use 2 spaces for indentation to match biome formatter config
 				const exeDevOrigin = `${vmName}.exe.xyz`;
 				await sshExec(
 					sshHost,
-					`cd ${projectPath}/apps/web && sed -i 's/const nextConfig: NextConfig = {/const nextConfig: NextConfig = {\\n  allowedDevOrigins: ["${exeDevOrigin}"],/' next.config.ts`,
+					`cd ${projectPath}/apps/web && echo 'ALLOWED_DEV_ORIGINS=${exeDevOrigin}' >> .env.local`,
 				);
 				nextConfigSpinner.succeed("Next.js configured for exe.dev preview");
 			} catch {
