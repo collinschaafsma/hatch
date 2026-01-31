@@ -31,21 +31,22 @@ export interface SupabaseBranchResult {
 
 /**
  * Wait for Supabase project to be ready (ACTIVE_HEALTHY status)
+ * Uses longer intervals like the setup script (60s) to ensure pooler is ready
  */
 async function waitForProjectReady(
 	projectRef: string,
 	token: string,
-	maxAttempts = 60,
-	intervalMs = 5000,
+	maxAttempts = 12,
+	intervalMs = 60000,
 ): Promise<void> {
 	for (let attempt = 0; attempt < maxAttempts; attempt++) {
 		const projects = await supabaseProjectsList(token);
 		const project = projects.find((p) => p.id === projectRef);
 
 		if (project?.status === "ACTIVE_HEALTHY") {
-			// Give pooler endpoints a moment to become fully available
-			// (matching behavior from setup script)
-			await new Promise((resolve) => setTimeout(resolve, 5000));
+			// Give pooler endpoints time to become fully available
+			// The setup script waits 5s, but we add extra buffer for safety
+			await new Promise((resolve) => setTimeout(resolve, 15000));
 			return;
 		}
 
