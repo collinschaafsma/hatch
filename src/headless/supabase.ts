@@ -64,12 +64,26 @@ async function waitForBranchReady(
 	maxAttempts = 30,
 	intervalMs = 5000,
 ): Promise<void> {
+	const successStatuses = ["ACTIVE_HEALTHY", "FUNCTIONS_DEPLOYED"];
+	const failureStatuses = [
+		"MIGRATIONS_FAILED",
+		"FUNCTIONS_FAILED",
+		"INIT_FAILED",
+		"REMOVED",
+	];
+
 	for (let attempt = 0; attempt < maxAttempts; attempt++) {
 		const branches = await supabaseBranchesList({ cwd, token });
 		const branch = branches.find((b) => b.name === branchName);
 
-		if (branch?.status === "ACTIVE_HEALTHY") {
+		if (branch?.status && successStatuses.includes(branch.status)) {
 			return;
+		}
+
+		if (branch?.status && failureStatuses.includes(branch.status)) {
+			throw new Error(
+				`Supabase branch ${branchName} failed with status: ${branch.status}`,
+			);
 		}
 
 		await new Promise((resolve) => setTimeout(resolve, intervalMs));
