@@ -220,8 +220,17 @@ export async function vercelLink(options: {
 export async function vercelGitConnect(options: {
 	cwd: string;
 	token?: string;
+	gitUrl?: string;
 }): Promise<void> {
-	const args = ["git", "connect", "--yes"];
+	const args = ["git", "connect"];
+
+	// Pass the git URL explicitly if provided (required for monorepos)
+	if (options.gitUrl) {
+		args.push(options.gitUrl);
+	}
+
+	args.push("--yes");
+
 	if (options.token) {
 		args.push("--token", options.token);
 	}
@@ -478,12 +487,24 @@ export async function supabaseBranchCreate(options: {
 	name: string;
 	cwd: string;
 	token?: string;
+	projectRef?: string;
+	persistent?: boolean;
 }): Promise<{ branchId: string }> {
 	const env = options.token
 		? { ...process.env, SUPABASE_ACCESS_TOKEN: options.token }
 		: process.env;
 
-	const args = ["branches", "create", options.name, "--output", "json"];
+	const args = ["branches", "create", options.name];
+
+	if (options.projectRef) {
+		args.push("--project-ref", options.projectRef);
+	}
+
+	if (options.persistent) {
+		args.push("--persistent");
+	}
+
+	args.push("--output", "json");
 
 	const result = await exec("supabase", args, { cwd: options.cwd, env });
 

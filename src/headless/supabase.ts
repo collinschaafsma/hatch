@@ -223,6 +223,7 @@ export async function setupSupabase(
  */
 export async function createSupabaseBranches(
 	projectPath: string,
+	projectRef: string,
 	config: ResolvedHeadlessConfig,
 ): Promise<SupabaseBranchResult> {
 	const token = config.supabase.token;
@@ -237,14 +238,12 @@ export async function createSupabaseBranches(
 						name: "dev",
 						cwd: projectPath,
 						token,
+						projectRef,
+						persistent: true,
 					});
 				},
 			);
 			branches.dev = devBranch.branchId;
-
-			await withSpinner("Waiting for dev branch to be ready", async () => {
-				await waitForBranchReady("dev", projectPath, token);
-			});
 
 			const devTestBranch = await withSpinner(
 				"Creating Supabase dev-test branch",
@@ -253,30 +252,41 @@ export async function createSupabaseBranches(
 						name: "dev-test",
 						cwd: projectPath,
 						token,
+						projectRef,
+						persistent: true,
 					});
 				},
 			);
 			branches.devTest = devTestBranch.branchId;
 
-			await withSpinner("Waiting for dev-test branch to be ready", async () => {
-				await waitForBranchReady("dev-test", projectPath, token);
-			});
+			// Wait for branches to provision (like the setup script does)
+			await withSpinner(
+				"Waiting for branches to provision (30 seconds)",
+				async () => {
+					await new Promise((resolve) => setTimeout(resolve, 30000));
+				},
+			);
 		} else {
 			const devBranch = await supabaseBranchCreate({
 				name: "dev",
 				cwd: projectPath,
 				token,
+				projectRef,
+				persistent: true,
 			});
 			branches.dev = devBranch.branchId;
-			await waitForBranchReady("dev", projectPath, token);
 
 			const devTestBranch = await supabaseBranchCreate({
 				name: "dev-test",
 				cwd: projectPath,
 				token,
+				projectRef,
+				persistent: true,
 			});
 			branches.devTest = devTestBranch.branchId;
-			await waitForBranchReady("dev-test", projectPath, token);
+
+			// Wait for branches to provision
+			await new Promise((resolve) => setTimeout(resolve, 30000));
 		}
 	} catch (error) {
 		// Branching might not be enabled (requires Pro plan)

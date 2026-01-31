@@ -38,7 +38,7 @@ export async function setupVercel(
 	const team = config.vercel.team;
 	const webPath = `${projectPath}/apps/web`;
 
-	// Link to Vercel
+	// Link to Vercel from apps/web (where the Next.js app lives)
 	let projectId: string;
 
 	if (!config.quiet) {
@@ -64,13 +64,27 @@ export async function setupVercel(
 		projectId = linkResult.projectId;
 	}
 
-	// Connect Git repository
-	if (!config.quiet) {
-		await withSpinner("Connecting Git to Vercel", async () => {
-			await vercelGitConnect({ cwd: webPath, token });
+	// Get the git remote URL for connecting
+	const { execa } = await import("execa");
+	let gitUrl: string | undefined;
+	try {
+		const gitResult = await execa("git", ["remote", "get-url", "origin"], {
+			cwd: projectPath,
 		});
-	} else {
-		await vercelGitConnect({ cwd: webPath, token });
+		gitUrl = gitResult.stdout.trim();
+	} catch {
+		// Git remote might not exist yet
+	}
+
+	// Connect Git repository by passing the remote URL explicitly
+	if (gitUrl) {
+		if (!config.quiet) {
+			await withSpinner("Connecting Git to Vercel", async () => {
+				await vercelGitConnect({ cwd: webPath, token, gitUrl });
+			});
+		} else {
+			await vercelGitConnect({ cwd: webPath, token, gitUrl });
+		}
 	}
 
 	// Set environment variables

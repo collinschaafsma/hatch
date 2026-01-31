@@ -101,7 +101,11 @@ export async function runHeadlessSetup(
 				log.blank();
 				log.info("Creating Supabase branches...");
 			}
-			await createSupabaseBranches(projectPath, config);
+			await createSupabaseBranches(
+				projectPath,
+				supabaseResult.projectRef,
+				config,
+			);
 		}
 
 		// Setup Vercel
