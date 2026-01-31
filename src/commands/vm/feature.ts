@@ -246,13 +246,13 @@ export const vmFeatureCommand = new Command()
 			// Link Vercel project first
 			const { stdout: linkOut, stderr: linkErr } = await sshExec(
 				sshHost,
-				`${envPrefix} cd ${projectPath}/apps/web && VERCEL_TOKEN="${vercelToken}" vercel link --yes --project ${project.vercel.projectId} 2>&1 || true`,
+				`${envPrefix} cd ${projectPath}/apps/web && vercel link --yes --project ${project.vercel.projectId} --token "${vercelToken}" 2>&1 || true`,
 			);
 			console.log(`[DEBUG] vercel link - stdout: "${linkOut}", stderr: "${linkErr}"`);
 			// Pull development environment variables (may output warnings to stderr)
 			const { stdout: pullOut, stderr: pullErr } = await sshExec(
 				sshHost,
-				`${envPrefix} cd ${projectPath}/apps/web && VERCEL_TOKEN="${vercelToken}" vercel env pull .env.local --environment=development 2>&1 || true`,
+				`${envPrefix} cd ${projectPath}/apps/web && vercel env pull .env.local --environment=development --token "${vercelToken}" 2>&1 || true`,
 			);
 			console.log(`[DEBUG] vercel env pull - stdout: "${pullOut}", stderr: "${pullErr}"`)
 			// Check if .env.local was created (use $HOME instead of ~ for reliable expansion)
