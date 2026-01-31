@@ -40,5 +40,8 @@ supabase/.branches/
 
 # Vercel
 .vercel/
+
+# Claude Code
+.claude/
 `;
 }
