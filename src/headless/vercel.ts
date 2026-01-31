@@ -65,7 +65,8 @@ export async function setupVercel(
 	const team = config.vercel.team;
 	const webPath = `${projectPath}/apps/web`;
 
-	// Link to Vercel from apps/web (where the Next.js app lives)
+	// Link to Vercel from project root (monorepo setup)
+	// We set rootDirectory to apps/web after linking
 	let projectId: string;
 
 	if (!config.quiet) {
@@ -75,7 +76,7 @@ export async function setupVercel(
 				return vercelLink({
 					projectName,
 					team,
-					cwd: webPath,
+					cwd: projectPath,
 					token,
 				});
 			},
@@ -85,7 +86,7 @@ export async function setupVercel(
 		const linkResult = await vercelLink({
 			projectName,
 			team,
-			cwd: webPath,
+			cwd: projectPath,
 			token,
 		});
 		projectId = linkResult.projectId;
@@ -119,10 +120,10 @@ export async function setupVercel(
 	if (gitUrl) {
 		if (!config.quiet) {
 			await withSpinner("Connecting Git to Vercel", async () => {
-				await vercelGitConnect({ cwd: webPath, token, gitUrl });
+				await vercelGitConnect({ cwd: projectPath, token, gitUrl });
 			});
 		} else {
-			await vercelGitConnect({ cwd: webPath, token, gitUrl });
+			await vercelGitConnect({ cwd: projectPath, token, gitUrl });
 		}
 	}
 
@@ -175,7 +176,7 @@ export async function setupVercel(
 					key: env.key,
 					value: env.value,
 					environments: env.environments,
-					cwd: webPath,
+					cwd: projectPath,
 					token,
 				});
 			}
@@ -186,13 +187,13 @@ export async function setupVercel(
 				key: env.key,
 				value: env.value,
 				environments: env.environments,
-				cwd: webPath,
+				cwd: projectPath,
 				token,
 			});
 		}
 	}
 
-	// Pull env vars to .env.local
+	// Pull env vars to .env.local in apps/web
 	if (!config.quiet) {
 		await withSpinner("Pulling Vercel environment to .env.local", async () => {
 			await vercelEnvPull({ cwd: webPath, token });
@@ -201,17 +202,17 @@ export async function setupVercel(
 		await vercelEnvPull({ cwd: webPath, token });
 	}
 
-	// Deploy to production
+	// Deploy to production from project root (rootDirectory is set to apps/web)
 	let deployUrl: string;
 
 	if (!config.quiet) {
 		const deployResult = await withSpinner("Deploying to Vercel", async () => {
-			return vercelDeploy({ cwd: webPath, token, prod: true });
+			return vercelDeploy({ cwd: projectPath, token, prod: true });
 		});
 		deployUrl = deployResult.url;
 	} else {
 		const deployResult = await vercelDeploy({
-			cwd: webPath,
+			cwd: projectPath,
 			token,
 			prod: true,
 		});
