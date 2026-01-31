@@ -224,6 +224,29 @@ export async function exeDevSharePort(
 }
 
 /**
+ * Make a VM's HTTP proxy publicly accessible (no auth required)
+ * @param vmName The VM name
+ */
+export async function exeDevSetPublic(vmName: string): Promise<void> {
+	await execa(
+		"ssh",
+		[
+			"-o",
+			"StrictHostKeyChecking=accept-new",
+			"-o",
+			"ConnectTimeout=10",
+			"exe.dev",
+			"share",
+			"set-public",
+			vmName,
+		],
+		{
+			stdio: "pipe",
+		},
+	);
+}
+
+/**
  * Wait for a VM to be ready (SSH accessible)
  * @param sshHost The SSH host to connect to
  * @param timeoutMs Maximum time to wait (default 120 seconds)

@@ -18,6 +18,11 @@ function getResend(): Resend {
 
 export const auth = betterAuth({
 	database: drizzleAdapter(db, { provider: "pg" }),
+	trustedOrigins: [
+		process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+		// Allow exe.dev VMs for development
+		"https://*.exe.xyz",
+	],
 	emailAndPassword: {
 		enabled: false, // Using OTP only
 	},
