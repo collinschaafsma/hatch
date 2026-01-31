@@ -1,5 +1,8 @@
+import os from "node:os";
+import path from "node:path";
 import { confirm } from "@inquirer/prompts";
 import { Command } from "commander";
+import fs from "fs-extra";
 import { exeDevRm } from "../../utils/exe-dev.js";
 import { log } from "../../utils/logger.js";
 import { getProject } from "../../utils/project-store.js";
@@ -10,6 +13,7 @@ import { getVMByFeature, removeVM } from "../../utils/vm-store.js";
 interface VMCleanOptions {
 	project: string;
 	force?: boolean;
+	config?: string;
 }
 
 export const vmCleanCommand = new Command()
@@ -18,6 +22,11 @@ export const vmCleanCommand = new Command()
 	.argument("<feature-name>", "Feature name to clean up")
 	.requiredOption("--project <name>", "Project name")
 	.option("-f, --force", "Skip confirmation prompt")
+	.option(
+		"-c, --config <path>",
+		"Path to hatch.json config file",
+		path.join(os.homedir(), ".hatch.json"),
+	)
 	.action(async (featureName: string, options: VMCleanOptions) => {
 		try {
 			log.blank();
@@ -40,12 +49,32 @@ export const vmCleanCommand = new Command()
 				process.exit(1);
 			}
 
-			const { name: vmName, sshHost, supabaseBranches } = vmRecord;
+			// Load config to get tokens
+			const configPath =
+				options.config || path.join(os.homedir(), ".hatch.json");
+			let supabaseToken = "";
+			if (await fs.pathExists(configPath)) {
+				const config = await fs.readJson(configPath);
+				supabaseToken = config.supabase?.token || "";
+			}
+
+			// Environment setup for CLI commands
+			const envPrefix = `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$PATH" && export SUPABASE_ACCESS_TOKEN="${supabaseToken}" &&`;
+
+			const {
+				name: vmName,
+				sshHost,
+				supabaseBranches,
+				githubBranch,
+			} = vmRecord;
 
 			// Show what will be deleted
 			log.info(`Feature: ${featureName}`);
 			log.step(`Project: ${options.project}`);
 			log.step(`VM: ${vmName}`);
+			if (githubBranch) {
+				log.step(`Git branch: ${githubBranch}`);
+			}
 			if (supabaseBranches.length > 0) {
 				log.step(`Supabase branches: ${supabaseBranches.join(", ")}`);
 			}
@@ -81,11 +110,11 @@ export const vmCleanCommand = new Command()
 						// First disable persistence, then delete
 						await sshExec(
 							sshHost,
-							`cd ~/${project.github.repo} && supabase branches update ${branch} --no-persistent 2>/dev/null || true`,
+							`${envPrefix} cd ~/${project.github.repo} && supabase branches update ${branch} --no-persistent 2>/dev/null || true`,
 						);
 						await sshExec(
 							sshHost,
-							`cd ~/${project.github.repo} && supabase branches delete ${branch} --force 2>/dev/null || true`,
+							`${envPrefix} cd ~/${project.github.repo} && supabase branches delete ${branch} --force 2>/dev/null || true`,
 						);
 						deletedBranches.push(branch);
 					} catch {
@@ -104,7 +133,25 @@ export const vmCleanCommand = new Command()
 				}
 			}
 
-			// Step 2: Delete VM from exe.dev
+			// Step 2: Delete remote git branch
+			if (githubBranch) {
+				const gitSpinner = createSpinner(
+					`Deleting remote git branch: ${githubBranch}`,
+				).start();
+				try {
+					await sshExec(
+						sshHost,
+						`cd ~/${project.github.repo} && git push origin --delete ${githubBranch} 2>/dev/null || true`,
+					);
+					gitSpinner.succeed(`Deleted remote git branch: ${githubBranch}`);
+				} catch {
+					gitSpinner.warn(
+						`Could not delete remote branch. Delete manually: git push origin --delete ${githubBranch}`,
+					);
+				}
+			}
+
+			// Step 4: Delete VM from exe.dev
 			const vmSpinner = createSpinner("Deleting VM from exe.dev").start();
 			try {
 				await exeDevRm(vmName);
@@ -114,7 +161,7 @@ export const vmCleanCommand = new Command()
 				log.warn(`You may need to delete manually: ssh exe.dev rm ${vmName}`);
 			}
 
-			// Step 3: Remove from local tracking
+			// Step 5: Remove from local tracking
 			await removeVM(vmName);
 
 			// Print summary
@@ -123,6 +170,9 @@ export const vmCleanCommand = new Command()
 			log.blank();
 			log.info("Deleted resources:");
 			log.step(`VM: ${vmName}`);
+			if (githubBranch) {
+				log.step(`Git branch: ${githubBranch}`);
+			}
 			if (supabaseBranches.length > 0) {
 				log.step(`Supabase branches: ${supabaseBranches.join(", ")}`);
 			}

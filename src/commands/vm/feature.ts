@@ -84,6 +84,7 @@ export const vmFeatureCommand = new Command()
 			// Load config to get tokens for CLI commands
 			const config = await fs.readJson(configPath);
 			const supabaseToken = config.supabase?.token || "";
+			const vercelToken = config.vercel?.token || "";
 
 			// Step 3: Create new VM
 			const vmSpinner = createSpinner("Creating exe.dev VM").start();
@@ -111,7 +112,11 @@ export const vmFeatureCommand = new Command()
 
 			// Copy the local script to VM instead of curling from GitHub
 			// This ensures we always use the current version and allows testing without pushing
-			const scriptPath = path.join(packageRoot, "scripts", "feature-install.sh");
+			const scriptPath = path.join(
+				packageRoot,
+				"scripts",
+				"feature-install.sh",
+			);
 			if (!(await fs.pathExists(scriptPath))) {
 				installSpinner.fail("Feature install script not found");
 				log.error(`Expected script at: ${scriptPath}`);
@@ -164,7 +169,9 @@ export const vmFeatureCommand = new Command()
 					sshHost,
 					`${envPrefix} cd ${projectPath} && supabase link --project-ref ${project.supabase.projectRef}`,
 				);
-				linkSpinner.succeed(`Supabase project linked: ${project.supabase.projectRef}`);
+				linkSpinner.succeed(
+					`Supabase project linked: ${project.supabase.projectRef}`,
+				);
 			} catch (error) {
 				linkSpinner.fail("Failed to link Supabase project");
 				throw error;
@@ -198,36 +205,80 @@ export const vmFeatureCommand = new Command()
 				throw error;
 			}
 
-			// Step 9: Wait for branches to provision and get credentials
+			// Step 10: Pull Vercel environment variables to create .env.local
+			const vercelEnvSpinner = createSpinner(
+				"Pulling environment variables from Vercel",
+			).start();
+			try {
+				// Link Vercel project first
+				await sshExec(
+					sshHost,
+					`${envPrefix} cd ${projectPath}/apps/web && VERCEL_TOKEN="${vercelToken}" vercel link --yes --project ${project.vercel.projectId} 2>/dev/null || true`,
+				);
+				// Pull development environment variables
+				await sshExec(
+					sshHost,
+					`${envPrefix} cd ${projectPath}/apps/web && VERCEL_TOKEN="${vercelToken}" vercel env pull .env.local --environment=development`,
+				);
+				vercelEnvSpinner.succeed("Environment variables pulled from Vercel");
+			} catch {
+				vercelEnvSpinner.warn(
+					"Could not pull env from Vercel. You may need to create .env.local manually.",
+				);
+			}
+
+			// Step 11: Wait for branches to provision and get credentials
 			const credSpinner = createSpinner(
 				"Waiting for Supabase branches to provision",
 			).start();
 			try {
-				// Wait a bit for branches to be ready
-				await new Promise((resolve) => setTimeout(resolve, 30000));
+				// Wait for branches to be ready (can take up to a minute)
+				await new Promise((resolve) => setTimeout(resolve, 45000));
 
-				// Get branch credentials and update .env.local
-				const { stdout } = await sshExec(
+				let mainDbUrl: string | undefined;
+				let testDbUrl: string | undefined;
+
+				// Get main branch credentials
+				const { stdout: mainOutput } = await sshExec(
 					sshHost,
-					`${envPrefix} cd ${projectPath} && supabase branches get ${mainBranch} --output json 2>/dev/null || echo '{}'`,
+					`${envPrefix} cd ${projectPath} && supabase branches get ${mainBranch} -o env 2>/dev/null || echo ''`,
 				);
+				const mainMatch = mainOutput.match(/POSTGRES_URL="?([^"\n]+)"?/);
+				if (mainMatch?.[1]) {
+					mainDbUrl = mainMatch[1];
+				}
 
-				try {
-					const branchInfo = JSON.parse(stdout);
-					if (branchInfo.db_url) {
+				// Get test branch credentials
+				const { stdout: testOutput } = await sshExec(
+					sshHost,
+					`${envPrefix} cd ${projectPath} && supabase branches get ${testBranch} -o env 2>/dev/null || echo ''`,
+				);
+				const testMatch = testOutput.match(/POSTGRES_URL="?([^"\n]+)"?/);
+				if (testMatch?.[1]) {
+					testDbUrl = testMatch[1];
+				}
+
+				// Update .env.local with both URLs
+				// Use sed to replace if line exists, or append if it doesn't
+				if (mainDbUrl || testDbUrl) {
+					if (mainDbUrl) {
 						await sshExec(
 							sshHost,
-							`cd ${projectPath}/apps/web && sed -i 's|^DATABASE_URL=.*|DATABASE_URL=${branchInfo.db_url}|' .env.local`,
-						);
-						credSpinner.succeed("Branch credentials configured");
-					} else {
-						credSpinner.warn(
-							"Could not get branch credentials automatically. You may need to update .env.local manually.",
+							`cd ${projectPath}/apps/web && (grep -q '^DATABASE_URL=' .env.local && sed -i 's|^DATABASE_URL=.*|DATABASE_URL=${mainDbUrl}|' .env.local || echo 'DATABASE_URL=${mainDbUrl}' >> .env.local)`,
 						);
 					}
-				} catch {
+					if (testDbUrl) {
+						await sshExec(
+							sshHost,
+							`cd ${projectPath}/apps/web && (grep -q '^TEST_DATABASE_URL=' .env.local && sed -i 's|^TEST_DATABASE_URL=.*|TEST_DATABASE_URL=${testDbUrl}|' .env.local || echo 'TEST_DATABASE_URL=${testDbUrl}' >> .env.local)`,
+						);
+					}
+					credSpinner.succeed(
+						`Branch credentials configured (DATABASE_URL${testDbUrl ? " + TEST_DATABASE_URL" : ""})`,
+					);
+				} else {
 					credSpinner.warn(
-						"Could not parse branch info. You may need to update .env.local manually.",
+						"Could not get branch DATABASE_URLs automatically. You may need to update .env.local manually.",
 					);
 				}
 			} catch {
@@ -236,7 +287,7 @@ export const vmFeatureCommand = new Command()
 				);
 			}
 
-			// Step 10: Push branch to origin
+			// Step 12: Push branch to origin
 			const pushSpinner = createSpinner("Pushing branch to origin").start();
 			try {
 				await sshExec(
@@ -249,7 +300,7 @@ export const vmFeatureCommand = new Command()
 				throw error;
 			}
 
-			// Step 11: Save VM to local tracking
+			// Step 13: Save VM to local tracking
 			const vmRecord: VMRecord = {
 				name: vmName,
 				sshHost,
