@@ -107,16 +107,41 @@ export interface ResolvedHeadlessConfig {
 	quiet: boolean;
 }
 
-// VM types for exe.dev integration
+// Project types for durable project storage
+
+export interface ProjectRecord {
+	name: string; // e.g., "my-app"
+	createdAt: string; // ISO timestamp
+	github: {
+		url: string; // e.g., "https://github.com/org/my-app"
+		owner: string;
+		repo: string;
+	};
+	vercel: {
+		url: string; // e.g., "https://my-app.vercel.app"
+		projectId: string;
+	};
+	supabase: {
+		projectRef: string;
+		region: string;
+	};
+}
+
+export interface ProjectStore {
+	version: 1;
+	projects: ProjectRecord[];
+}
+
+// VM types for exe.dev integration (ephemeral feature VMs)
 
 export interface VMRecord {
-	name: string; // e.g., "peaceful-duckling"
+	name: string; // VM name from exe.dev
 	sshHost: string; // e.g., "peaceful-duckling.exe.xyz"
-	project: string; // e.g., "my-app"
-	feature?: string; // e.g., "add-user-profiles"
+	project: string; // Links to ProjectRecord.name
+	feature: string; // Feature name (e.g., "add-auth")
 	createdAt: string; // ISO timestamp
-	supabaseBranches: string[]; // e.g., ["add-user-profiles", "add-user-profiles-test"]
-	githubBranch?: string; // e.g., "add-user-profiles"
+	supabaseBranches: string[]; // e.g., ["add-auth", "add-auth-test"]
+	githubBranch: string; // e.g., "add-auth"
 }
 
 export interface VMStore {

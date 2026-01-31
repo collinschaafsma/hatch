@@ -2,7 +2,7 @@ import os from "node:os";
 import path from "node:path";
 import { Command } from "commander";
 import fs from "fs-extra";
-import type { VMRecord } from "../../types/index.js";
+import type { HeadlessResult, ProjectRecord } from "../../types/index.js";
 import {
 	checkExeDevAccess,
 	exeDevNew,
@@ -10,9 +10,9 @@ import {
 	waitForVMReady,
 } from "../../utils/exe-dev.js";
 import { log } from "../../utils/logger.js";
+import { saveProject } from "../../utils/project-store.js";
 import { createSpinner } from "../../utils/spinner.js";
 import { scpToRemote, sshExec } from "../../utils/ssh.js";
-import { addVM, removeVM } from "../../utils/vm-store.js";
 
 interface VMNewOptions {
 	config?: string;
@@ -21,7 +21,7 @@ interface VMNewOptions {
 
 export const vmNewCommand = new Command()
 	.name("new")
-	.description("Provision an exe.dev VM and create a new hatched project")
+	.description("Create a new project (VM is ephemeral, destroyed after setup)")
 	.argument("<project-name>", "Name of the project to create")
 	.option(
 		"-c, --config <path>",
@@ -35,7 +35,7 @@ export const vmNewCommand = new Command()
 
 		try {
 			log.blank();
-			log.info(`Creating VM for project: ${projectName}`);
+			log.info(`Creating project: ${projectName}`);
 			log.blank();
 
 			// Step 1: Check exe.dev access
@@ -69,12 +69,14 @@ export const vmNewCommand = new Command()
 				process.exit(1);
 			}
 
-			// Step 2: Create VM
-			const vmSpinner = createSpinner("Creating exe.dev VM").start();
+			// Step 2: Create temporary VM
+			const vmSpinner = createSpinner(
+				"Creating temporary exe.dev VM for setup",
+			).start();
 			const vm = await exeDevNew();
 			vmName = vm.name;
 			sshHost = vm.sshHost;
-			vmSpinner.succeed(`VM created: ${vmName}`);
+			vmSpinner.succeed(`Temporary VM created: ${vmName}`);
 
 			// Step 3: Wait for VM to be ready
 			const readySpinner = createSpinner(
@@ -88,13 +90,16 @@ export const vmNewCommand = new Command()
 			await scpToRemote(configPath, sshHost, "~/.hatch.json");
 			configSpinner.succeed("Config file copied");
 
-			// Step 5: Run install script on VM
+			// Step 5: Run install script on VM with --json flag to capture output
 			const installSpinner = createSpinner(
 				"Running hatch install script on VM (this may take several minutes)",
 			).start();
 
 			const extraArgs = options.workos ? "--workos" : "";
-			const installCommand = `curl -fsSL https://raw.githubusercontent.com/collinschaafsma/hatch/main/scripts/install.sh | bash -s -- ${projectName} --config ~/.hatch.json ${extraArgs}`;
+			// Add --json flag to get structured output from headless create
+			const installCommand = `curl -fsSL https://raw.githubusercontent.com/collinschaafsma/hatch/main/scripts/install.sh | bash -s -- ${projectName} --config ~/.hatch.json --json ${extraArgs}`;
+
+			let headlessResult: HeadlessResult | undefined;
 
 			try {
 				// Install can take 5-10 minutes, use 15 minute timeout
@@ -103,9 +108,22 @@ export const vmNewCommand = new Command()
 				});
 				installSpinner.succeed("Project created on VM");
 
+				// Parse JSON output from the install script
+				// The JSON is output at the end, so look for the last JSON object in stdout
+				const jsonMatch = result.stdout.match(/\{[\s\S]*"success"[\s\S]*\}$/m);
+				if (jsonMatch) {
+					try {
+						headlessResult = JSON.parse(jsonMatch[0]) as HeadlessResult;
+					} catch {
+						log.warn("Could not parse project creation output");
+					}
+				}
+
 				// Show any warnings from the install
 				if (result.stderr?.includes("warn")) {
-					log.warn("Install completed with warnings - check VM for details");
+					log.warn(
+						"Install completed with warnings - check output for details",
+					);
 				}
 			} catch (error) {
 				installSpinner.fail("Failed to create project");
@@ -120,43 +138,81 @@ export const vmNewCommand = new Command()
 				throw error;
 			}
 
-			// Step 6: Save VM to local tracking
-			const vmRecord: VMRecord = {
-				name: vmName,
-				sshHost,
-				project: projectName,
-				createdAt: new Date().toISOString(),
-				supabaseBranches: [],
-			};
-			await addVM(vmRecord);
+			// Step 6: Delete the temporary VM (ephemeral workflow)
+			const cleanupSpinner = createSpinner("Cleaning up temporary VM").start();
+			try {
+				await exeDevRm(vmName);
+				cleanupSpinner.succeed("Temporary VM deleted");
+			} catch (cleanupError) {
+				cleanupSpinner.warn(
+					`Could not delete VM automatically. Delete manually: ssh exe.dev rm ${vmName}`,
+				);
+			}
 
-			// Print connection info
+			// Step 7: Save project to local store (if we have the details)
+			if (
+				headlessResult?.success &&
+				headlessResult.github &&
+				headlessResult.vercel &&
+				headlessResult.supabase
+			) {
+				const projectRecord: ProjectRecord = {
+					name: projectName,
+					createdAt: new Date().toISOString(),
+					github: {
+						url: headlessResult.github.url,
+						owner: headlessResult.github.owner,
+						repo: headlessResult.github.repo,
+					},
+					vercel: {
+						url: headlessResult.vercel.url,
+						projectId: headlessResult.vercel.projectId,
+					},
+					supabase: {
+						projectRef: headlessResult.supabase.projectRef,
+						region: headlessResult.supabase.region,
+					},
+				};
+				await saveProject(projectRecord);
+			} else {
+				log.warn(
+					"Could not save full project details. You may need to look up URLs manually.",
+				);
+			}
+
+			// Print project details
 			log.blank();
-			log.success("VM provisioned successfully!");
+			log.success("Project created successfully!");
 			log.blank();
-			log.info("Connection details:");
-			log.step(`VM:      ${vmName}`);
-			log.step(`Project: ${projectName}`);
+
+			if (headlessResult?.success) {
+				log.info("Project details:");
+				log.step(`Name:    ${projectName}`);
+				if (headlessResult.github) {
+					log.step(`GitHub:  ${headlessResult.github.url}`);
+				}
+				if (headlessResult.vercel) {
+					log.step(`Vercel:  ${headlessResult.vercel.url}`);
+				}
+				if (headlessResult.supabase) {
+					log.step(
+						`Supabase: ${headlessResult.supabase.projectRef} (${headlessResult.supabase.region})`,
+					);
+				}
+			} else {
+				log.step(`Name: ${projectName}`);
+			}
+
 			log.blank();
-			log.info("Connect:");
-			log.step(`SSH:     ssh ${sshHost}`);
+			log.info("Next steps:");
 			log.step(
-				`VS Code: vscode://vscode-remote/ssh-remote+${sshHost}/home/exedev/${projectName}`,
+				`Start a feature: hatch vm feature <feature-name> --project ${projectName}`,
 			);
-			log.step(
-				`Web:     https://${sshHost.replace(".exe.xyz", "")}.exe.xyz (once app runs on port 3000)`,
-			);
-			log.blank();
-			log.info("To start Claude:");
-			log.step(`ssh ${sshHost}`);
-			log.step(`cd ~/${projectName} && claude`);
-			log.blank();
-			log.warn("Remember to run 'claude login' on the VM to authenticate.");
 			log.blank();
 		} catch (error) {
 			log.blank();
 			log.error(
-				`Failed to create VM: ${error instanceof Error ? error.message : error}`,
+				`Failed to create project: ${error instanceof Error ? error.message : error}`,
 			);
 
 			// Rollback: delete VM if it was created
@@ -164,7 +220,6 @@ export const vmNewCommand = new Command()
 				log.info("Rolling back: deleting VM...");
 				try {
 					await exeDevRm(vmName);
-					await removeVM(vmName);
 					log.success("VM deleted");
 				} catch (rollbackError) {
 					log.warn(

@@ -2,9 +2,9 @@
 
 A CLI tool that scaffolds production-ready Turborepo monorepos with Next.js, authentication, database, AI, and more.
 
-**Cloud-first development.** Hatch provisions exe.dev VMs with everything pre-configured—CLIs authenticated, database connected, and Claude Code ready to go. Spin up multiple VMs to work on features in parallel.
+**Cloud-first development.** Hatch provisions exe.dev VMs with everything pre-configured—CLIs authenticated, database connected, and Claude Code ready to go. VMs are ephemeral workspaces; projects are the durable artifact.
 
-**Complete automation.** One command creates your GitHub repo, Supabase database, and Vercel deployment. Each feature gets its own database branch for true isolation.
+**Complete automation.** One command creates your GitHub repo, Supabase database, and Vercel deployment. Each feature gets its own VM and database branch for true isolation.
 
 A modern stack (Next.js 16, React 19, Drizzle, Tailwind 4, shadcn/ui) with auth, AI, workflows, and testing already wired up. Skip the boilerplate and start building.
 
@@ -42,17 +42,30 @@ pnpm dev config --global
 
 This creates `~/.hatch.json` with tokens extracted from your logged-in CLIs.
 
-### 2. Create Project on VM
+### 2. Create a Project
 
 ```bash
 pnpm dev vm new my-app
 ```
 
-This provisions an exe.dev VM and sets up a complete project with GitHub, Vercel, and Supabase.
+This provisions a temporary exe.dev VM, sets up a complete project (GitHub, Vercel, Supabase), then deletes the VM. The project details are saved locally.
 
-### 3. Connect and Build
+### 3. Start Feature Work
 
-The command outputs connection info. Connect via SSH or VS Code Remote:
+Create a feature VM with its own git branch and database branches:
+
+```bash
+pnpm dev vm feature add-auth --project my-app
+```
+
+This:
+- Creates a new exe.dev VM
+- Clones your repo and installs dependencies
+- Creates a git branch
+- Creates Supabase database branches (feature + test)
+- Saves VM info for easy access
+
+### 4. Connect and Build
 
 ```bash
 ssh <vm-name>              # Direct SSH
@@ -66,23 +79,37 @@ cd my-app
 claude
 ```
 
-### 4. Feature Work
-
-Create isolated feature branches with their own database:
-
-```bash
-pnpm dev vm feature add-auth --vm <vm-name>
-```
-
-This creates a new branch and Supabase database branches for complete isolation.
-
 ### 5. Clean Up
 
-When done, remove the VM and all associated resources:
+When done with a feature, delete the VM and Supabase branches:
 
 ```bash
-pnpm dev vm clean <vm-name>
+pnpm dev vm clean add-auth --project my-app
 ```
+
+The project (GitHub, Vercel, Supabase) is preserved—only the VM and feature branches are deleted.
+
+## Workflow Concepts
+
+### Projects vs VMs
+
+| Concept | Lifecycle | Contains |
+|---------|-----------|----------|
+| **Project** | Permanent | GitHub repo, Vercel project, Supabase project |
+| **Feature VM** | Ephemeral | VM, git branch, Supabase feature branches |
+
+Projects are created once and persist. Feature VMs are spun up for each piece of work and deleted when done.
+
+### Parallel Development
+
+Run Claude Code on multiple VMs simultaneously, each with complete isolation:
+
+```
+VM: peaceful-duckling → branch: add-auth → DB: add-auth, add-auth-test
+VM: fortune-sprite   → branch: payments → DB: payments, payments-test
+```
+
+Each VM has its own git branch and database branches. No conflicts, no shared state.
 
 ## What You Get
 
@@ -115,19 +142,20 @@ This file is copied to VMs during setup so all CLIs authenticate automatically.
 
 ### What `vm new` Does
 
-1. **Provisions VM** - Creates an exe.dev VM via `ssh exe.dev new --json`
-2. **Waits for ready** - Polls until VM is SSH-accessible
-3. **Copies config** - Transfers `~/.hatch.json` to the VM
-4. **Runs install script** - Sets up the complete environment:
-   - Installs Node.js 22, pnpm, git, jq
-   - Installs gh, vercel, supabase, claude CLIs
-   - Authenticates all CLIs using tokens from config
-   - Sets up git user.email/name for commits
-   - Writes Claude Code credentials to `~/.claude/.credentials.json`
-   - Clones and builds Hatch CLI
-   - Runs `hatch create` in headless mode
-5. **Tracks VM** - Saves VM info to `~/.hatch/vms.json`
-6. **Displays connection info** - SSH, VS Code, and web URLs
+1. **Provisions temp VM** - Creates an exe.dev VM
+2. **Copies config** - Transfers `~/.hatch.json` to the VM
+3. **Runs install script** - Sets up the complete environment and creates project
+4. **Captures results** - Gets GitHub/Vercel/Supabase details from headless output
+5. **Deletes VM** - The VM is ephemeral, removed after setup
+6. **Saves project** - Stores project info in `~/.hatch/projects.json`
+
+### What `vm feature` Does
+
+1. **Looks up project** - Gets GitHub URL from `~/.hatch/projects.json`
+2. **Creates new VM** - Provisions exe.dev VM for this feature
+3. **Sets up environment** - Installs CLIs, authenticates, clones repo
+4. **Creates branches** - Git branch + Supabase database branches
+5. **Saves VM info** - Stores in `~/.hatch/vms.json` for easy access
 
 ### Database Isolation
 
@@ -136,20 +164,8 @@ Supabase branching provides isolated databases for each environment:
 | Environment | Database | Purpose |
 |-------------|----------|---------|
 | Production | Main Supabase project | Live application |
-| Development | `dev` branch | Default local dev |
 | Feature | `feature-name` branch | Isolated per-feature |
 | Tests | `feature-name-test` branch | Test isolation |
-
-### Parallel Development
-
-Run Claude Code on multiple VMs simultaneously, each with complete isolation:
-
-```
-VM: peaceful-duckling → branch: add-auth → DB: add-auth, add-auth-test
-VM: fortune-sprite   → branch: payments → DB: payments, payments-test
-```
-
-Each VM has its own git branch and database branches. No conflicts, no shared state.
 
 ## CLI Reference
 
@@ -160,24 +176,30 @@ Each VM has its own git branch and database branches. No conflicts, no shared st
 | `hatch config` | Create hatch.json in current directory |
 | `hatch config --global` | Create ~/.hatch.json (recommended) |
 
-### VM Management
+### Project Management
 
 | Command | Description |
 |---------|-------------|
-| `hatch vm new <project>` | Create new VM + full project setup |
-| `hatch vm setup <project>` | Set up project on existing VM |
-| `hatch vm feature <name>` | Create feature branch with DB isolation |
-| `hatch vm connect [vm]` | Show SSH, VS Code, web URLs |
-| `hatch vm list [--json]` | List all tracked VMs |
-| `hatch vm clean <vm>` | Delete VM + Supabase branches |
+| `hatch vm new <project>` | Create new project (ephemeral VM setup) |
+| `hatch vm list --projects` | List all projects |
+
+### Feature VM Management
+
+| Command | Description |
+|---------|-------------|
+| `hatch vm feature <name> --project <project>` | Create feature VM with branches |
+| `hatch vm connect [feature] --project <project>` | Show connection info |
+| `hatch vm list` | List projects with feature VMs |
+| `hatch vm clean <feature> --project <project>` | Delete feature VM and branches |
 
 ### Options
 
 | Flag | Description |
 |------|-------------|
 | `--workos` | Use WorkOS instead of Better Auth |
-| `--vm <name>` | Specify VM name for feature command |
+| `--project <name>` | Specify project name |
 | `--force` | Skip confirmation for clean command |
+| `--json` | Output as JSON |
 
 ## Generated Project Structure
 
@@ -273,7 +295,8 @@ pnpm install
 |---------|-------------|
 | `pnpm dev create [name]` | Run CLI in development mode |
 | `pnpm dev config --global` | Generate config file |
-| `pnpm dev vm new <name>` | Provision VM with project |
+| `pnpm dev vm new <name>` | Create project (ephemeral VM) |
+| `pnpm dev vm feature <name> --project <project>` | Create feature VM |
 | `pnpm build` | Build with tsup |
 | `pnpm lint` | Lint with Biome |
 | `pnpm format` | Format with Biome |

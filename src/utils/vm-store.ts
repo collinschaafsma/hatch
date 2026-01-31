@@ -89,3 +89,22 @@ export async function listVMs(): Promise<VMRecord[]> {
 	const store = await loadVMStore();
 	return store.vms;
 }
+
+/**
+ * Get a VM by project and feature name
+ */
+export async function getVMByFeature(
+	project: string,
+	feature: string,
+): Promise<VMRecord | undefined> {
+	const store = await loadVMStore();
+	return store.vms.find((v) => v.project === project && v.feature === feature);
+}
+
+/**
+ * List all VMs for a specific project
+ */
+export async function listVMsByProject(project: string): Promise<VMRecord[]> {
+	const store = await loadVMStore();
+	return store.vms.filter((v) => v.project === project);
+}

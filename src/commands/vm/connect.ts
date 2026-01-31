@@ -2,32 +2,43 @@ import { select } from "@inquirer/prompts";
 import { Command } from "commander";
 import type { VMRecord } from "../../types/index.js";
 import { log } from "../../utils/logger.js";
-import { getVM, listVMs } from "../../utils/vm-store.js";
+import { getProject } from "../../utils/project-store.js";
+import { getVMByFeature, listVMs } from "../../utils/vm-store.js";
+
+interface VMConnectOptions {
+	project?: string;
+}
 
 export const vmConnectCommand = new Command()
 	.name("connect")
-	.description("Show connection info for a VM")
-	.argument("[vm-name]", "VM name (prompts if not specified)")
-	.action(async (vmName?: string) => {
+	.description("Show connection info for a feature VM")
+	.argument("[feature-name]", "Feature name (prompts if not specified)")
+	.option("--project <name>", "Project name (prompts if not specified)")
+	.action(async (featureName?: string, options?: VMConnectOptions) => {
 		try {
 			log.blank();
 
 			let vmRecord: VMRecord | undefined;
 
-			if (vmName) {
-				vmRecord = await getVM(vmName);
+			if (featureName && options?.project) {
+				// Direct lookup by feature + project
+				vmRecord = await getVMByFeature(options.project, featureName);
 				if (!vmRecord) {
-					log.error(`VM not found: ${vmName}`);
-					log.info("Run 'hatch vm:list' to see available VMs.");
+					log.error(
+						`Feature VM not found: ${featureName} (project: ${options.project})`,
+					);
+					log.info("Run 'hatch vm list' to see available feature VMs.");
 					process.exit(1);
 				}
 			} else {
-				// List VMs and prompt for selection
+				// Interactive selection
 				const vms = await listVMs();
 
 				if (vms.length === 0) {
-					log.error("No VMs found.");
-					log.info("Run 'hatch vm:new <project-name>' to create a VM first.");
+					log.error("No feature VMs found.");
+					log.info(
+						"Run 'hatch vm feature <name> --project <project>' to create a feature VM.",
+					);
 					process.exit(1);
 				}
 
@@ -35,10 +46,10 @@ export const vmConnectCommand = new Command()
 					vmRecord = vms[0];
 				} else {
 					const selectedName = await select({
-						message: "Select a VM:",
+						message: "Select a feature VM:",
 						choices: vms.map((vm) => ({
 							value: vm.name,
-							name: `${vm.name} (${vm.project})${vm.feature ? ` [feature: ${vm.feature}]` : ""}`,
+							name: `${vm.feature} (${vm.project}) - ${vm.name}`,
 						})),
 					});
 					vmRecord = vms.find((v) => v.name === selectedName);
@@ -53,24 +64,21 @@ export const vmConnectCommand = new Command()
 			const {
 				name,
 				sshHost,
-				project,
+				project: projectName,
 				feature,
 				createdAt,
 				supabaseBranches,
 				githubBranch,
 			} = vmRecord;
 
-			log.info(`VM: ${name}`);
-			log.step(`Project:    ${project}`);
+			// Get project details
+			const project = await getProject(projectName);
+
+			log.info(`Feature: ${feature}`);
+			log.step(`Project:    ${projectName}`);
+			log.step(`VM:         ${name}`);
 			log.step(`Created:    ${new Date(createdAt).toLocaleString()}`);
-
-			if (feature) {
-				log.step(`Feature:    ${feature}`);
-			}
-
-			if (githubBranch) {
-				log.step(`Git branch: ${githubBranch}`);
-			}
+			log.step(`Git branch: ${githubBranch}`);
 
 			if (supabaseBranches.length > 0) {
 				log.step(`Supabase:   ${supabaseBranches.join(", ")}`);
@@ -80,13 +88,16 @@ export const vmConnectCommand = new Command()
 			log.info("Connect:");
 			log.step(`SSH:     ssh ${sshHost}`);
 			log.step(
-				`VS Code: vscode://vscode-remote/ssh-remote+${sshHost}/home/exedev/${project}`,
+				`VS Code: vscode://vscode-remote/ssh-remote+${sshHost}/home/exedev/${project?.github.repo || projectName}`,
 			);
 			log.step(`Web:     https://${name}.exe.xyz (once app runs on port 3000)`);
 			log.blank();
-			log.info("To start Claude:");
+			log.info("To start working:");
 			log.step(`ssh ${sshHost}`);
-			log.step(`cd ~/${project} && claude`);
+			log.step(`cd ~/${project?.github.repo || projectName} && claude`);
+			log.blank();
+			log.info("When done:");
+			log.step(`hatch vm clean ${feature} --project ${projectName}`);
 			log.blank();
 		} catch (error) {
 			if (
