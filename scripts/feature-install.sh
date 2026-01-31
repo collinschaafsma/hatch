@@ -283,33 +283,40 @@ WRAPPER
     command -v supabase &> /dev/null && success "Supabase CLI installed" || warn "Supabase CLI installation failed"
 fi
 
-# Claude Code
+# Claude Code - always install/update natively
+info "Installing/updating Claude Code..."
+# Remove any old npm-based installation
+if npm list -g @anthropic-ai/claude-code &>/dev/null 2>&1; then
+    info "Removing old npm-based Claude Code installation..."
+    npm -g uninstall @anthropic-ai/claude-code 2>/dev/null || true
+    rm -f ~/.local/bin/claude 2>/dev/null || true
+fi
+# Install native version (will update if already installed)
+curl -fsSL https://claude.ai/install.sh | bash
+# The native installer adds to ~/.claude/local/bin - ensure it's in PATH
+export PATH="$HOME/.claude/local/bin:$PATH"
+# Refresh command hash
+hash -r 2>/dev/null || true
 if command -v claude &> /dev/null; then
-    # Check if it's an npm installation that needs cleanup
-    if npm list -g @anthropic-ai/claude-code &>/dev/null 2>&1; then
-        info "Removing npm-based Claude Code installation..."
-        npm -g uninstall @anthropic-ai/claude-code 2>/dev/null || true
-        rm -f ~/.local/bin/claude 2>/dev/null || true
-        info "Installing Claude Code natively..."
-        curl -fsSL https://claude.ai/install.sh | bash
-        success "Claude Code installed natively"
-    else
-        success "Claude Code is installed (native)"
-    fi
+    success "Claude Code installed: $(claude --version 2>/dev/null || echo 'version unknown')"
 else
-    info "Installing Claude Code..."
-    curl -fsSL https://claude.ai/install.sh | bash
-    success "Claude Code installed"
+    warn "Claude Code installation may have failed - not found in PATH"
 fi
 
 # Set up Claude Code credentials from config
 if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
+    info "Checking for Claude Code credentials in config..."
     CLAUDE_ACCESS_TOKEN=$(jq -r '.claude.accessToken // empty' "$CONFIG_PATH" 2>/dev/null || true)
     CLAUDE_REFRESH_TOKEN=$(jq -r '.claude.refreshToken // empty' "$CONFIG_PATH" 2>/dev/null || true)
     CLAUDE_EXPIRES_AT=$(jq -r '.claude.expiresAt // empty' "$CONFIG_PATH" 2>/dev/null || true)
     CLAUDE_SCOPES=$(jq -c '.claude.scopes // empty' "$CONFIG_PATH" 2>/dev/null || true)
     CLAUDE_SUBSCRIPTION_TYPE=$(jq -r '.claude.subscriptionType // empty' "$CONFIG_PATH" 2>/dev/null || true)
     CLAUDE_RATE_LIMIT_TIER=$(jq -r '.claude.rateLimitTier // empty' "$CONFIG_PATH" 2>/dev/null || true)
+
+    # Debug: show what we found
+    info "  accessToken present: ${CLAUDE_ACCESS_TOKEN:+yes}${CLAUDE_ACCESS_TOKEN:-no}"
+    info "  refreshToken present: ${CLAUDE_REFRESH_TOKEN:+yes}${CLAUDE_REFRESH_TOKEN:-no}"
+    info "  expiresAt: ${CLAUDE_EXPIRES_AT:-empty}"
 
     if [[ -n "${CLAUDE_ACCESS_TOKEN:-}" && -n "${CLAUDE_REFRESH_TOKEN:-}" ]]; then
         info "Setting up Claude Code credentials..."
@@ -322,7 +329,18 @@ if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
         echo "{\"claudeAiOauth\":$CLAUDE_CREDS}" | jq '.' > ~/.claude/.credentials.json
         chmod 600 ~/.claude/.credentials.json
         success "Claude Code credentials configured"
+        # Verify the file was created
+        if [[ -f ~/.claude/.credentials.json ]]; then
+            info "  Credentials file created at ~/.claude/.credentials.json"
+        else
+            warn "  Failed to create credentials file"
+        fi
+    else
+        warn "Claude Code credentials not found in config file"
+        warn "Run 'hatch config --global' after logging into Claude Code locally"
     fi
+else
+    warn "Cannot set up Claude credentials: CONFIG_PATH=$CONFIG_PATH, jq=$(command -v jq || echo 'not found')"
 fi
 
 # ============================================================================
