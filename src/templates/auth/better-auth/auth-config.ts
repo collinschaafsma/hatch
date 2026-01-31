@@ -16,6 +16,13 @@ function getResend(): Resend {
 	return resendClient;
 }
 
+// Determine if we should use secure cookies
+// Disable for local dev and exe.dev VMs (proxy terminates TLS, so server sees HTTP)
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
+const isExeDevVM = appUrl.includes(".exe.xyz");
+const isLocalDev = appUrl.includes("localhost") || process.env.NODE_ENV === "development";
+const useSecureCookies = !isExeDevVM && !isLocalDev;
+
 export const auth = betterAuth({
 	database: drizzleAdapter(db, { provider: "pg" }),
 	trustedOrigins: [
@@ -23,6 +30,9 @@ export const auth = betterAuth({
 		// Allow exe.dev VMs for development
 		"https://*.exe.xyz",
 	],
+	advanced: {
+		useSecureCookies,
+	},
 	emailAndPassword: {
 		enabled: false, // Using OTP only
 	},
