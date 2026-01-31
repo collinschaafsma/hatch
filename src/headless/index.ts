@@ -5,6 +5,7 @@ import type {
 	ResolvedHeadlessConfig,
 } from "../types/index.js";
 import { log } from "../utils/logger.js";
+import { withSpinner } from "../utils/spinner.js";
 import { runBootstrap } from "./bootstrap.js";
 import { resolveConfig, validateHeadlessOptions } from "./config.js";
 import { setupGitHub } from "./github.js";
@@ -141,6 +142,50 @@ export async function runHeadlessSetup(
 				supabaseResult,
 				useWorkOS,
 			);
+		}
+
+		// Commit setup changes and push to trigger deployment
+		// This includes .vercel config and .env.local
+		if (!config.quiet) {
+			log.blank();
+			log.info("Deploying to production...");
+		}
+		try {
+			const { execa } = await import("execa");
+
+			// Check if there are changes to commit
+			const statusResult = await execa("git", ["status", "--porcelain"], {
+				cwd: projectPath,
+			});
+
+			if (statusResult.stdout.trim()) {
+				// Commit setup changes
+				await execa("git", ["add", "-A"], { cwd: projectPath });
+				await execa(
+					"git",
+					[
+						"commit",
+						"-m",
+						"chore: configure project setup\n\n- Add Vercel project configuration\n- Configure environment files",
+					],
+					{ cwd: projectPath },
+				);
+			}
+
+			// Push to trigger deployment
+			if (!config.quiet) {
+				await withSpinner("Pushing to trigger deployment", async () => {
+					await execa("git", ["push", "origin", "main"], { cwd: projectPath });
+				});
+			} else {
+				await execa("git", ["push", "origin", "main"], { cwd: projectPath });
+			}
+		} catch (error) {
+			if (!config.quiet) {
+				log.warn(
+					"Could not push setup changes - deploy manually with: git push origin main",
+				);
+			}
 		}
 
 		// Generate result
