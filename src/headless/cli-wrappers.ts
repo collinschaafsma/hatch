@@ -188,16 +188,13 @@ export async function vercelAuthStatus(
 
 export async function vercelLink(options: {
 	projectName: string;
-	team: string;
+	team?: string;
 	cwd: string;
 	token?: string;
 }): Promise<{ projectId: string }> {
-	const args = [
-		"link",
-		"--yes",
-		`--scope=${options.team}`,
-		`--project=${options.projectName}`,
-	];
+	// Don't use --scope - it causes "no access to account" errors
+	// The token determines which team/account is used
+	const args = ["link", "--yes", `--project=${options.projectName}`];
 	if (options.token) {
 		args.push("--token", options.token);
 	}
