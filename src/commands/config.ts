@@ -4,7 +4,7 @@ import { select } from "@inquirer/prompts";
 import { Command } from "commander";
 import fs from "fs-extra";
 import yaml from "yaml";
-import type { HatchConfig } from "../types/index.js";
+import type { ClaudeConfig, HatchConfig } from "../types/index.js";
 import { log } from "../utils/logger.js";
 import { withSpinner } from "../utils/spinner.js";
 
@@ -268,6 +268,49 @@ async function readGitConfig(key: string): Promise<string | null> {
 }
 
 /**
+ * Read Claude Code OAuth credentials from macOS Keychain
+ */
+async function getClaudeCredentials(): Promise<ClaudeConfig | undefined> {
+	// Only supported on macOS
+	if (process.platform !== "darwin") {
+		return undefined;
+	}
+
+	const { execa } = await import("execa");
+
+	try {
+		// Keychain stores the full JSON blob as the password
+		const { stdout } = await execa("security", [
+			"find-generic-password",
+			"-s",
+			"Claude Code-credentials",
+			"-w",
+		]);
+		const parsed = JSON.parse(stdout.trim());
+		// The keychain stores { claudeAiOauth: { accessToken, refreshToken, expiresAt, scopes, subscriptionType, rateLimitTier } }
+		const oauth = parsed.claudeAiOauth;
+		if (oauth?.accessToken && oauth?.refreshToken) {
+			const config: ClaudeConfig = {
+				accessToken: oauth.accessToken,
+				refreshToken: oauth.refreshToken,
+				expiresAt: oauth.expiresAt,
+				scopes: oauth.scopes || [],
+			};
+			if (oauth.subscriptionType) {
+				config.subscriptionType = oauth.subscriptionType;
+			}
+			if (oauth.rateLimitTier) {
+				config.rateLimitTier = oauth.rateLimitTier;
+			}
+			return config;
+		}
+		return undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
  * Get GitHub organizations using the CLI
  */
 async function getGitHubOrgs(
@@ -472,6 +515,23 @@ export const configCommand = new Command()
 				);
 			}
 
+			// Read Claude Code credentials (macOS only)
+			if (process.platform === "darwin") {
+				let claudeCredentials: ClaudeConfig | undefined;
+				await withSpinner("Reading Claude Code credentials", async () => {
+					claudeCredentials = await getClaudeCredentials();
+				});
+
+				if (claudeCredentials) {
+					log.success("Found Claude Code credentials");
+					config.claude = claudeCredentials;
+				} else {
+					log.warn(
+						"Claude Code credentials not found. Run 'claude' and log in to authenticate.",
+					);
+				}
+			}
+
 			// Determine output path
 			const outputPath = options.global
 				? path.join(os.homedir(), ".hatch.json")
@@ -506,6 +566,9 @@ export const configCommand = new Command()
 				log.step(
 					`Supabase: org=${config.supabase.org}, region=${config.supabase.region}`,
 				);
+			}
+			if (config.claude?.accessToken) {
+				log.step("Claude Code: credentials configured");
 			}
 			log.blank();
 

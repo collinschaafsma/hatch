@@ -33,6 +33,15 @@ export interface HeadlessOptions {
 	configPath?: string;
 }
 
+export interface ClaudeConfig {
+	accessToken: string;
+	refreshToken: string;
+	expiresAt: number;
+	scopes: string[];
+	subscriptionType?: string;
+	rateLimitTier?: string;
+}
+
 export interface HatchConfig {
 	github?: {
 		org?: string;
@@ -49,6 +58,7 @@ export interface HatchConfig {
 		region?: string;
 		token?: string;
 	};
+	claude?: ClaudeConfig;
 }
 
 export interface HeadlessResult {

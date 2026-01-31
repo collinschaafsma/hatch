@@ -314,6 +314,29 @@ else
     success "Claude Code installed"
 fi
 
+# Set up Claude Code credentials from config (for VMs)
+if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
+    CLAUDE_ACCESS_TOKEN=$(jq -r '.claude.accessToken // empty' "$CONFIG_PATH" 2>/dev/null || true)
+    CLAUDE_REFRESH_TOKEN=$(jq -r '.claude.refreshToken // empty' "$CONFIG_PATH" 2>/dev/null || true)
+    CLAUDE_EXPIRES_AT=$(jq -r '.claude.expiresAt // empty' "$CONFIG_PATH" 2>/dev/null || true)
+    CLAUDE_SCOPES=$(jq -c '.claude.scopes // empty' "$CONFIG_PATH" 2>/dev/null || true)
+    CLAUDE_SUBSCRIPTION_TYPE=$(jq -r '.claude.subscriptionType // empty' "$CONFIG_PATH" 2>/dev/null || true)
+    CLAUDE_RATE_LIMIT_TIER=$(jq -r '.claude.rateLimitTier // empty' "$CONFIG_PATH" 2>/dev/null || true)
+
+    if [[ -n "${CLAUDE_ACCESS_TOKEN:-}" && -n "${CLAUDE_REFRESH_TOKEN:-}" ]]; then
+        info "Setting up Claude Code credentials..."
+        mkdir -p ~/.claude
+        # Build the credentials JSON, including optional fields if present
+        CLAUDE_CREDS="{\"accessToken\":\"$CLAUDE_ACCESS_TOKEN\",\"refreshToken\":\"$CLAUDE_REFRESH_TOKEN\",\"expiresAt\":$CLAUDE_EXPIRES_AT,\"scopes\":$CLAUDE_SCOPES"
+        [[ -n "$CLAUDE_SUBSCRIPTION_TYPE" ]] && CLAUDE_CREDS="$CLAUDE_CREDS,\"subscriptionType\":\"$CLAUDE_SUBSCRIPTION_TYPE\""
+        [[ -n "$CLAUDE_RATE_LIMIT_TIER" ]] && CLAUDE_CREDS="$CLAUDE_CREDS,\"rateLimitTier\":\"$CLAUDE_RATE_LIMIT_TIER\""
+        CLAUDE_CREDS="$CLAUDE_CREDS}"
+        echo "{\"claudeAiOauth\":$CLAUDE_CREDS}" | jq '.' > ~/.claude/.credentials.json
+        chmod 600 ~/.claude/.credentials.json
+        success "Claude Code credentials configured"
+    fi
+fi
+
 # ============================================================================
 # Step 6: Authenticate CLIs (if tokens available)
 # ============================================================================
