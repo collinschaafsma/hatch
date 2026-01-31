@@ -295,7 +295,13 @@ fi
 # ============================================================================
 if [[ -n "${GITHUB_TOKEN:-}" ]]; then
     info "Authenticating GitHub CLI..."
-    echo "$GITHUB_TOKEN" | gh auth login --with-token 2>/dev/null && success "GitHub CLI authenticated" || warn "GitHub CLI authentication failed"
+    if echo "$GITHUB_TOKEN" | gh auth login --with-token 2>/dev/null; then
+        success "GitHub CLI authenticated"
+        # Configure git to use gh as credential helper (for Claude Code and future git commands)
+        gh auth setup-git 2>/dev/null && success "Git configured to use GitHub CLI" || warn "Could not configure git credentials"
+    else
+        warn "GitHub CLI authentication failed"
+    fi
 fi
 
 # Vercel and Supabase use env vars automatically, just verify
