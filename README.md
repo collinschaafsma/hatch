@@ -323,6 +323,26 @@ The generated project includes:
 | `claude-code-review.yml` | AI-powered code review |
 | `claude.yml` | Interactive Claude via `@claude` mentions |
 
+## Claude Code Skills
+
+Generated projects come with pre-installed [Claude Code skills](https://docs.anthropic.com/en/docs/claude-code/skills) that enhance AI-assisted development. These are committed to the repo and available on all VMs.
+
+| Skill | Description |
+|-------|-------------|
+| `vercel-react-best-practices` | React/Next.js performance patterns from Vercel |
+| `web-design-guidelines` | UI/UX design principles |
+| `vercel-composition-patterns` | Component composition patterns |
+| `find-skills` | Discover and install additional skills |
+| `better-auth-best-practices` | Better Auth implementation guidance |
+| `frontend-design` | Frontend design principles |
+| `ai-sdk` | Vercel AI SDK usage patterns |
+| `agentation` | Agent-based development patterns |
+| `next-cache-components` | Next.js caching strategies |
+| `next-best-practices` | Next.js application patterns |
+| `agent-browser` | Browser automation for testing |
+
+Skills are installed from public GitHub repos during project creation. Use `/skills` in Claude Code to see available skills or `/find-skills` to discover more.
+
 ## Advanced: Local Development
 
 For local development without VMs, you can run `hatch create` directly:

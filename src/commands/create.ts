@@ -13,6 +13,7 @@ import {
 	gitAdd,
 	gitCommit,
 	gitInit,
+	npxCommand,
 	pnpmDlx,
 	pnpmInstall,
 	pnpmRun,
@@ -307,6 +308,64 @@ export const createCommand = new Command()
 						),
 						templates.generateDbMigrateSkill(),
 					);
+				});
+
+				// Install external Claude Code skills from GitHub repos
+				await withSpinner("Installing Claude Code skills", async () => {
+					const skillsByRepo = [
+						{
+							repo: "https://github.com/vercel-labs/agent-skills",
+							skills: [
+								"vercel-react-best-practices",
+								"web-design-guidelines",
+								"vercel-composition-patterns",
+							],
+						},
+						{
+							repo: "https://github.com/vercel-labs/skills",
+							skills: ["find-skills"],
+						},
+						{
+							repo: "https://github.com/better-auth/skills",
+							skills: ["better-auth-best-practices"],
+						},
+						{
+							repo: "https://github.com/anthropics/skills",
+							skills: ["frontend-design"],
+						},
+						{
+							repo: "https://github.com/vercel/ai",
+							skills: ["ai-sdk"],
+						},
+						{
+							repo: "https://github.com/benjitaylor/agentation",
+							skills: ["agentation"],
+						},
+						{
+							repo: "https://github.com/vercel-labs/next-skills",
+							skills: ["next-cache-components", "next-best-practices"],
+						},
+						{
+							repo: "https://github.com/vercel-labs/agent-browser",
+							skills: ["agent-browser"],
+						},
+					];
+
+					for (const { repo, skills } of skillsByRepo) {
+						try {
+							await npxCommand(
+								"skills",
+								["add", repo, "--skill", ...skills, "-a", "claude-code", "-y"],
+								projectPath,
+							);
+						} catch (error) {
+							// Log warning but don't fail the entire setup
+							// Skills installation is non-fatal
+							log.warn(
+								`Failed to install skills from ${repo}: ${error instanceof Error ? error.message : String(error)}`,
+							);
+						}
+					}
 				});
 
 				// Create apps/web structure
