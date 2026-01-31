@@ -141,10 +141,17 @@ export const vmFeatureCommand = new Command()
 			const installCommand = `chmod +x ~/feature-install.sh && ~/feature-install.sh ${project.github.url} --config ~/.hatch.json`;
 
 			try {
+				// Stop spinner so streaming output is visible
+				installSpinner.stop();
+				log.blank();
+
 				await sshExec(sshHost, installCommand, {
 					timeoutMs: 10 * 60 * 1000,
+					streamStderr: true,
 				});
-				installSpinner.succeed("Feature VM setup complete");
+
+				log.blank();
+				log.success("Feature VM setup complete");
 			} catch (error) {
 				installSpinner.fail("Failed to set up feature VM");
 				if (error instanceof Error && "stderr" in error) {

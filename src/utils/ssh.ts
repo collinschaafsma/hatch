@@ -7,6 +7,8 @@ export interface SSHExecResult {
 
 export interface SSHExecOptions {
 	timeoutMs?: number;
+	/** Stream stderr to terminal in real-time (for progress output) */
+	streamStderr?: boolean;
 }
 
 /**
@@ -37,7 +39,11 @@ export async function sshExec(
 			command,
 		],
 		{
-			stdio: "pipe",
+			// When streamStderr is true, inherit stderr so progress shows in real-time
+			// while still capturing stdout for JSON parsing
+			stdio: options?.streamStderr
+				? ["pipe", "pipe", "inherit"]
+				: ["pipe", "pipe", "pipe"],
 			timeout: timeoutMs,
 		},
 	);

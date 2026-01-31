@@ -11,10 +11,11 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-info() { echo -e "${BLUE}info${NC} $1"; }
-success() { echo -e "${GREEN}success${NC} $1"; }
-warn() { echo -e "${YELLOW}warn${NC} $1"; }
-error() { echo -e "${RED}error${NC} $1"; exit 1; }
+# Output progress to stderr so it streams in real-time
+info() { echo -e "${BLUE}info${NC} $1" >&2; }
+success() { echo -e "${GREEN}success${NC} $1" >&2; }
+warn() { echo -e "${YELLOW}warn${NC} $1" >&2; }
+error() { echo -e "${RED}error${NC} $1" >&2; exit 1; }
 
 # Parse arguments
 GITHUB_URL=""
@@ -55,7 +56,7 @@ info "Project: $PROJECT_NAME"
 if [[ -n "$CONFIG_PATH" ]]; then
     info "Config: $CONFIG_PATH"
 fi
-echo ""
+echo "" >&2
 
 # Set up user-local npm prefix (for environments without sudo)
 mkdir -p ~/.local/bin
@@ -440,12 +441,12 @@ else
     info "Cloning repository to $PROJECT_PATH..."
     if ! git clone "$GITHUB_URL" "$PROJECT_PATH"; then
         error "Failed to clone repository: $GITHUB_URL"
-        echo ""
+        echo "" >&2
         echo "This could be because:"
         echo "  - The repository is private and credentials are not configured"
         echo "  - The repository URL is incorrect"
         echo "  - Network issues"
-        echo ""
+        echo "" >&2
         echo "GitHub token present: ${GITHUB_TOKEN:+yes}${GITHUB_TOKEN:-no}"
         echo "Git auth configured: $GIT_AUTH_CONFIGURED"
         exit 1
@@ -472,10 +473,10 @@ if [[ -d "$PROJECT_PATH/supabase" ]] || [[ -f "$PROJECT_PATH/supabase/config.tom
     fi
 fi
 
-echo ""
+echo "" >&2
 success "Feature VM setup complete!"
 success "Project cloned to: $PROJECT_PATH"
-echo ""
+echo "" >&2
 info "Next steps:"
 info "  cd $PROJECT_PATH"
 info "  claude"

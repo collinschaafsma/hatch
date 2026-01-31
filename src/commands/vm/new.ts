@@ -102,11 +102,19 @@ export const vmNewCommand = new Command()
 			let headlessResult: HeadlessResult | undefined;
 
 			try {
+				// Stop spinner so streaming output is visible
+				installSpinner.stop();
+				log.blank();
+
 				// Install can take 5-10 minutes, use 15 minute timeout
+				// Stream stderr so progress is visible in real-time
 				const result = await sshExec(sshHost, installCommand, {
 					timeoutMs: 15 * 60 * 1000,
+					streamStderr: true,
 				});
-				installSpinner.succeed("Project created on VM");
+
+				log.blank();
+				log.success("Project created on VM");
 
 				// Parse JSON output from the install script
 				// The JSON is output at the end, so look for the last JSON object in stdout

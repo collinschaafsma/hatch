@@ -11,10 +11,12 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-info() { echo -e "${BLUE}info${NC} $1"; }
-success() { echo -e "${GREEN}success${NC} $1"; }
-warn() { echo -e "${YELLOW}warn${NC} $1"; }
-error() { echo -e "${RED}error${NC} $1"; exit 1; }
+# Output progress to stderr so it streams in real-time
+# JSON output goes to stdout for parsing
+info() { echo -e "${BLUE}info${NC} $1" >&2; }
+success() { echo -e "${GREEN}success${NC} $1" >&2; }
+warn() { echo -e "${YELLOW}warn${NC} $1" >&2; }
+error() { echo -e "${RED}error${NC} $1" >&2; exit 1; }
 
 # Parse arguments
 PROJECT_NAME=""
@@ -55,7 +57,7 @@ info "Project: $PROJECT_NAME"
 if [[ -n "$CONFIG_PATH" ]]; then
     info "Config: $CONFIG_PATH"
 fi
-echo ""
+echo "" >&2
 
 # Set up user-local npm prefix (for environments without sudo)
 mkdir -p ~/.local/bin
@@ -397,10 +399,10 @@ pnpm build
 # ============================================================================
 # Step 8: Run Hatch in headless mode
 # ============================================================================
-echo ""
+echo "" >&2
 PROJECT_PATH="$HOME/$PROJECT_NAME"
 info "Creating project: $PROJECT_PATH"
-echo ""
+echo "" >&2
 
 # Build the command - use absolute path for project so it's created in home directory
 HATCH_CMD="pnpm dev create $PROJECT_PATH --headless --bootstrap"
@@ -419,7 +421,7 @@ HATCH_CMD="$HATCH_CMD $EXTRA_ARGS"
 # Run Hatch (stay in hatch dir so pnpm dev works)
 eval "$HATCH_CMD"
 
-echo ""
+echo "" >&2
 success "Bootstrap complete!"
 success "Project created at: $PROJECT_PATH"
 success "Hatch CLI available at: $HATCH_DIR"
