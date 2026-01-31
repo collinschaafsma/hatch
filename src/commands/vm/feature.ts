@@ -8,6 +8,7 @@ import {
 	checkExeDevAccess,
 	exeDevNew,
 	exeDevRm,
+	exeDevSharePort,
 	waitForVMReady,
 } from "../../utils/exe-dev.js";
 import { log } from "../../utils/logger.js";
@@ -100,12 +101,27 @@ export const vmFeatureCommand = new Command()
 			await waitForVMReady(sshHost, 120000);
 			readySpinner.succeed("VM is ready");
 
-			// Step 5: Copy config file to VM
+			// Step 5: Configure exe.dev to forward port 3000 (Next.js default)
+			const portSpinner = createSpinner(
+				"Configuring web preview port",
+			).start();
+			try {
+				await exeDevSharePort(vmName, 3000);
+				portSpinner.succeed("Web preview configured for port 3000");
+			} catch {
+				portSpinner.warn(
+					"Could not configure port. Run manually: ssh exe.dev share port " +
+						vmName +
+						" 3000",
+				);
+			}
+
+			// Step 6: Copy config file to VM
 			const configSpinner = createSpinner("Copying config file to VM").start();
 			await scpToRemote(configPath, sshHost, "~/.hatch.json");
 			configSpinner.succeed("Config file copied");
 
-			// Step 6: Copy and run feature install script
+			// Step 7: Copy and run feature install script
 			const installSpinner = createSpinner(
 				"Setting up feature VM (installing CLIs, cloning repo)",
 			).start();
@@ -149,7 +165,7 @@ export const vmFeatureCommand = new Command()
 			// Include SUPABASE_ACCESS_TOKEN for supabase CLI authentication
 			const envPrefix = `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$PATH" && export SUPABASE_ACCESS_TOKEN="${supabaseToken}" &&`;
 
-			// Step 7: Create git branch from origin/main
+			// Step 8: Create git branch from origin/main
 			const gitSpinner = createSpinner("Creating git branch").start();
 			try {
 				await sshExec(
@@ -162,7 +178,7 @@ export const vmFeatureCommand = new Command()
 				throw error;
 			}
 
-			// Step 8: Link Supabase project
+			// Step 9: Link Supabase project
 			const linkSpinner = createSpinner("Linking Supabase project").start();
 			try {
 				await sshExec(
@@ -177,7 +193,7 @@ export const vmFeatureCommand = new Command()
 				throw error;
 			}
 
-			// Step 9: Create Supabase branches (main and test)
+			// Step 10: Create Supabase branches (main and test)
 			const mainBranch = featureName;
 			const testBranch = `${featureName}-test`;
 
@@ -205,7 +221,7 @@ export const vmFeatureCommand = new Command()
 				throw error;
 			}
 
-			// Step 10: Pull Vercel environment variables to create .env.local
+			// Step 11: Pull Vercel environment variables to create .env.local
 			const vercelEnvSpinner = createSpinner(
 				"Pulling environment variables from Vercel",
 			).start();
@@ -232,7 +248,7 @@ export const vmFeatureCommand = new Command()
 				);
 			}
 
-			// Step 11: Wait for branches to provision and get credentials
+			// Step 12: Wait for branches to provision and get credentials
 			const credSpinner = createSpinner(
 				"Waiting for Supabase branches to provision",
 			).start();
@@ -292,7 +308,7 @@ export const vmFeatureCommand = new Command()
 				);
 			}
 
-			// Step 12: Push branch to origin
+			// Step 13: Push branch to origin
 			const pushSpinner = createSpinner("Pushing branch to origin").start();
 			try {
 				await sshExec(
@@ -305,7 +321,7 @@ export const vmFeatureCommand = new Command()
 				throw error;
 			}
 
-			// Step 13: Save VM to local tracking
+			// Step 14: Save VM to local tracking
 			const vmRecord: VMRecord = {
 				name: vmName,
 				sshHost,

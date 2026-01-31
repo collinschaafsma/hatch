@@ -196,6 +196,34 @@ export async function exeDevRm(vmName: string): Promise<void> {
 }
 
 /**
+ * Configure the port that exe.dev proxy forwards to
+ * @param vmName The VM name
+ * @param port The port to forward to (e.g., 3000 for Next.js)
+ */
+export async function exeDevSharePort(
+	vmName: string,
+	port: number,
+): Promise<void> {
+	await execa(
+		"ssh",
+		[
+			"-o",
+			"StrictHostKeyChecking=accept-new",
+			"-o",
+			"ConnectTimeout=10",
+			"exe.dev",
+			"share",
+			"port",
+			vmName,
+			String(port),
+		],
+		{
+			stdio: "pipe",
+		},
+	);
+}
+
+/**
  * Wait for a VM to be ready (SSH accessible)
  * @param sshHost The SSH host to connect to
  * @param timeoutMs Maximum time to wait (default 120 seconds)
