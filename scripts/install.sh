@@ -294,6 +294,26 @@ WRAPPER
     command -v supabase &> /dev/null && success "Supabase CLI installed" || warn "Supabase CLI installation failed"
 fi
 
+# Claude Code
+if command -v claude &> /dev/null; then
+    # Check if it's an npm installation that needs cleanup
+    if npm list -g @anthropic-ai/claude-code &>/dev/null 2>&1; then
+        info "Removing npm-based Claude Code installation..."
+        npm -g uninstall @anthropic-ai/claude-code 2>/dev/null || true
+        # Remove any leftover symlinks
+        rm -f ~/.local/bin/claude 2>/dev/null || true
+        info "Installing Claude Code natively..."
+        curl -fsSL https://claude.ai/install.sh | bash
+        success "Claude Code installed natively"
+    else
+        success "Claude Code is installed (native)"
+    fi
+else
+    info "Installing Claude Code..."
+    curl -fsSL https://claude.ai/install.sh | bash
+    success "Claude Code installed"
+fi
+
 # ============================================================================
 # Step 6: Authenticate CLIs (if tokens available)
 # ============================================================================
