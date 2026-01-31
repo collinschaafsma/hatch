@@ -25,6 +25,33 @@ function generateAuthSecret(): string {
 }
 
 /**
+ * Set Vercel project root directory via API
+ * Required for monorepos where the app is in a subdirectory
+ */
+async function setVercelRootDirectory(
+	projectId: string,
+	rootDirectory: string,
+	token: string,
+): Promise<void> {
+	const response = await fetch(
+		`https://api.vercel.com/v9/projects/${projectId}`,
+		{
+			method: "PATCH",
+			headers: {
+				Authorization: `Bearer ${token}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ rootDirectory }),
+		},
+	);
+
+	if (!response.ok) {
+		const error = await response.text();
+		throw new Error(`Failed to set Vercel root directory: ${error}`);
+	}
+}
+
+/**
  * Set up Vercel project and configure environment variables
  */
 export async function setupVercel(
@@ -62,6 +89,18 @@ export async function setupVercel(
 			token,
 		});
 		projectId = linkResult.projectId;
+	}
+
+	// Set root directory to apps/web for monorepo support
+	// This is required because we link from apps/web but deploy from project root
+	if (projectId && projectId !== "unknown") {
+		if (!config.quiet) {
+			await withSpinner("Setting Vercel root directory", async () => {
+				await setVercelRootDirectory(projectId, "apps/web", token);
+			});
+		} else {
+			await setVercelRootDirectory(projectId, "apps/web", token);
+		}
 	}
 
 	// Get the git remote URL for connecting

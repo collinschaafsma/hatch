@@ -4,7 +4,6 @@ import { withSpinner } from "../utils/spinner.js";
 import {
 	supabaseBranchCreate,
 	supabaseBranchesList,
-	supabaseDbPush,
 	supabaseLink,
 	supabaseProjectApiKeys,
 	supabaseProjectCreate,
@@ -301,13 +300,33 @@ export async function createSupabaseBranches(
 }
 
 /**
- * Run database migrations
+ * Construct DATABASE_URL for DDL operations (migrations, schema changes)
+ * Uses session pooler (aws-1, port 5432) which supports DDL and is IPv4 compatible
+ * Note: Transaction pooler (aws-0, port 6543) does NOT support DDL operations
+ */
+function getDirectDatabaseUrl(
+	projectRef: string,
+	dbPassword: string,
+	region: string,
+): string {
+	return `postgresql://postgres.${projectRef}:${dbPassword}@aws-1-${region}.pooler.supabase.com:5432/postgres`;
+}
+
+/**
+ * Run database migrations using Drizzle's db:migrate
+ * Must use session pooler (port 5432) for DDL operations
  */
 export async function runMigrations(
 	projectPath: string,
+	projectRef: string,
+	dbPassword: string,
+	region: string,
 	config: ResolvedHeadlessConfig,
 ): Promise<void> {
 	const webPath = `${projectPath}/apps/web`;
+
+	// Use session pooler for DDL operations (migrations)
+	const directDbUrl = getDirectDatabaseUrl(projectRef, dbPassword, region);
 
 	if (!config.quiet) {
 		await withSpinner("Generating database migrations", async () => {
@@ -315,18 +334,21 @@ export async function runMigrations(
 			await pnpmRun("db:generate", webPath);
 		});
 
-		await withSpinner("Pushing database migrations", async () => {
-			await supabaseDbPush({
-				cwd: projectPath,
-				token: config.supabase.token,
+		await withSpinner("Applying database migrations", async () => {
+			const { execa } = await import("execa");
+			await execa("pnpm", ["db:migrate"], {
+				cwd: webPath,
+				env: { ...process.env, DATABASE_URL: directDbUrl },
 			});
 		});
 	} else {
 		const { pnpmRun } = await import("../utils/exec.js");
+		const { execa } = await import("execa");
+
 		await pnpmRun("db:generate", webPath);
-		await supabaseDbPush({
-			cwd: projectPath,
-			token: config.supabase.token,
+		await execa("pnpm", ["db:migrate"], {
+			cwd: webPath,
+			env: { ...process.env, DATABASE_URL: directDbUrl },
 		});
 	}
 }

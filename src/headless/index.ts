@@ -94,7 +94,13 @@ export async function runHeadlessSetup(
 				log.blank();
 				log.info("Running database migrations...");
 			}
-			await runMigrations(projectPath, config);
+			await runMigrations(
+				projectPath,
+				supabaseResult.projectRef,
+				supabaseResult.dbPassword,
+				supabaseResult.region,
+				config,
+			);
 
 			// Create branches AFTER migrations are run
 			if (!config.quiet) {
