@@ -107,17 +107,22 @@ export const vmCleanCommand = new Command()
 
 				for (const branch of supabaseBranches) {
 					try {
-						// First disable persistence, then delete
+						// First disable persistence (convert to preview branch)
 						await sshExec(
 							sshHost,
-							`${envPrefix} cd ~/${project.github.repo} && supabase branches update ${branch} --no-persistent 2>/dev/null || true`,
+							`${envPrefix} cd ~/${project.github.repo} && supabase branches update ${branch} --persistent=false`,
 						);
+						// Brief pause to let the update propagate
+						await new Promise((resolve) => setTimeout(resolve, 2000));
+						// Then delete the branch
 						await sshExec(
 							sshHost,
-							`${envPrefix} cd ~/${project.github.repo} && supabase branches delete ${branch} --force 2>/dev/null || true`,
+							`${envPrefix} cd ~/${project.github.repo} && supabase branches delete ${branch}`,
 						);
 						deletedBranches.push(branch);
-					} catch {
+					} catch (error) {
+						// Log the error for debugging but continue with other branches
+						console.error(`Failed to delete branch ${branch}:`, error);
 						failedBranches.push(branch);
 					}
 				}
