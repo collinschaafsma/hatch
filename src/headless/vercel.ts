@@ -117,13 +117,22 @@ export async function setupVercel(
 	}
 
 	// Connect Git repository by passing the remote URL explicitly
+	// This is non-fatal - git might already be connected via GitHub integration
 	if (gitUrl) {
-		if (!config.quiet) {
-			await withSpinner("Connecting Git to Vercel", async () => {
+		try {
+			if (!config.quiet) {
+				await withSpinner("Connecting Git to Vercel", async () => {
+					await vercelGitConnect({ cwd: projectPath, token, gitUrl });
+				});
+			} else {
 				await vercelGitConnect({ cwd: projectPath, token, gitUrl });
-			});
-		} else {
-			await vercelGitConnect({ cwd: projectPath, token, gitUrl });
+			}
+		} catch {
+			if (!config.quiet) {
+				log.warn(
+					"Could not auto-connect Git - may already be connected or connect manually in Vercel dashboard",
+				);
+			}
 		}
 	}
 
