@@ -254,15 +254,18 @@ export const vmFeatureCommand = new Command()
 				`${envPrefix} cd ${projectPath}/apps/web && VERCEL_TOKEN="${vercelToken}" vercel env pull .env.local --environment=development 2>&1 || true`,
 			);
 			// Check if .env.local was created (use $HOME instead of ~ for reliable expansion)
-			const { stdout: envCheck } = await sshExec(
+			const { stdout: envCheck, stderr: envCheckErr } = await sshExec(
 				sshHost,
 				`test -f $HOME/${project.github.repo}/apps/web/.env.local && echo "exists" || echo "missing"`,
 			);
-			if (envCheck.trim() === "exists") {
+			const checkResult = envCheck.trim();
+			// Debug: log what we got
+			console.log(`[DEBUG] .env.local check - stdout: "${checkResult}", stderr: "${envCheckErr}"`);
+			if (checkResult === "exists") {
 				vercelEnvSpinner.succeed("Environment variables pulled from Vercel");
 			} else {
 				vercelEnvSpinner.warn(
-					"Could not pull env from Vercel. You may need to create .env.local manually.",
+					`Could not pull env from Vercel (check returned: "${checkResult}"). You may need to create .env.local manually.`,
 				);
 			}
 
