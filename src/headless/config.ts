@@ -60,6 +60,10 @@ export async function resolveConfig(
 	const githubOrg =
 		options.githubOrg ?? config?.github?.org ?? process.env.HATCH_GITHUB_ORG;
 
+	// GitHub user info for git config (optional)
+	const githubEmail = config?.github?.email ?? process.env.HATCH_GITHUB_EMAIL;
+	const githubName = config?.github?.name ?? process.env.HATCH_GITHUB_NAME;
+
 	// Vercel token resolution
 	const vercelToken =
 		options.vercelToken ?? config?.vercel?.token ?? process.env.VERCEL_TOKEN;
@@ -115,6 +119,8 @@ export async function resolveConfig(
 		github: {
 			token: githubToken,
 			org: githubOrg,
+			email: githubEmail,
+			name: githubName,
 		},
 		vercel: {
 			token: vercelToken,

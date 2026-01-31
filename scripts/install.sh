@@ -204,6 +204,10 @@ if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
     HATCH_SUPABASE_ORG=$(jq -r '.supabase.org // empty' "$CONFIG_PATH" 2>/dev/null || true)
     HATCH_SUPABASE_REGION=$(jq -r '.supabase.region // empty' "$CONFIG_PATH" 2>/dev/null || true)
 
+    # Git user config (for commits to match GitHub account)
+    HATCH_GITHUB_EMAIL=$(jq -r '.github.email // empty' "$CONFIG_PATH" 2>/dev/null || true)
+    HATCH_GITHUB_NAME=$(jq -r '.github.name // empty' "$CONFIG_PATH" 2>/dev/null || true)
+
     # Export for CLI tools and hatch
     [[ -n "$GITHUB_TOKEN" ]] && export GITHUB_TOKEN
     [[ -n "$VERCEL_TOKEN" ]] && export VERCEL_TOKEN
@@ -302,6 +306,19 @@ if [[ -n "${GITHUB_TOKEN:-}" ]]; then
     else
         warn "GitHub CLI authentication failed"
     fi
+fi
+
+# Configure git user (required for commits to match GitHub account for Vercel)
+if [[ -n "${HATCH_GITHUB_EMAIL:-}" ]]; then
+    info "Configuring git user email..."
+    git config --global user.email "$HATCH_GITHUB_EMAIL"
+    success "Git user.email set to $HATCH_GITHUB_EMAIL"
+fi
+
+if [[ -n "${HATCH_GITHUB_NAME:-}" ]]; then
+    info "Configuring git user name..."
+    git config --global user.name "$HATCH_GITHUB_NAME"
+    success "Git user.name set to $HATCH_GITHUB_NAME"
 fi
 
 # Vercel and Supabase use env vars automatically, just verify

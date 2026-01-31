@@ -37,6 +37,8 @@ export interface HatchConfig {
 	github?: {
 		org?: string;
 		token?: string;
+		email?: string;
+		name?: string;
 	};
 	vercel?: {
 		team?: string;
@@ -78,6 +80,8 @@ export interface ResolvedHeadlessConfig {
 	github: {
 		token: string;
 		org?: string;
+		email?: string;
+		name?: string;
 	};
 	vercel: {
 		token: string;
