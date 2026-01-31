@@ -9,7 +9,6 @@ A full-stack monorepo built with [Hatch](https://github.com/collinschaafsma/hatc
 
 - [Node.js 22+](https://nodejs.org/) (see \`.nvmrc\`)
 - [pnpm](https://pnpm.io/) (\`corepack enable\`)
-- [Docker](https://www.docker.com/) (for Claude Code sandbox mode)
 - [Supabase CLI](https://supabase.com/docs/guides/cli) (for cloud database)
 
 ### Automated Setup (Recommended)
@@ -64,7 +63,7 @@ ${projectName}/
 │       └── __tests__/    # Vitest tests
 ├── packages/
 │   └── ui/               # Shared UI components
-├── scripts/              # Setup and worktree scripts
+├── scripts/              # Setup scripts
 └── supabase/             # Supabase configuration
 └── .github/workflows/   # CI/CD workflows
 \`\`\`
@@ -124,59 +123,6 @@ pnpm test:ui
 # Run tests with coverage
 pnpm --filter web test:coverage
 \`\`\`
-
----
-
-## Agent Worktree (Claude Code)
-
-Create isolated development environments with separate databases, perfect for feature development with Claude Code.
-
-| Command | Description |
-|---------|-------------|
-| \`pnpm agent <branch>\` | Create worktree with isolated database (runs Claude directly) |
-| \`pnpm agent:sandbox <branch>\` | Create worktree with Docker sandbox isolation |
-| \`pnpm agent:clean\` | Clean up worktree (run from within worktree) |
-| \`pnpm agent:clean:sandbox\` | Clean up sandbox worktree (run from within worktree) |
-
-### Create a Worktree
-
-\`\`\`bash
-# Default: Run Claude Code directly
-pnpm agent <branch-name>
-
-# Optional: Run Claude Code in Docker sandbox with isolated node_modules
-pnpm agent:sandbox <branch-name>
-\`\`\`
-
-This will:
-1. Create a git worktree for the branch
-2. Create Supabase database branches for isolated development
-3. Copy environment files and Vercel config
-4. Install dependencies and run migrations
-5. Copy data from the main database
-6. Push branch to remote
-7. Open iTerm2 with 3 panes:
-   - **Pane 1:** Claude Code (directly or in Docker sandbox)
-   - **Pane 2:** Development terminal
-   - **Pane 3:** Additional terminal
-
-### Clean Up
-
-From within the worktree directory:
-
-\`\`\`bash
-# For worktrees created with pnpm agent
-pnpm agent:clean
-
-# For worktrees created with pnpm agent:sandbox
-pnpm agent:clean:sandbox
-\`\`\`
-
-This will:
-1. Delete Supabase branches and stops any Docker containers
-2. Remove the git worktree
-3. Delete the local branch
-4. (Sandbox only) Stop and remove the Docker sandbox and node_modules volumes
 
 ---
 
@@ -277,7 +223,6 @@ This project uses Supabase with database branching for isolated environments:
 | **Preview** | Auto-created per PR | Vercel preview deployments (via Supabase Integration) |
 | **Development** | \`dev\` branch | Local development (\`.env.local\`) |
 | **Tests** | \`dev-test\` branch | Local test runs |
-| **Worktrees** | Per-branch databases | Created by \`./scripts/wts\` |
 
 ### Preview Deployments
 

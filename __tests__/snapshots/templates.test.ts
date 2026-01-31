@@ -448,7 +448,9 @@ describe("template snapshots", () => {
 
 	describe("setup templates", () => {
 		it("generateSetupScript", () => {
-			expect(templates.generateSetupScript("test-app", false)).toMatchSnapshot();
+			expect(
+				templates.generateSetupScript("test-app", false),
+			).toMatchSnapshot();
 		});
 	});
 });

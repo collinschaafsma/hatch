@@ -231,29 +231,10 @@ export const createCommand = new Command()
 					});
 				}
 
-				// Generate worktree sandbox scripts
-				await withSpinner("Setting up worktree scripts", async () => {
+				// Generate scripts
+				await withSpinner("Setting up scripts", async () => {
 					await ensureDir(path.join(projectPath, "scripts"));
-					await ensureDir(path.join(projectPath, "scripts", "sandbox"));
 					await ensureDir(path.join(projectPath, ".claude"));
-
-					// Main scripts
-					const wtsPath = path.join(projectPath, "scripts", "wts");
-					const wtcsPath = path.join(projectPath, "scripts", "wtcs");
-					const buildSandboxPath = path.join(
-						projectPath,
-						"scripts",
-						"sandbox",
-						"build-sandbox",
-					);
-
-					await writeFile(wtsPath, templates.generateWtsScript());
-					await writeFile(wtcsPath, templates.generateWtcsScript());
-					await writeFile(buildSandboxPath, templates.generateBuildSandbox());
-					await writeFile(
-						path.join(projectPath, "scripts", "sandbox", "Dockerfile"),
-						templates.generateSandboxDockerfile(),
-					);
 
 					// Supabase scripts
 					const supabaseSetupPath = path.join(
@@ -297,16 +278,6 @@ export const createCommand = new Command()
 					);
 					await setExecutable(setupScriptPath);
 
-					// Config files
-					await writeFile(
-						path.join(projectPath, ".worktreeinclude"),
-						templates.generateWorktreeInclude(),
-					);
-					await writeFile(
-						path.join(projectPath, ".claude", "sandbox.settings.local.json"),
-						templates.generateSandboxSettings(),
-					);
-
 					// Claude settings and skills
 					await ensureDir(
 						path.join(projectPath, ".claude", "skills", "typecheck"),
@@ -344,11 +315,6 @@ export const createCommand = new Command()
 						),
 						templates.generateDbMigrateSkill(),
 					);
-
-					// Make scripts executable
-					await setExecutable(wtsPath);
-					await setExecutable(wtcsPath);
-					await setExecutable(buildSandboxPath);
 				});
 
 				// Create apps/web structure

@@ -20,10 +20,6 @@ export function generateRootPackageJson(projectName: string): string {
 				"supabase:branch": "./scripts/supabase-branch",
 				"supabase:env": "./scripts/supabase-env",
 				"app:setup": "./scripts/setup",
-				agent: "./scripts/wts",
-				"agent:sandbox": "./scripts/wts --sandbox",
-				"agent:clean": "./scripts/wtcs",
-				"agent:clean:sandbox": "./scripts/wtcs --sandbox",
 			},
 			devDependencies: {
 				"@biomejs/biome": "^2.3.11",

@@ -43,9 +43,6 @@ export * from "./supabase/index.js";
 // Test templates
 export * from "./test/index.js";
 
-// Worktree sandbox scripts
-export * from "./scripts/index.js";
-
 // Lib templates (safe-action, logger)
 export * from "./lib/index.js";
 

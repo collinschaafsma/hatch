@@ -134,8 +134,5 @@ echo "     Add DATABASE_URL to your Vercel environment variables."
 echo "     Get it from: https://supabase.com/dashboard/project/\$PROJECT_REF/settings/database"
 echo "     Use the 'Transaction' pooler connection string for serverless."
 echo ""
-echo "  3. To create a new sandbox:"
-echo "     Run: ./scripts/wts <branch-name>"
-echo ""
 `;
 }
