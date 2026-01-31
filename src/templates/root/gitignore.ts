@@ -42,6 +42,7 @@ supabase/.branches/
 .vercel/
 
 # Claude Code
-.claude/
+.claude/settings.local.json
+.claude/settings.json
 `;
 }
