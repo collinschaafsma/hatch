@@ -237,7 +237,9 @@ export async function vercelGitConnect(options: {
 
 	const result = await exec("vercel", args, { cwd: options.cwd });
 
-	if (result.exitCode !== 0) {
+	// "already connected" is a success case, not an error
+	const output = result.stdout + result.stderr;
+	if (result.exitCode !== 0 && !output.includes("already connected")) {
 		throw new Error(`Failed to connect Git to Vercel: ${result.stderr}`);
 	}
 }
