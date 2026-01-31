@@ -2,22 +2,87 @@
 
 A CLI tool that scaffolds production-ready Turborepo monorepos with Next.js, authentication, database, AI, and more.
 
-**From zero to deployed in minutes.** Hatch generates a complete full-stack application, then `pnpm app:setup` does the rest:
+**Cloud-first development.** Hatch provisions exe.dev VMs with everything pre-configured—CLIs authenticated, database connected, and Claude Code ready to go. Spin up multiple VMs to work on features in parallel.
 
-- Creates your GitHub repo and pushes the initial commit
-- Provisions a Supabase database with connection pooling
-- Links your Vercel project with the correct root directory
-- Configures environment variables across all environments
-- Runs database migrations and deploys to production
-
-**Built for AI-assisted development.** The generated project includes agent scripts that create isolated environments for Claude Code:
-
-- `pnpm agent feature-name` spins up a git worktree with its own database branch
-- `pnpm agent:sandbox feature-name` adds Docker sandbox isolation for full containment
-- Claude works in isolation - no risk to your main branch or data
-- `pnpm agent:clean` tears everything down when you're done
+**Complete automation.** One command creates your GitHub repo, Supabase database, and Vercel deployment. Each feature gets its own database branch for true isolation.
 
 A modern stack (Next.js 16, React 19, Drizzle, Tailwind 4, shadcn/ui) with auth, AI, workflows, and testing already wired up. Skip the boilerplate and start building.
+
+## Requirements
+
+**macOS** is required (credential extraction uses Keychain).
+
+**Accounts:**
+- [exe.dev](https://exe.dev) - Cloud VMs for development
+- [Supabase Pro](https://supabase.com) - Database with branching (Pro plan required)
+- [Vercel](https://vercel.com) - Deployment platform
+- [GitHub](https://github.com) - Repository hosting
+- [Claude Code](https://claude.ai/code) - AI coding assistant (subscription required)
+
+**CLI tools (installed and logged in):**
+- `gh` - GitHub CLI
+- `vercel` - Vercel CLI
+- `supabase` - Supabase CLI
+- `claude` - Claude Code
+
+**SSH key** registered with exe.dev for VM access.
+
+## Quickstart
+
+### 1. Configure Hatch
+
+Clone the repo and generate your config file:
+
+```bash
+git clone https://github.com/collinschaafsma/hatch.git
+cd hatch
+pnpm install
+pnpm dev config --global
+```
+
+This creates `~/.hatch.json` with tokens extracted from your logged-in CLIs.
+
+### 2. Create Project on VM
+
+```bash
+pnpm dev vm new my-app
+```
+
+This provisions an exe.dev VM and sets up a complete project with GitHub, Vercel, and Supabase.
+
+### 3. Connect and Build
+
+The command outputs connection info. Connect via SSH or VS Code Remote:
+
+```bash
+ssh <vm-name>              # Direct SSH
+code --remote ssh-remote+<vm-name> ~/my-app  # VS Code
+```
+
+Start Claude Code and begin building:
+
+```bash
+cd my-app
+claude
+```
+
+### 4. Feature Work
+
+Create isolated feature branches with their own database:
+
+```bash
+pnpm dev vm feature add-auth --vm <vm-name>
+```
+
+This creates a new branch and Supabase database branches for complete isolation.
+
+### 5. Clean Up
+
+When done, remove the VM and all associated resources:
+
+```bash
+pnpm dev vm clean <vm-name>
+```
 
 ## What You Get
 
@@ -35,42 +100,84 @@ Hatch generates a complete full-stack monorepo with:
 - **[PostHog](https://posthog.com/)** - Product analytics
 - **GitHub Actions** - CI/CD with Claude Code integration
 
-Plus automated setup scripts for GitHub, Vercel, and Supabase.
+## How It Works
 
-## Quick Start
+### The Configuration File
 
-```bash
-# Clone and install
-git clone https://github.com/collinschaafsma/hatch.git
-cd hatch
-pnpm install
+Running `hatch config --global` creates `~/.hatch.json` containing:
 
-# Create a new project
-pnpm dev create ../my-app
+- **GitHub token** - From `gh` CLI config
+- **Vercel token** - From `vercel` CLI config
+- **Supabase token** - From `supabase` CLI config
+- **Claude Code credentials** - OAuth tokens from macOS Keychain
+
+This file is copied to VMs during setup so all CLIs authenticate automatically.
+
+### What `vm new` Does
+
+1. **Provisions VM** - Creates an exe.dev VM via `ssh exe.dev new --json`
+2. **Waits for ready** - Polls until VM is SSH-accessible
+3. **Copies config** - Transfers `~/.hatch.json` to the VM
+4. **Runs install script** - Sets up the complete environment:
+   - Installs Node.js 22, pnpm, git, jq
+   - Installs gh, vercel, supabase, claude CLIs
+   - Authenticates all CLIs using tokens from config
+   - Sets up git user.email/name for commits
+   - Writes Claude Code credentials to `~/.claude/.credentials.json`
+   - Clones and builds Hatch CLI
+   - Runs `hatch create` in headless mode
+5. **Tracks VM** - Saves VM info to `~/.hatch/vms.json`
+6. **Displays connection info** - SSH, VS Code, and web URLs
+
+### Database Isolation
+
+Supabase branching provides isolated databases for each environment:
+
+| Environment | Database | Purpose |
+|-------------|----------|---------|
+| Production | Main Supabase project | Live application |
+| Development | `dev` branch | Default local dev |
+| Feature | `feature-name` branch | Isolated per-feature |
+| Tests | `feature-name-test` branch | Test isolation |
+
+### Parallel Development
+
+Run Claude Code on multiple VMs simultaneously, each with complete isolation:
+
+```
+VM: peaceful-duckling → branch: add-auth → DB: add-auth, add-auth-test
+VM: fortune-sprite   → branch: payments → DB: payments, payments-test
 ```
 
-Then follow the prompts or run `pnpm app:setup` for automated configuration.
+Each VM has its own git branch and database branches. No conflicts, no shared state.
 
-## CLI Options
+## CLI Reference
 
-```bash
-pnpm dev create [project-name] [options]
-```
+### Configuration
 
-| Option | Description |
-|--------|-------------|
-| `--workos` | Use WorkOS instead of Better Auth for enterprise SSO |
-| `--no-vscode` | Skip generating VS Code configuration files |
+| Command | Description |
+|---------|-------------|
+| `hatch config` | Create hatch.json in current directory |
+| `hatch config --global` | Create ~/.hatch.json (recommended) |
 
-### Examples
+### VM Management
 
-```bash
-# Default: Better Auth + Supabase
-pnpm dev create ../my-app
+| Command | Description |
+|---------|-------------|
+| `hatch vm new <project>` | Create new VM + full project setup |
+| `hatch vm setup <project>` | Set up project on existing VM |
+| `hatch vm feature <name>` | Create feature branch with DB isolation |
+| `hatch vm connect [vm]` | Show SSH, VS Code, web URLs |
+| `hatch vm list [--json]` | List all tracked VMs |
+| `hatch vm clean <vm>` | Delete VM + Supabase branches |
 
-# Enterprise SSO with WorkOS
-pnpm dev create ../my-app --workos
-```
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `--workos` | Use WorkOS instead of Better Auth |
+| `--vm <name>` | Specify VM name for feature command |
+| `--force` | Skip confirmation for clean command |
 
 ## Generated Project Structure
 
@@ -92,32 +199,14 @@ my-app/
 │       └── __tests__/        # Vitest tests and factories
 ├── packages/
 │   └── ui/                   # Shared shadcn/ui components
-├── scripts/
-│   ├── setup                 # Automated GitHub/Vercel/Supabase setup
-│   ├── wts                   # Worktree setup (agent sandbox)
-│   ├── wtcs                  # Worktree cleanup
-│   ├── sandbox/              # Docker sandbox for Claude Code
-│   └── supabase-*            # Supabase management scripts
+├── scripts/                  # Supabase setup scripts
+├── supabase/                 # Supabase config
 ├── .claude/                  # Claude Code configuration
 │   ├── settings.local.json   # Local Claude settings
 │   └── skills/               # Custom Claude skills
 ├── .github/workflows/        # CI/CD + Claude integration
-├── supabase/                 # Supabase config (if not --docker)
-├── .worktreeinclude          # Files to copy into worktrees
-├── docker-compose.yml        # PostgreSQL containers
 ├── CLAUDE.md                 # Claude Code context
 └── README.md                 # Generated project documentation
-```
-
-## Database
-
-Hatch uses Supabase for cloud-hosted PostgreSQL with:
-- Automatic branch management for isolated development
-- Connection pooling for serverless
-- Built-in auth and storage (optional)
-
-```bash
-pnpm dev create ../my-app
 ```
 
 ## Authentication Options
@@ -137,79 +226,8 @@ Enterprise SSO for B2B applications:
 - User provisioning
 
 ```bash
-pnpm dev create ../my-app --workos
+pnpm dev vm new my-app --workos
 ```
-
-## Agent Scripts (Claude Code)
-
-The generated project includes scripts for isolated feature development with Claude Code:
-
-```bash
-# Create a worktree with Claude Code running directly (default)
-pnpm agent feature-branch
-
-# Create a worktree with Claude Code in Docker sandbox
-pnpm agent:sandbox feature-branch
-
-# Clean up when done (run from inside the worktree)
-pnpm agent:clean           # For worktrees created with pnpm agent
-pnpm agent:clean:sandbox   # For worktrees created with pnpm agent:sandbox
-```
-
-### Examples
-
-```bash
-# Work on a new feature (Claude runs directly)
-pnpm agent add-user-settings
-
-# Work with Docker sandbox isolation
-pnpm agent:sandbox add-user-settings
-
-# Clean up (from inside the worktree)
-pnpm agent:clean              # Non-sandbox
-pnpm agent:clean:sandbox      # Sandbox
-```
-
-### How It Works
-
-When you run `pnpm agent my-feature`, the script:
-
-1. Creates a git worktree at `../my-app-my-feature` (sibling to your project)
-2. Creates and checks out a new branch named `my-feature`
-3. Copies files listed in `.worktreeinclude` (like `.env.local`) that aren't tracked by git
-4. Sets up an isolated database (Docker containers or Supabase branch)
-5. Opens an iTerm2 layout with Claude Code
-
-The `--sandbox` variant (`pnpm agent:sandbox`) additionally:
-- Builds a custom Docker sandbox image
-- Creates isolated node_modules volumes
-- Runs Claude Code inside the Docker sandbox container
-
-The worktree is a full working copy of your repo on its own branch, so changes are isolated from your main development.
-
-### The `.worktreeinclude` File
-
-Since worktrees don't share untracked files with the main repo, the `.worktreeinclude` file lists files that should be copied into new worktrees:
-
-```
-.env.local
-```
-
-Add any untracked files your worktrees need (environment files, local configs, etc.) to this file, one path per line.
-
-### Cleaning Up
-
-When you run `pnpm agent:clean` from inside the worktree, it:
-
-1. Tears down the isolated database (stops Docker containers or deletes Supabase branch)
-2. Deletes the feature branch
-3. Removes the worktree directory
-
-The `pnpm agent:clean:sandbox` variant additionally:
-- Stops and removes the Docker sandbox container
-- Removes node_modules volumes
-
-This fully cleans up all resources created by `pnpm agent`, returning your environment to its original state.
 
 ## GitHub Actions
 
@@ -221,6 +239,16 @@ The generated project includes:
 | `test.yml` | Run tests with PostgreSQL |
 | `claude-code-review.yml` | AI-powered code review |
 | `claude.yml` | Interactive Claude via `@claude` mentions |
+
+## Advanced: Local Development
+
+For local development without VMs, you can run `hatch create` directly:
+
+```bash
+pnpm dev create ../my-app
+```
+
+Then follow the prompts or run `pnpm app:setup` for automated GitHub/Vercel/Supabase configuration.
 
 ---
 
@@ -244,14 +272,14 @@ pnpm install
 | Command | Description |
 |---------|-------------|
 | `pnpm dev create [name]` | Run CLI in development mode |
+| `pnpm dev config --global` | Generate config file |
+| `pnpm dev vm new <name>` | Provision VM with project |
 | `pnpm build` | Build with tsup |
 | `pnpm lint` | Lint with Biome |
 | `pnpm format` | Format with Biome |
 | `pnpm test` | Run unit tests |
 | `pnpm test:e2e` | Run end-to-end tests |
 | `pnpm test:ui` | Run tests with Vitest UI |
-
-
 
 ## License
 
