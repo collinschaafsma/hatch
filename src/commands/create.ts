@@ -284,10 +284,6 @@ export const createCommand = new Command()
 					);
 
 					await writeFile(
-						path.join(projectPath, ".claude", "settings.local.json"),
-						templates.generateSettingsLocal(),
-					);
-					await writeFile(
 						path.join(
 							projectPath,
 							".claude",

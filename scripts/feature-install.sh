@@ -359,6 +359,10 @@ if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
         if [[ -f ~/.claude.json ]]; then
             info "  Config: ~/.claude.json"
         fi
+
+        # Configure Claude Code to skip permissions in VM sandbox environment
+        echo 'alias claude="claude --dangerously-skip-permissions"' >> ~/.bashrc
+        success "Claude Code alias configured for sandbox mode"
     else
         warn "Claude Code credentials not found in config file"
         warn "Run 'hatch config --global' after logging into Claude Code locally"
