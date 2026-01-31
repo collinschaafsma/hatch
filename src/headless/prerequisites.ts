@@ -35,10 +35,12 @@ export async function checkPrerequisites(
 		errors.push(`GitHub CLI not authenticated: ${ghStatus.error}`);
 	}
 
-	// Check Vercel authentication
+	// Check Vercel authentication (non-fatal - commands use --token directly)
 	const vercelStatus = await vercelAuthStatus(config.vercel.token);
 	if (!vercelStatus.isAuthenticated) {
-		errors.push(`Vercel CLI not authenticated: ${vercelStatus.error}`);
+		warnings.push(
+			`Vercel whoami check failed (will try token directly): ${vercelStatus.error}`,
+		);
 	}
 
 	// Check Supabase authentication
