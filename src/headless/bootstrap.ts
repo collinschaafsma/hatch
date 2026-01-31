@@ -97,12 +97,15 @@ export async function authenticateClis(
 		log.success(`GitHub CLI authenticated as ${ghStatus.username}`);
 	}
 
-	// Vercel - uses VERCEL_TOKEN env var automatically, just verify
+	// Vercel - verify auth but don't fail (commands use --token flag directly)
 	const vercelStatus = await vercelAuthStatus(config.vercel.token);
 	if (!vercelStatus.isAuthenticated) {
-		throw new Error("Vercel authentication failed. Check your VERCEL_TOKEN.");
-	}
-	if (!quiet) {
+		if (!quiet) {
+			log.warn(
+				"Vercel whoami check failed - will try using token directly on commands",
+			);
+		}
+	} else if (!quiet) {
 		log.success(`Vercel CLI authenticated as ${vercelStatus.username}`);
 	}
 

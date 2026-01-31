@@ -167,10 +167,11 @@ export interface VercelAuthStatus {
 export async function vercelAuthStatus(
 	token?: string,
 ): Promise<VercelAuthStatus> {
-	// Use VERCEL_TOKEN env var like we do for Supabase - more reliable than --token flag
+	// Use both env var AND --token flag for maximum compatibility
 	const env = token ? { ...process.env, VERCEL_TOKEN: token } : process.env;
+	const args = token ? ["whoami", "--token", token] : ["whoami"];
 
-	const result = await exec("vercel", ["whoami"], { env });
+	const result = await exec("vercel", args, { env });
 
 	if (result.exitCode === 0) {
 		return {
