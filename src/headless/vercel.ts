@@ -3,7 +3,6 @@ import type { ResolvedHeadlessConfig } from "../types/index.js";
 import { log } from "../utils/logger.js";
 import { withSpinner } from "../utils/spinner.js";
 import {
-	vercelDeploy,
 	vercelEnvAdd,
 	vercelEnvPull,
 	vercelGitConnect,
@@ -222,39 +221,10 @@ export async function setupVercel(
 		}
 	}
 
-	// Deploy to production from apps/web where .vercel lives
-	// This is non-fatal - git push to GitHub will also trigger deployment
-	let deployUrl = "";
-
-	try {
-		if (!config.quiet) {
-			const deployResult = await withSpinner(
-				"Deploying to Vercel",
-				async () => {
-					return vercelDeploy({ cwd: webPath, token, prod: true });
-				},
-			);
-			deployUrl = deployResult.url;
-		} else {
-			const deployResult = await vercelDeploy({
-				cwd: webPath,
-				token,
-				prod: true,
-			});
-			deployUrl = deployResult.url;
-		}
-	} catch {
-		if (!config.quiet) {
-			log.warn(
-				"Could not deploy via CLI - deployment will be triggered by git push",
-			);
-		}
-		// Use the expected URL format
-		deployUrl = `https://${projectName}.vercel.app`;
-	}
-
+	// Deployment is triggered by git push in the next step
+	// Just return the expected URL
 	return {
-		url: deployUrl,
+		url: `https://${projectName}.vercel.app`,
 		projectId,
 		projectName,
 	};
