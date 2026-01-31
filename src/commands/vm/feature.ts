@@ -178,7 +178,25 @@ export const vmFeatureCommand = new Command()
 				throw error;
 			}
 
-			// Step 9: Link Supabase project
+			// Step 9: Configure Next.js allowedDevOrigins for exe.dev preview
+			const nextConfigSpinner = createSpinner(
+				"Configuring Next.js for exe.dev preview",
+			).start();
+			try {
+				// Add allowedDevOrigins to next.config.ts for the VM's exe.dev URL
+				const exeDevOrigin = `https://${vmName}.exe.xyz`;
+				await sshExec(
+					sshHost,
+					`cd ${projectPath}/apps/web && sed -i '/const nextConfig.*{/a\\  allowedDevOrigins: ["${exeDevOrigin}"],' next.config.ts`,
+				);
+				nextConfigSpinner.succeed("Next.js configured for exe.dev preview");
+			} catch {
+				nextConfigSpinner.warn(
+					"Could not configure allowedDevOrigins. You may see cross-origin warnings.",
+				);
+			}
+
+			// Step 10: Link Supabase project
 			const linkSpinner = createSpinner("Linking Supabase project").start();
 			try {
 				await sshExec(
@@ -193,7 +211,7 @@ export const vmFeatureCommand = new Command()
 				throw error;
 			}
 
-			// Step 10: Create Supabase branches (main and test)
+			// Step 11: Create Supabase branches (main and test)
 			const mainBranch = featureName;
 			const testBranch = `${featureName}-test`;
 
@@ -221,7 +239,7 @@ export const vmFeatureCommand = new Command()
 				throw error;
 			}
 
-			// Step 11: Pull Vercel environment variables to create .env.local
+			// Step 12: Pull Vercel environment variables to create .env.local
 			const vercelEnvSpinner = createSpinner(
 				"Pulling environment variables from Vercel",
 			).start();
@@ -248,7 +266,7 @@ export const vmFeatureCommand = new Command()
 				);
 			}
 
-			// Step 12: Wait for branches to provision and get credentials
+			// Step 13: Wait for branches to provision and get credentials
 			const credSpinner = createSpinner(
 				"Waiting for Supabase branches to provision",
 			).start();
@@ -308,7 +326,7 @@ export const vmFeatureCommand = new Command()
 				);
 			}
 
-			// Step 13: Push branch to origin
+			// Step 14: Push branch to origin
 			const pushSpinner = createSpinner("Pushing branch to origin").start();
 			try {
 				await sshExec(
@@ -321,7 +339,7 @@ export const vmFeatureCommand = new Command()
 				throw error;
 			}
 
-			// Step 14: Save VM to local tracking
+			// Step 15: Save VM to local tracking
 			const vmRecord: VMRecord = {
 				name: vmName,
 				sshHost,
