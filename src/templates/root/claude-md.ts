@@ -8,10 +8,6 @@ export function generateClaudeMd(name: string, useWorkOS: boolean): string {
 
 This file provides guidance to Claude Code when working with code in this repository.
 
-## Important: Node Version Management
-
-**ALWAYS run \`nvm use\` before executing any commands.** This project requires Node.js >=22.
-
 ## Git Operations
 
 **ALWAYS ask for explicit user confirmation before running any git commands that modify history or remote state**, including:
@@ -133,7 +129,7 @@ ${useWorkOS ? "- `WORKOS_API_KEY` - WorkOS API key\n- `WORKOS_CLIENT_ID` - WorkO
 
 ### Daily Development
 1. \`pnpm docker:up\` (if not running)
-2. \`nvm use && pnpm dev\`
+2. \`pnpm dev\`
 
 ### Schema Changes
 1. Edit \`apps/web/db/schema.ts\`

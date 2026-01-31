@@ -7,7 +7,7 @@ A full-stack monorepo built with [Hatch](https://github.com/collinschaafsma/hatc
 
 ### Prerequisites
 
-- [Node.js 22+](https://nodejs.org/) (see \`.nvmrc\`)
+- [Node.js 22+](https://nodejs.org/)
 - [pnpm](https://pnpm.io/) (\`corepack enable\`)
 - [Supabase CLI](https://supabase.com/docs/guides/cli) (for cloud database)
 

@@ -12,7 +12,6 @@ export function generateSettingsLocal(): string {
 					"Bash(pnpm --filter web typecheck:*)",
 					"Bash(pnpm --filter web lint:*)",
 					"Bash(pnpm --filter web test)",
-					"Bash(nvm use)",
 					"Bash(pnpm db:generate:*)",
 					"Bash(find:*)",
 					"Bash(xargs cat:*)",

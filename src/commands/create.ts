@@ -185,10 +185,6 @@ export const createCommand = new Command()
 						templates.generateGitignore(),
 					);
 					await writeFile(
-						path.join(projectPath, ".nvmrc"),
-						templates.generateNvmrc(),
-					);
-					await writeFile(
 						path.join(projectPath, ".mcp.json"),
 						templates.generateMcpJson(),
 					);
