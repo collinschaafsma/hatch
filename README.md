@@ -76,6 +76,15 @@ Start Claude Code and begin building:
 
 ```bash
 cd my-app
+pnpm dev                   # Start the dev server
+```
+
+Access your app at `https://<vm-name>.exe.xyz` once the dev server is running on port 3000.
+
+Or use Claude Code to drive development:
+
+```bash
+cd my-app
 claude
 ```
 
@@ -105,11 +114,11 @@ Projects are created once and persist. Feature VMs are spun up for each piece of
 Run Claude Code on multiple VMs simultaneously, each with complete isolation:
 
 ```
-VM: peaceful-duckling → branch: add-auth → DB: add-auth, add-auth-test
-VM: fortune-sprite   → branch: payments → DB: payments, payments-test
+VM: peaceful-duckling → branch: add-auth → https://peaceful-duckling.exe.xyz
+VM: fortune-sprite   → branch: payments → https://fortune-sprite.exe.xyz
 ```
 
-Each VM has its own git branch and database branches. No conflicts, no shared state.
+Each VM has its own git branch, database branches, and public web URL. No conflicts, no shared state.
 
 ## What You Get
 
@@ -153,9 +162,21 @@ This file is copied to VMs during setup so all CLIs authenticate automatically.
 
 1. **Looks up project** - Gets GitHub URL from `~/.hatch/projects.json`
 2. **Creates new VM** - Provisions exe.dev VM for this feature
-3. **Sets up environment** - Installs CLIs, authenticates, clones repo
-4. **Creates branches** - Git branch + Supabase database branches
-5. **Saves VM info** - Stores in `~/.hatch/vms.json` for easy access
+3. **Configures web preview** - Forwards port 3000 to `https://{vm-name}.exe.xyz`
+4. **Sets up environment** - Installs CLIs, authenticates, clones repo
+5. **Creates branches** - Git branch + Supabase database branches
+6. **Configures app URLs** - Sets `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` for the VM
+7. **Saves VM info** - Stores in `~/.hatch/vms.json` for easy access
+
+### Adding Existing Projects
+
+Have a project already set up? Add it to Hatch to use feature VMs:
+
+```bash
+pnpm dev vm add my-existing-app
+```
+
+This looks up your GitHub, Vercel, and Supabase resources by project name and saves them for tracking. Then use `vm feature` to create isolated development environments.
 
 ### Database Isolation
 
@@ -181,6 +202,7 @@ Supabase branching provides isolated databases for each environment:
 | Command | Description |
 |---------|-------------|
 | `hatch vm new <project>` | Create new project (ephemeral VM setup) |
+| `hatch vm add <project>` | Add existing project to track for feature VMs |
 | `hatch vm list --projects` | List all projects |
 
 ### Feature VM Management
