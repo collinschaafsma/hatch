@@ -65,8 +65,8 @@ export async function setupVercel(
 	const team = config.vercel.team;
 	const webPath = `${projectPath}/apps/web`;
 
-	// Link to Vercel from project root (monorepo setup)
-	// We set rootDirectory to apps/web after linking
+	// Link to Vercel from apps/web (where the Next.js app lives)
+	// This creates .vercel in apps/web, matching the setup script behavior
 	let projectId: string;
 
 	if (!config.quiet) {
@@ -76,7 +76,7 @@ export async function setupVercel(
 				return vercelLink({
 					projectName,
 					team,
-					cwd: projectPath,
+					cwd: webPath,
 					token,
 				});
 			},
@@ -86,14 +86,14 @@ export async function setupVercel(
 		const linkResult = await vercelLink({
 			projectName,
 			team,
-			cwd: projectPath,
+			cwd: webPath,
 			token,
 		});
 		projectId = linkResult.projectId;
 	}
 
-	// Set root directory to apps/web for monorepo support
-	// This is required because we link from apps/web but deploy from project root
+	// Set root directory to apps/web for git-triggered deployments
+	// (CLI deploys from apps/web don't need this, but git pushes do)
 	if (projectId && projectId !== "unknown") {
 		if (!config.quiet) {
 			await withSpinner("Setting Vercel root directory", async () => {
@@ -122,10 +122,10 @@ export async function setupVercel(
 		try {
 			if (!config.quiet) {
 				await withSpinner("Connecting Git to Vercel", async () => {
-					await vercelGitConnect({ cwd: projectPath, token, gitUrl });
+					await vercelGitConnect({ cwd: webPath, token, gitUrl });
 				});
 			} else {
-				await vercelGitConnect({ cwd: projectPath, token, gitUrl });
+				await vercelGitConnect({ cwd: webPath, token, gitUrl });
 			}
 		} catch {
 			if (!config.quiet) {
@@ -177,7 +177,7 @@ export async function setupVercel(
 		});
 	}
 
-	// Set env vars
+	// Set env vars (run from apps/web where .vercel lives)
 	if (!config.quiet) {
 		await withSpinner("Setting Vercel environment variables", async () => {
 			for (const env of envVars) {
@@ -185,7 +185,7 @@ export async function setupVercel(
 					key: env.key,
 					value: env.value,
 					environments: env.environments,
-					cwd: projectPath,
+					cwd: webPath,
 					token,
 				});
 			}
@@ -196,36 +196,61 @@ export async function setupVercel(
 				key: env.key,
 				value: env.value,
 				environments: env.environments,
-				cwd: projectPath,
+				cwd: webPath,
 				token,
 			});
 		}
 	}
 
-	// Pull env vars to .env.local in apps/web
-	if (!config.quiet) {
-		await withSpinner("Pulling Vercel environment to .env.local", async () => {
+	// Pull env vars to .env.local in apps/web (non-fatal like setup script)
+	try {
+		if (!config.quiet) {
+			await withSpinner(
+				"Pulling Vercel environment to .env.local",
+				async () => {
+					await vercelEnvPull({ cwd: webPath, token });
+				},
+			);
+		} else {
 			await vercelEnvPull({ cwd: webPath, token });
-		});
-	} else {
-		await vercelEnvPull({ cwd: webPath, token });
+		}
+	} catch {
+		if (!config.quiet) {
+			log.warn(
+				"Could not pull env vars - they may need to be configured manually",
+			);
+		}
 	}
 
-	// Deploy to production from project root (rootDirectory is set to apps/web)
-	let deployUrl: string;
+	// Deploy to production from apps/web where .vercel lives
+	// This is non-fatal - git push to GitHub will also trigger deployment
+	let deployUrl = "";
 
-	if (!config.quiet) {
-		const deployResult = await withSpinner("Deploying to Vercel", async () => {
-			return vercelDeploy({ cwd: projectPath, token, prod: true });
-		});
-		deployUrl = deployResult.url;
-	} else {
-		const deployResult = await vercelDeploy({
-			cwd: projectPath,
-			token,
-			prod: true,
-		});
-		deployUrl = deployResult.url;
+	try {
+		if (!config.quiet) {
+			const deployResult = await withSpinner(
+				"Deploying to Vercel",
+				async () => {
+					return vercelDeploy({ cwd: webPath, token, prod: true });
+				},
+			);
+			deployUrl = deployResult.url;
+		} else {
+			const deployResult = await vercelDeploy({
+				cwd: webPath,
+				token,
+				prod: true,
+			});
+			deployUrl = deployResult.url;
+		}
+	} catch {
+		if (!config.quiet) {
+			log.warn(
+				"Could not deploy via CLI - deployment will be triggered by git push",
+			);
+		}
+		// Use the expected URL format
+		deployUrl = `https://${projectName}.vercel.app`;
 	}
 
 	return {
