@@ -349,9 +349,7 @@ if [[ -n "${GITHUB_TOKEN:-}" ]]; then
     # Fallback: Configure git to use token directly via credential helper
     if [[ "$GIT_AUTH_CONFIGURED" != "true" ]]; then
         info "Setting up git credential helper with token..."
-        git config --global credential.helper store
-        # Store credentials for github.com
-        mkdir -p ~/.git-credentials 2>/dev/null || true
+        # .git-credentials is a file, not a directory
         echo "https://${GITHUB_TOKEN}:x-oauth-basic@github.com" > ~/.git-credentials
         chmod 600 ~/.git-credentials
         git config --global credential.helper "store --file ~/.git-credentials"

@@ -1,5 +1,6 @@
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import fs from "fs-extra";
 import type { VMRecord } from "../../types/index.js";
@@ -14,6 +15,10 @@ import { getProject } from "../../utils/project-store.js";
 import { createSpinner } from "../../utils/spinner.js";
 import { scpToRemote, sshExec } from "../../utils/ssh.js";
 import { addVM } from "../../utils/vm-store.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const packageRoot = path.resolve(__dirname, "../../..");
 
 interface VMFeatureOptions {
 	project: string;
@@ -65,7 +70,7 @@ export const vmFeatureCommand = new Command()
 			}
 			accessSpinner.succeed("exe.dev SSH access confirmed");
 
-			// Check config file exists
+			// Check config file exists and load it
 			const configPath =
 				options.config || path.join(os.homedir(), ".hatch.json");
 			if (!(await fs.pathExists(configPath))) {
@@ -75,6 +80,10 @@ export const vmFeatureCommand = new Command()
 				log.blank();
 				process.exit(1);
 			}
+
+			// Load config to get tokens for CLI commands
+			const config = await fs.readJson(configPath);
+			const supabaseToken = config.supabase?.token || "";
 
 			// Step 3: Create new VM
 			const vmSpinner = createSpinner("Creating exe.dev VM").start();
@@ -95,12 +104,22 @@ export const vmFeatureCommand = new Command()
 			await scpToRemote(configPath, sshHost, "~/.hatch.json");
 			configSpinner.succeed("Config file copied");
 
-			// Step 6: Run feature install script
+			// Step 6: Copy and run feature install script
 			const installSpinner = createSpinner(
 				"Setting up feature VM (installing CLIs, cloning repo)",
 			).start();
 
-			const installCommand = `curl -fsSL https://raw.githubusercontent.com/collinschaafsma/hatch/main/scripts/feature-install.sh | bash -s -- ${project.github.url} --config ~/.hatch.json`;
+			// Copy the local script to VM instead of curling from GitHub
+			// This ensures we always use the current version and allows testing without pushing
+			const scriptPath = path.join(packageRoot, "scripts", "feature-install.sh");
+			if (!(await fs.pathExists(scriptPath))) {
+				installSpinner.fail("Feature install script not found");
+				log.error(`Expected script at: ${scriptPath}`);
+				throw new Error("Feature install script not found");
+			}
+
+			await scpToRemote(scriptPath, sshHost, "~/feature-install.sh");
+			const installCommand = `chmod +x ~/feature-install.sh && ~/feature-install.sh ${project.github.url} --config ~/.hatch.json`;
 
 			try {
 				await sshExec(sshHost, installCommand, {
@@ -121,6 +140,10 @@ export const vmFeatureCommand = new Command()
 
 			const projectPath = `~/${project.github.repo}`;
 
+			// Environment setup for commands that need CLIs installed to ~/.local/bin
+			// Include SUPABASE_ACCESS_TOKEN for supabase CLI authentication
+			const envPrefix = `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$PATH" && export SUPABASE_ACCESS_TOKEN="${supabaseToken}" &&`;
+
 			// Step 7: Create git branch from origin/main
 			const gitSpinner = createSpinner("Creating git branch").start();
 			try {
@@ -134,7 +157,20 @@ export const vmFeatureCommand = new Command()
 				throw error;
 			}
 
-			// Step 8: Create Supabase branches (main and test)
+			// Step 8: Link Supabase project
+			const linkSpinner = createSpinner("Linking Supabase project").start();
+			try {
+				await sshExec(
+					sshHost,
+					`${envPrefix} cd ${projectPath} && supabase link --project-ref ${project.supabase.projectRef}`,
+				);
+				linkSpinner.succeed(`Supabase project linked: ${project.supabase.projectRef}`);
+			} catch (error) {
+				linkSpinner.fail("Failed to link Supabase project");
+				throw error;
+			}
+
+			// Step 9: Create Supabase branches (main and test)
 			const mainBranch = featureName;
 			const testBranch = `${featureName}-test`;
 
@@ -145,13 +181,13 @@ export const vmFeatureCommand = new Command()
 				// Create main feature branch (persistent)
 				await sshExec(
 					sshHost,
-					`cd ${projectPath} && supabase branches create ${mainBranch} --persistent`,
+					`${envPrefix} cd ${projectPath} && supabase branches create ${mainBranch} --persistent`,
 				);
 
 				// Create test branch (persistent)
 				await sshExec(
 					sshHost,
-					`cd ${projectPath} && supabase branches create ${testBranch} --persistent`,
+					`${envPrefix} cd ${projectPath} && supabase branches create ${testBranch} --persistent`,
 				);
 
 				supabaseSpinner.succeed(
@@ -173,7 +209,7 @@ export const vmFeatureCommand = new Command()
 				// Get branch credentials and update .env.local
 				const { stdout } = await sshExec(
 					sshHost,
-					`cd ${projectPath} && supabase branches get ${mainBranch} --output json 2>/dev/null || echo '{}'`,
+					`${envPrefix} cd ${projectPath} && supabase branches get ${mainBranch} --output json 2>/dev/null || echo '{}'`,
 				);
 
 				try {
