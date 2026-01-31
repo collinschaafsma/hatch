@@ -327,6 +327,17 @@ export const vmFeatureCommand = new Command()
 						"Could not get branch DATABASE_URLs automatically. You may need to update .env.local manually.",
 					);
 				}
+
+				// Update app URLs for exe.dev proxy access
+				const appUrl = `https://${vmName}.exe.xyz`;
+				await sshExec(
+					sshHost,
+					`cd ${projectPath}/apps/web && (grep -q '^BETTER_AUTH_URL=' .env.local && sed -i 's|^BETTER_AUTH_URL=.*|BETTER_AUTH_URL=${appUrl}|' .env.local || echo 'BETTER_AUTH_URL=${appUrl}' >> .env.local)`,
+				);
+				await sshExec(
+					sshHost,
+					`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_APP_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_APP_URL=.*|NEXT_PUBLIC_APP_URL=${appUrl}|' .env.local || echo 'NEXT_PUBLIC_APP_URL=${appUrl}' >> .env.local)`,
+				);
 			} catch {
 				credSpinner.warn(
 					"Could not configure branch credentials automatically. You may need to update .env.local manually.",
