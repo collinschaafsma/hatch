@@ -254,6 +254,20 @@ async function getGitHubUsername(token: string): Promise<string | null> {
 }
 
 /**
+ * Read git config value
+ */
+async function readGitConfig(key: string): Promise<string | null> {
+	const { execa } = await import("execa");
+
+	try {
+		const result = await execa("git", ["config", "--global", key]);
+		return result.stdout.trim() || null;
+	} catch {
+		return null;
+	}
+}
+
+/**
  * Get GitHub organizations using the CLI
  */
 async function getGitHubOrgs(
@@ -319,6 +333,28 @@ export const configCommand = new Command()
 			if (githubToken) {
 				log.success("Found GitHub token");
 				config.github = { token: githubToken };
+
+				// Read git config for email and name
+				const gitEmail = await readGitConfig("user.email");
+				const gitName = await readGitConfig("user.name");
+
+				if (gitEmail) {
+					config.github.email = gitEmail;
+					log.success(`Found git user.email: ${gitEmail}`);
+				} else {
+					log.warn(
+						"Git user.email not set. Run 'git config --global user.email \"you@example.com\"'",
+					);
+				}
+
+				if (gitName) {
+					config.github.name = gitName;
+					log.success(`Found git user.name: ${gitName}`);
+				} else {
+					log.warn(
+						"Git user.name not set. Run 'git config --global user.name \"Your Name\"'",
+					);
+				}
 
 				// Get username and orgs
 				const username = await getGitHubUsername(githubToken);
@@ -455,9 +491,12 @@ export const configCommand = new Command()
 			// Show summary
 			log.info("Configuration summary:");
 			if (config.github?.token) {
-				log.step(
-					`GitHub: ${config.github.org ? `org=${config.github.org}` : "personal account"}`,
-				);
+				const githubParts = [
+					config.github.org ? `org=${config.github.org}` : "personal account",
+				];
+				if (config.github.email) githubParts.push(`email=${config.github.email}`);
+				if (config.github.name) githubParts.push(`name=${config.github.name}`);
+				log.step(`GitHub: ${githubParts.join(", ")}`);
 			}
 			if (config.vercel?.team) {
 				log.step(`Vercel: team=${config.vercel.team}`);
