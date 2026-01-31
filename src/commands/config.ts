@@ -1,12 +1,13 @@
 import os from "node:os";
 import path from "node:path";
-import { select } from "@inquirer/prompts";
+import { checkbox, confirm, input, password, select } from "@inquirer/prompts";
 import { Command } from "commander";
 import fs from "fs-extra";
 import yaml from "yaml";
 import type {
 	ClaudeConfig,
 	ClaudeOAuthAccount,
+	EnvVar,
 	HatchConfig,
 } from "../types/index.js";
 import { log } from "../utils/logger.js";
@@ -557,6 +558,82 @@ export const configCommand = new Command()
 				}
 			}
 
+			// Custom environment variables
+			log.blank();
+			const addEnvVars = await confirm({
+				message: "Would you like to add custom environment variables?",
+				default: false,
+			});
+
+			if (addEnvVars) {
+				const envVars: EnvVar[] = [];
+				let addMore = true;
+
+				while (addMore) {
+					const key = await input({
+						message: "Environment variable name:",
+						validate: (value) => {
+							if (!value.trim()) {
+								return "Variable name is required";
+							}
+							if (!/^[A-Z][A-Z0-9_]*$/.test(value.trim())) {
+								return "Variable name must be uppercase, start with a letter, and contain only A-Z, 0-9, and underscores";
+							}
+							if (envVars.some((v) => v.key === value.trim())) {
+								return "Variable already added";
+							}
+							return true;
+						},
+					});
+
+					const value = await password({
+						message: `Value for ${key}:`,
+						mask: "*",
+					});
+
+					const environments = await checkbox({
+						message: "Which environments should this variable be set in?",
+						choices: [
+							{
+								value: "production" as const,
+								name: "Production",
+								checked: true,
+							},
+							{ value: "preview" as const, name: "Preview", checked: true },
+							{
+								value: "development" as const,
+								name: "Development",
+								checked: true,
+							},
+						],
+					});
+
+					if (environments.length === 0) {
+						log.warn("No environments selected, skipping this variable.");
+					} else {
+						envVars.push({
+							key: key.trim(),
+							value,
+							environments: environments as (
+								| "production"
+								| "preview"
+								| "development"
+							)[],
+						});
+						log.success(`Added ${key}`);
+					}
+
+					addMore = await confirm({
+						message: "Add another environment variable?",
+						default: false,
+					});
+				}
+
+				if (envVars.length > 0) {
+					config.envVars = envVars;
+				}
+			}
+
 			// Determine output path
 			const outputPath = options.global
 				? path.join(os.homedir(), ".hatch.json")
@@ -594,6 +671,9 @@ export const configCommand = new Command()
 			}
 			if (config.claude?.accessToken) {
 				log.step("Claude Code: credentials configured");
+			}
+			if (config.envVars && config.envVars.length > 0) {
+				log.step(`Custom env vars: ${config.envVars.length} configured`);
 			}
 			log.blank();
 

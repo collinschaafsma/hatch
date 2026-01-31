@@ -149,6 +149,43 @@ Running `hatch config --global` creates `~/.hatch.json` containing:
 
 This file is copied to VMs during setup so all CLIs authenticate automatically.
 
+### Custom Environment Variables
+
+You can add custom environment variables (like `RESEND_API_KEY`, `OPENAI_API_KEY`, or Vercel AI gateway vars) during `hatch config`. These get stored in `~/.hatch.json` and are automatically added to Vercel during project setup.
+
+When running `hatch config --global`, you'll be prompted:
+
+```
+? Would you like to add custom environment variables? Yes
+? Environment variable name: RESEND_API_KEY
+? Value for RESEND_API_KEY: ********
+? Which environments should this variable be set in?
+  ◉ Production
+  ◉ Preview
+  ◉ Development
+✔ Added RESEND_API_KEY
+? Add another environment variable? No
+```
+
+The variables are stored in `hatch.json`:
+
+```json
+{
+  "github": { ... },
+  "vercel": { ... },
+  "supabase": { ... },
+  "envVars": [
+    {
+      "key": "RESEND_API_KEY",
+      "value": "re_...",
+      "environments": ["production", "preview", "development"]
+    }
+  ]
+}
+```
+
+During `vm new` or feature VM setup, these variables are automatically added to your Vercel project and pulled to `.env.local` via `vercel env pull`.
+
 ### What `vm new` Does
 
 1. **Provisions temp VM** - Creates an exe.dev VM
@@ -196,6 +233,8 @@ Supabase branching provides isolated databases for each environment:
 |---------|-------------|
 | `hatch config` | Create hatch.json in current directory |
 | `hatch config --global` | Create ~/.hatch.json (recommended) |
+
+The config command prompts to add custom environment variables that will be automatically set in Vercel during project setup.
 
 ### Project Management
 

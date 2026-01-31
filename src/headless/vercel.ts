@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type { ResolvedHeadlessConfig } from "../types/index.js";
+import type { EnvVar, ResolvedHeadlessConfig } from "../types/index.js";
 import { log } from "../utils/logger.js";
 import { withSpinner } from "../utils/spinner.js";
 import {
@@ -59,6 +59,7 @@ export async function setupVercel(
 	config: ResolvedHeadlessConfig,
 	supabaseResult: SupabaseSetupResult,
 	useWorkOS: boolean,
+	customEnvVars?: EnvVar[],
 ): Promise<VercelSetupResult> {
 	const token = config.vercel.token;
 	const team = config.vercel.team;
@@ -198,6 +199,33 @@ export async function setupVercel(
 				cwd: webPath,
 				token,
 			});
+		}
+	}
+
+	// Set custom env vars from hatch.json
+	if (customEnvVars?.length) {
+		if (!config.quiet) {
+			await withSpinner("Setting custom environment variables", async () => {
+				for (const env of customEnvVars) {
+					await vercelEnvAdd({
+						key: env.key,
+						value: env.value,
+						environments: env.environments,
+						cwd: webPath,
+						token,
+					});
+				}
+			});
+		} else {
+			for (const env of customEnvVars) {
+				await vercelEnvAdd({
+					key: env.key,
+					value: env.value,
+					environments: env.environments,
+					cwd: webPath,
+					token,
+				});
+			}
 		}
 	}
 

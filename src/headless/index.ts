@@ -7,7 +7,11 @@ import type {
 import { log } from "../utils/logger.js";
 import { withSpinner } from "../utils/spinner.js";
 import { runBootstrap } from "./bootstrap.js";
-import { resolveConfig, validateHeadlessOptions } from "./config.js";
+import {
+	loadConfigFile,
+	resolveConfig,
+	validateHeadlessOptions,
+} from "./config.js";
 import { setupGitHub } from "./github.js";
 import {
 	createFailureResult,
@@ -44,11 +48,15 @@ export async function runHeadlessSetup(
 
 		// Resolve configuration from flags, config file, and env vars
 		let config: ResolvedHeadlessConfig;
+		const hatchConfig = await loadConfigFile(options.configPath);
 		try {
 			config = await resolveConfig(options);
 		} catch (error) {
 			return createFailureResult(error as Error);
 		}
+
+		// Load custom env vars from config file
+		const customEnvVars = hatchConfig?.envVars;
 
 		// Run bootstrap if requested
 		if (options.bootstrap) {
@@ -138,6 +146,7 @@ export async function runHeadlessSetup(
 				config,
 				supabaseResult,
 				useWorkOS,
+				customEnvVars,
 			);
 		}
 

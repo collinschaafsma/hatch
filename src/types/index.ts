@@ -42,6 +42,13 @@ export interface ClaudeOAuthAccount {
 	organizationRole?: string;
 }
 
+export interface EnvVar {
+	key: string;
+	value: string;
+	environments: ("production" | "preview" | "development")[];
+	sensitive?: boolean; // default true, for display purposes
+}
+
 export interface ClaudeConfig {
 	accessToken: string;
 	refreshToken: string;
@@ -69,6 +76,7 @@ export interface HatchConfig {
 		token?: string;
 	};
 	claude?: ClaudeConfig;
+	envVars?: EnvVar[];
 }
 
 export interface HeadlessResult {
