@@ -102,9 +102,7 @@ export const vmFeatureCommand = new Command()
 			readySpinner.succeed("VM is ready");
 
 			// Step 5: Configure exe.dev to forward port 3000 (Next.js default)
-			const portSpinner = createSpinner(
-				"Configuring web preview port",
-			).start();
+			const portSpinner = createSpinner("Configuring web preview port").start();
 			try {
 				await exeDevSharePort(vmName, 3000);
 				portSpinner.succeed("Web preview configured for port 3000");
@@ -249,13 +247,17 @@ export const vmFeatureCommand = new Command()
 				sshHost,
 				`${envPrefix} cd ${projectPath}/apps/web && vercel link --yes --project ${project.vercel.projectId} --token "${vercelToken}" 2>&1 || true`,
 			);
-			console.log(`[DEBUG] vercel link - stdout: "${linkOut}", stderr: "${linkErr}"`);
+			console.log(
+				`[DEBUG] vercel link - stdout: "${linkOut}", stderr: "${linkErr}"`,
+			);
 			// Pull development environment variables (may output warnings to stderr)
 			const { stdout: pullOut, stderr: pullErr } = await sshExec(
 				sshHost,
 				`${envPrefix} cd ${projectPath}/apps/web && vercel env pull .env.local --environment=development --token "${vercelToken}" 2>&1 || true`,
 			);
-			console.log(`[DEBUG] vercel env pull - stdout: "${pullOut}", stderr: "${pullErr}"`)
+			console.log(
+				`[DEBUG] vercel env pull - stdout: "${pullOut}", stderr: "${pullErr}"`,
+			);
 			// Check if .env.local was created (use $HOME instead of ~ for reliable expansion)
 			const { stdout: envCheck, stderr: envCheckErr } = await sshExec(
 				sshHost,
@@ -263,7 +265,9 @@ export const vmFeatureCommand = new Command()
 			);
 			const checkResult = envCheck.trim();
 			// Debug: log what we got
-			console.log(`[DEBUG] .env.local check - stdout: "${checkResult}", stderr: "${envCheckErr}"`);
+			console.log(
+				`[DEBUG] .env.local check - stdout: "${checkResult}", stderr: "${envCheckErr}"`,
+			);
 			if (checkResult === "exists") {
 				vercelEnvSpinner.succeed("Environment variables pulled from Vercel");
 			} else {
