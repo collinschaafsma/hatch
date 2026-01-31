@@ -328,14 +328,35 @@ fi
 # ============================================================================
 # Step 6: Authenticate CLIs (if tokens available)
 # ============================================================================
+GIT_AUTH_CONFIGURED=false
+
 if [[ -n "${GITHUB_TOKEN:-}" ]]; then
     info "Authenticating GitHub CLI..."
-    if echo "$GITHUB_TOKEN" | gh auth login --with-token 2>/dev/null; then
+    # Don't suppress errors so we can debug auth issues
+    if echo "$GITHUB_TOKEN" | gh auth login --with-token; then
         success "GitHub CLI authenticated"
         # Configure git to use gh as credential helper
-        gh auth setup-git 2>/dev/null && success "Git configured to use GitHub CLI" || warn "Could not configure git credentials"
+        if gh auth setup-git; then
+            success "Git configured to use GitHub CLI"
+            GIT_AUTH_CONFIGURED=true
+        else
+            warn "Could not configure git credential helper"
+        fi
     else
-        warn "GitHub CLI authentication failed"
+        warn "GitHub CLI authentication failed - will try direct token auth for git"
+    fi
+
+    # Fallback: Configure git to use token directly via credential helper
+    if [[ "$GIT_AUTH_CONFIGURED" != "true" ]]; then
+        info "Setting up git credential helper with token..."
+        git config --global credential.helper store
+        # Store credentials for github.com
+        mkdir -p ~/.git-credentials 2>/dev/null || true
+        echo "https://${GITHUB_TOKEN}:x-oauth-basic@github.com" > ~/.git-credentials
+        chmod 600 ~/.git-credentials
+        git config --global credential.helper "store --file ~/.git-credentials"
+        success "Git credentials configured via token"
+        GIT_AUTH_CONFIGURED=true
     fi
 fi
 
@@ -373,7 +394,18 @@ if [[ -d "$PROJECT_PATH" ]]; then
     git pull
 else
     info "Cloning repository to $PROJECT_PATH..."
-    git clone "$GITHUB_URL" "$PROJECT_PATH"
+    if ! git clone "$GITHUB_URL" "$PROJECT_PATH"; then
+        error "Failed to clone repository: $GITHUB_URL"
+        echo ""
+        echo "This could be because:"
+        echo "  - The repository is private and credentials are not configured"
+        echo "  - The repository URL is incorrect"
+        echo "  - Network issues"
+        echo ""
+        echo "GitHub token present: ${GITHUB_TOKEN:+yes}${GITHUB_TOKEN:-no}"
+        echo "Git auth configured: $GIT_AUTH_CONFIGURED"
+        exit 1
+    fi
     cd "$PROJECT_PATH"
 fi
 
