@@ -204,8 +204,12 @@ export async function setupSupabase(
 		serviceRoleKey = keys.serviceRoleKey;
 	}
 
-	// Construct database URL
-	const databaseUrl = `postgresql://postgres.${projectRef}:${dbPassword}@aws-0-${region}.pooler.supabase.com:6543/postgres`;
+	// Construct database URL using session pooler (aws-1, port 5432)
+	// Session pooler supports both:
+	// - DDL operations (migrations) during Vercel builds
+	// - Runtime queries from serverless functions
+	// Note: Transaction pooler (aws-0, port 6543) does NOT support DDL
+	const databaseUrl = `postgresql://postgres.${projectRef}:${dbPassword}@aws-1-${region}.pooler.supabase.com:5432/postgres`;
 
 	return {
 		projectRef,
