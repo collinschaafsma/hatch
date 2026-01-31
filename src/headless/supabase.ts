@@ -23,10 +23,11 @@ export interface SupabaseSetupResult {
 	databaseUrl: string;
 	wasRenamed: boolean;
 	originalName: string;
-	branches: {
-		dev?: string;
-		devTest?: string;
-	};
+}
+
+export interface SupabaseBranchResult {
+	dev?: string;
+	devTest?: string;
 }
 
 /**
@@ -200,8 +201,32 @@ export async function setupSupabase(
 		serviceRoleKey = keys.serviceRoleKey;
 	}
 
-	// Create branches (dev and dev-test)
-	const branches: { dev?: string; devTest?: string } = {};
+	// Construct database URL
+	const databaseUrl = `postgresql://postgres.${projectRef}:${dbPassword}@aws-0-${region}.pooler.supabase.com:6543/postgres`;
+
+	return {
+		projectRef,
+		projectName: supabaseName,
+		region,
+		dbPassword,
+		anonKey,
+		serviceRoleKey,
+		databaseUrl,
+		wasRenamed,
+		originalName,
+	};
+}
+
+/**
+ * Create Supabase branches (must be called AFTER migrations are run on main)
+ * Branches inherit schema from the main project, so migrations must exist first.
+ */
+export async function createSupabaseBranches(
+	projectPath: string,
+	config: ResolvedHeadlessConfig,
+): Promise<SupabaseBranchResult> {
+	const token = config.supabase.token;
+	const branches: SupabaseBranchResult = {};
 
 	try {
 		if (!config.quiet) {
@@ -262,21 +287,7 @@ export async function setupSupabase(
 		}
 	}
 
-	// Construct database URL
-	const databaseUrl = `postgresql://postgres.${projectRef}:${dbPassword}@aws-0-${region}.pooler.supabase.com:6543/postgres`;
-
-	return {
-		projectRef,
-		projectName: supabaseName,
-		region,
-		dbPassword,
-		anonKey,
-		serviceRoleKey,
-		databaseUrl,
-		wasRenamed,
-		originalName,
-		branches,
-	};
+	return branches;
 }
 
 /**

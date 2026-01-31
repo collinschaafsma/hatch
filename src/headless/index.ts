@@ -18,7 +18,11 @@ import {
 	checkPrerequisites,
 	formatPrerequisiteResults,
 } from "./prerequisites.js";
-import { runMigrations, setupSupabase } from "./supabase.js";
+import {
+	createSupabaseBranches,
+	runMigrations,
+	setupSupabase,
+} from "./supabase.js";
 import { setupVercel } from "./vercel.js";
 
 export { resolveConfig, validateHeadlessOptions } from "./config.js";
@@ -84,12 +88,20 @@ export async function runHeadlessSetup(
 			}
 			supabaseResult = await setupSupabase(projectName, projectPath, config);
 
-			// Run migrations
+			// Run migrations BEFORE creating branches
+			// Branches inherit schema from main, so migrations must exist first
 			if (!config.quiet) {
 				log.blank();
 				log.info("Running database migrations...");
 			}
 			await runMigrations(projectPath, config);
+
+			// Create branches AFTER migrations are run
+			if (!config.quiet) {
+				log.blank();
+				log.info("Creating Supabase branches...");
+			}
+			await createSupabaseBranches(projectPath, config);
 		}
 
 		// Setup Vercel
