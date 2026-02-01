@@ -192,14 +192,16 @@ export async function vercelLink(options: {
 	cwd: string;
 	token?: string;
 }): Promise<{ projectId: string }> {
-	// Don't use --scope - it causes "no access to account" errors
-	// The token determines which team/account is used
+	// Use both env var and --token flag for maximum compatibility
+	const env = options.token
+		? { ...process.env, VERCEL_TOKEN: options.token }
+		: process.env;
 	const args = ["link", "--yes", `--project=${options.projectName}`];
 	if (options.token) {
 		args.push("--token", options.token);
 	}
 
-	const result = await exec("vercel", args, { cwd: options.cwd });
+	const result = await exec("vercel", args, { cwd: options.cwd, env });
 
 	if (result.exitCode !== 0) {
 		throw new Error(`Failed to link Vercel project: ${result.stderr}`);
@@ -221,6 +223,9 @@ export async function vercelGitConnect(options: {
 	token?: string;
 	gitUrl?: string;
 }): Promise<void> {
+	const env = options.token
+		? { ...process.env, VERCEL_TOKEN: options.token }
+		: process.env;
 	const args = ["git", "connect"];
 
 	// Pass the git URL explicitly if provided (required for monorepos)
@@ -234,7 +239,7 @@ export async function vercelGitConnect(options: {
 		args.push("--token", options.token);
 	}
 
-	const result = await exec("vercel", args, { cwd: options.cwd });
+	const result = await exec("vercel", args, { cwd: options.cwd, env });
 
 	// "already connected" is a success case, not an error
 	const output = result.stdout + result.stderr;
@@ -250,6 +255,10 @@ export async function vercelEnvAdd(options: {
 	cwd: string;
 	token?: string;
 }): Promise<void> {
+	const env = options.token
+		? { ...process.env, VERCEL_TOKEN: options.token }
+		: process.env;
+
 	for (const environment of options.environments) {
 		const args = ["env", "add", options.key, environment, "--yes"];
 		if (options.token) {
@@ -260,6 +269,7 @@ export async function vercelEnvAdd(options: {
 		const result = await execa("vercel", args, {
 			cwd: options.cwd,
 			input: options.value,
+			env,
 		});
 
 		if (result.exitCode !== 0) {
@@ -275,6 +285,9 @@ export async function vercelEnvPull(options: {
 	token?: string;
 	environment?: "production" | "preview" | "development";
 }): Promise<void> {
+	const env = options.token
+		? { ...process.env, VERCEL_TOKEN: options.token }
+		: process.env;
 	const args = ["env", "pull", ".env.local", "--yes"];
 	if (options.environment) {
 		args.push(`--environment=${options.environment}`);
@@ -283,7 +296,7 @@ export async function vercelEnvPull(options: {
 		args.push("--token", options.token);
 	}
 
-	const result = await exec("vercel", args, { cwd: options.cwd });
+	const result = await exec("vercel", args, { cwd: options.cwd, env });
 
 	if (result.exitCode !== 0) {
 		throw new Error(`Failed to pull Vercel env vars: ${result.stderr}`);
@@ -295,6 +308,9 @@ export async function vercelDeploy(options: {
 	token?: string;
 	prod?: boolean;
 }): Promise<{ url: string }> {
+	const env = options.token
+		? { ...process.env, VERCEL_TOKEN: options.token }
+		: process.env;
 	const args = ["deploy", "--yes"];
 	if (options.prod) {
 		args.push("--prod");
@@ -303,7 +319,7 @@ export async function vercelDeploy(options: {
 		args.push("--token", options.token);
 	}
 
-	const result = await exec("vercel", args, { cwd: options.cwd });
+	const result = await exec("vercel", args, { cwd: options.cwd, env });
 
 	if (result.exitCode !== 0) {
 		throw new Error(`Failed to deploy to Vercel: ${result.stderr}`);
