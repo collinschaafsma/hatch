@@ -1125,7 +1125,36 @@ install_skills() {
 }
 
 # =============================================================================
-# Step 13: Commit Setup Changes and Deploy
+# Step 13: Setup GitHub Secrets for Claude Code
+# =============================================================================
+
+setup_github_secrets() {
+  print_header "Setting Up GitHub Secrets"
+
+  # Read Claude OAuth token from config file
+  local config_file="\$HOME/.hatch.json"
+  if [[ ! -f "\$config_file" ]]; then
+    print_warning "Config file not found at \$config_file, skipping GitHub secrets"
+    return 0
+  fi
+
+  local claude_token=\$(jq -r '.claude.accessToken // empty' "\$config_file" 2>/dev/null || true)
+  if [[ -z "\$claude_token" ]]; then
+    print_warning "Claude token not found in config, skipping CLAUDE_CODE_OAUTH_TOKEN secret"
+    return 0
+  fi
+
+  print_step "Adding CLAUDE_CODE_OAUTH_TOKEN secret to GitHub repo..."
+  if echo "\$claude_token" | gh secret set CLAUDE_CODE_OAUTH_TOKEN 2>/dev/null; then
+    print_success "CLAUDE_CODE_OAUTH_TOKEN secret added"
+  else
+    print_warning "Could not add CLAUDE_CODE_OAUTH_TOKEN secret"
+    print_warning "You can add it manually: gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo \$GITHUB_ORG/\$PROJECT_NAME"
+  fi
+}
+
+# =============================================================================
+# Step 14: Commit Setup Changes and Deploy
 # =============================================================================
 
 commit_and_deploy() {
@@ -1209,6 +1238,7 @@ main() {
   pull_vercel_env
   configure_database_environments
   install_skills
+  setup_github_secrets
   commit_and_deploy
   print_summary
 }
