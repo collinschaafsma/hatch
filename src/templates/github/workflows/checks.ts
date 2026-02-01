@@ -22,9 +22,6 @@ jobs:
       - uses: pnpm/action-setup@v4
         name: Install pnpm
         id: pnpm-install
-        with:
-          version: 10.4.1
-          run_install: false
 
       - name: Get pnpm cache directory
         id: pnpm-cache
@@ -58,9 +55,6 @@ jobs:
       - uses: pnpm/action-setup@v4
         name: Install pnpm
         id: pnpm-install
-        with:
-          version: 10.4.1
-          run_install: false
 
       - name: Get pnpm cache directory
         id: pnpm-cache
