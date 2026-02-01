@@ -3,8 +3,11 @@ export function generateBetterAuthProxy(): string {
 import type { NextRequest } from "next/server";
 
 export async function proxy(request: NextRequest) {
-	// Get session from cookie
-	const sessionCookie = request.cookies.get("better-auth.session_token");
+	// Get session from cookie - check both secure and non-secure cookie names
+	// Better Auth uses __Secure- prefix in production (HTTPS)
+	const sessionCookie =
+		request.cookies.get("__Secure-better-auth.session_token") ||
+		request.cookies.get("better-auth.session_token");
 	const hasSession = !!sessionCookie?.value;
 
 	const { pathname } = request.nextUrl;

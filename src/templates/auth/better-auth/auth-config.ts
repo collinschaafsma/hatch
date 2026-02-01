@@ -24,13 +24,6 @@ function getAppUrl(): string {
 	return "http://localhost:3000";
 }
 
-// Determine if we should use secure cookies
-// Disable for local dev and exe.dev VMs (proxy terminates TLS, so server sees HTTP)
-const appUrl = getAppUrl();
-const isExeDevVM = appUrl.includes(".exe.xyz");
-const isLocalDev = appUrl.includes("localhost") || process.env.NODE_ENV === "development";
-const useSecureCookies = !isExeDevVM && !isLocalDev;
-
 export const auth = betterAuth({
 	baseURL: getAppUrl(),
 	database: drizzleAdapter(db, { provider: "pg" }),
@@ -39,9 +32,6 @@ export const auth = betterAuth({
 		// Allow exe.dev VMs for development
 		"https://*.exe.xyz",
 	],
-	advanced: {
-		useSecureCookies,
-	},
 	emailAndPassword: {
 		enabled: false, // Using OTP only
 	},
