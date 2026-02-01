@@ -383,414 +383,406 @@ const SUPABASE_REGIONS = [
 export const configCommand = new Command()
 	.name("config")
 	.description("Generate a hatch.json config file from local CLI configs")
-	.option("-o, --output <path>", "Output file path", "hatch.json")
-	.option("--global", "Write to ~/.hatch.json instead of current directory")
+	.option("-o, --output <path>", "Output file path (defaults to ~/.hatch.json)")
 	.option(
 		"--refresh",
 		"Refresh only tokens, preserving orgs/teams/env vars from existing config",
 	)
-	.action(
-		async (options: { output: string; global: boolean; refresh: boolean }) => {
-			try {
-				// Determine config path
-				const configPath = options.global
-					? path.join(os.homedir(), ".hatch.json")
-					: path.resolve(process.cwd(), options.output);
+	.action(async (options: { output?: string; refresh: boolean }) => {
+		try {
+			// Determine config path - default to global ~/.hatch.json
+			const configPath = options.output
+				? path.resolve(process.cwd(), options.output)
+				: path.join(os.homedir(), ".hatch.json");
 
-				// Handle --refresh: just update tokens, preserve everything else
-				if (options.refresh) {
-					log.blank();
-					log.info("Refreshing tokens in existing config...");
-					log.blank();
+			// Handle --refresh: just update tokens, preserve everything else
+			if (options.refresh) {
+				log.blank();
+				log.info("Refreshing tokens in existing config...");
+				log.blank();
 
-					// Load existing config
-					if (!(await fs.pathExists(configPath))) {
-						log.error(`Config file not found: ${configPath}`);
-						log.info(
-							"Run 'hatch config --global' first to create a config file.",
-						);
-						process.exit(1);
-					}
-
-					const existingConfig: HatchConfig = await fs.readJson(configPath);
-
-					// Read fresh tokens
-					const githubToken = await readGitHubToken();
-					const vercelToken = await readVercelToken();
-					const supabaseToken = await readSupabaseToken();
-					const claudeCredentials = await getClaudeCredentials();
-
-					// Update tokens while preserving other settings
-					if (githubToken) {
-						existingConfig.github = {
-							...existingConfig.github,
-							token: githubToken,
-						};
-						log.success("GitHub token refreshed");
-					} else {
-						log.warn("Could not read GitHub token");
-					}
-
-					if (vercelToken) {
-						existingConfig.vercel = {
-							...existingConfig.vercel,
-							token: vercelToken,
-						};
-						log.success("Vercel token refreshed");
-					} else {
-						log.warn("Could not read Vercel token");
-					}
-
-					if (supabaseToken) {
-						existingConfig.supabase = {
-							...existingConfig.supabase,
-							token: supabaseToken,
-						};
-						log.success("Supabase token refreshed");
-					} else {
-						log.warn("Could not read Supabase token");
-					}
-
-					if (claudeCredentials) {
-						existingConfig.claude = claudeCredentials;
-						log.success("Claude Code credentials refreshed");
-					} else {
-						log.warn("Could not read Claude Code credentials");
-					}
-
-					// Write updated config
-					await fs.writeJson(configPath, existingConfig, { spaces: 2 });
-
-					log.blank();
-					log.success(`Tokens refreshed in ${configPath}`);
-					log.blank();
-					return;
+				// Load existing config
+				if (!(await fs.pathExists(configPath))) {
+					log.error(`Config file not found: ${configPath}`);
+					log.info("Run 'hatch config' first to create a config file.");
+					process.exit(1);
 				}
 
-				log.blank();
-				log.info("Generating hatch.json configuration...");
-				log.blank();
+				const existingConfig: HatchConfig = await fs.readJson(configPath);
 
-				const config: HatchConfig = {};
+				// Read fresh tokens
+				const githubToken = await readGitHubToken();
+				const vercelToken = await readVercelToken();
+				const supabaseToken = await readSupabaseToken();
+				const claudeCredentials = await getClaudeCredentials();
 
-				// Read GitHub token
-				let githubToken: string | null = null;
-				await withSpinner("Reading GitHub CLI config", async () => {
-					githubToken = await readGitHubToken();
-				});
-
+				// Update tokens while preserving other settings
 				if (githubToken) {
-					log.success("Found GitHub token");
-					config.github = { token: githubToken };
-
-					// Read git config for email and name
-					const gitEmail = await readGitConfig("user.email");
-					const gitName = await readGitConfig("user.name");
-
-					if (gitEmail) {
-						config.github.email = gitEmail;
-						log.success(`Found git user.email: ${gitEmail}`);
-					} else {
-						log.warn(
-							"Git user.email not set. Run 'git config --global user.email \"you@example.com\"'",
-						);
-					}
-
-					if (gitName) {
-						config.github.name = gitName;
-						log.success(`Found git user.name: ${gitName}`);
-					} else {
-						log.warn(
-							"Git user.name not set. Run 'git config --global user.name \"Your Name\"'",
-						);
-					}
-
-					// Get username and orgs
-					const username = await getGitHubUsername(githubToken);
-					const orgs = await getGitHubOrgs(githubToken);
-
-					if (orgs.length > 0 || username) {
-						const choices = [];
-
-						if (username) {
-							choices.push({
-								value: "",
-								name: `${username} (personal account)`,
-							});
-						}
-
-						for (const org of orgs) {
-							choices.push({
-								value: org.login,
-								name: `${org.login} (organization)`,
-							});
-						}
-
-						const selectedOrg = await select({
-							message: "Select GitHub account/organization:",
-							choices,
-						});
-
-						if (selectedOrg) {
-							config.github.org = selectedOrg;
-						}
-					}
+					existingConfig.github = {
+						...existingConfig.github,
+						token: githubToken,
+					};
+					log.success("GitHub token refreshed");
 				} else {
-					log.warn(
-						"GitHub token not found. Run 'gh auth login' to authenticate.",
-					);
+					log.warn("Could not read GitHub token");
 				}
-
-				// Read Vercel token
-				let vercelToken: string | null = null;
-				await withSpinner("Reading Vercel CLI config", async () => {
-					vercelToken = await readVercelToken();
-				});
 
 				if (vercelToken) {
-					log.success("Found Vercel token");
-					config.vercel = { token: vercelToken };
-
-					// Get teams
-					const teams = await getVercelTeams(vercelToken);
-
-					if (teams.length > 0) {
-						const teamChoices = teams.map((team) => ({
-							value: team.id,
-							name: `${team.name} (${team.slug})`,
-						}));
-
-						const selectedTeam = await select({
-							message: "Select Vercel team:",
-							choices: teamChoices,
-						});
-
-						config.vercel.team = selectedTeam;
-					} else {
-						log.warn(
-							"No Vercel teams found. You may need to create one first.",
-						);
-					}
+					existingConfig.vercel = {
+						...existingConfig.vercel,
+						token: vercelToken,
+					};
+					log.success("Vercel token refreshed");
 				} else {
-					log.warn(
-						"Vercel token not found. Run 'vercel login' to authenticate.",
-					);
+					log.warn("Could not read Vercel token");
 				}
-
-				// Read Supabase token
-				let supabaseToken: string | null = null;
-				await withSpinner("Reading Supabase CLI config", async () => {
-					supabaseToken = await readSupabaseToken();
-				});
 
 				if (supabaseToken) {
-					log.success("Found Supabase token");
-					config.supabase = { token: supabaseToken };
+					existingConfig.supabase = {
+						...existingConfig.supabase,
+						token: supabaseToken,
+					};
+					log.success("Supabase token refreshed");
+				} else {
+					log.warn("Could not read Supabase token");
+				}
 
-					// Get organizations
-					const orgs = await getSupabaseOrgs(supabaseToken);
+				if (claudeCredentials) {
+					existingConfig.claude = claudeCredentials;
+					log.success("Claude Code credentials refreshed");
+				} else {
+					log.warn("Could not read Claude Code credentials");
+				}
 
-					if (orgs.length > 0) {
-						const orgChoices = orgs.map((org) => ({
-							value: org.id,
-							name: org.name,
-						}));
+				// Write updated config
+				await fs.writeJson(configPath, existingConfig, { spaces: 2 });
 
-						const selectedOrg = await select({
-							message: "Select Supabase organization:",
-							choices: orgChoices,
-						});
+				log.blank();
+				log.success(`Tokens refreshed in ${configPath}`);
+				log.blank();
+				return;
+			}
 
-						config.supabase.org = selectedOrg;
-					} else {
-						log.warn(
-							"No Supabase organizations found. You may need to create one first.",
-						);
-					}
+			log.blank();
+			log.info("Generating hatch.json configuration...");
+			log.blank();
 
-					// Select region
-					const selectedRegion = await select({
-						message: "Select default Supabase region:",
-						choices: SUPABASE_REGIONS.map((r) => ({
-							value: r.value,
-							name: `${r.label} (${r.value})`,
-						})),
-						default: "us-east-1",
-					});
+			const config: HatchConfig = {};
 
-					config.supabase.region = selectedRegion;
+			// Read GitHub token
+			let githubToken: string | null = null;
+			await withSpinner("Reading GitHub CLI config", async () => {
+				githubToken = await readGitHubToken();
+			});
+
+			if (githubToken) {
+				log.success("Found GitHub token");
+				config.github = { token: githubToken };
+
+				// Read git config for email and name
+				const gitEmail = await readGitConfig("user.email");
+				const gitName = await readGitConfig("user.name");
+
+				if (gitEmail) {
+					config.github.email = gitEmail;
+					log.success(`Found git user.email: ${gitEmail}`);
 				} else {
 					log.warn(
-						"Supabase token not found. Run 'supabase login' to authenticate.",
+						"Git user.email not set. Run 'git config --global user.email \"you@example.com\"'",
 					);
 				}
 
-				// Read Claude Code credentials (macOS only)
-				if (process.platform === "darwin") {
-					let claudeCredentials: ClaudeConfig | undefined;
-					await withSpinner("Reading Claude Code credentials", async () => {
-						claudeCredentials = await getClaudeCredentials();
+				if (gitName) {
+					config.github.name = gitName;
+					log.success(`Found git user.name: ${gitName}`);
+				} else {
+					log.warn(
+						"Git user.name not set. Run 'git config --global user.name \"Your Name\"'",
+					);
+				}
+
+				// Get username and orgs
+				const username = await getGitHubUsername(githubToken);
+				const orgs = await getGitHubOrgs(githubToken);
+
+				if (orgs.length > 0 || username) {
+					const choices = [];
+
+					if (username) {
+						choices.push({
+							value: "",
+							name: `${username} (personal account)`,
+						});
+					}
+
+					for (const org of orgs) {
+						choices.push({
+							value: org.login,
+							name: `${org.login} (organization)`,
+						});
+					}
+
+					const selectedOrg = await select({
+						message: "Select GitHub account/organization:",
+						choices,
 					});
 
-					if (claudeCredentials) {
-						log.success("Found Claude Code credentials");
-						config.claude = claudeCredentials;
-					} else {
-						log.warn(
-							"Claude Code credentials not found. Run 'claude' and log in to authenticate.",
-						);
+					if (selectedOrg) {
+						config.github.org = selectedOrg;
 					}
 				}
+			} else {
+				log.warn(
+					"GitHub token not found. Run 'gh auth login' to authenticate.",
+				);
+			}
 
-				// Custom environment variables
-				log.blank();
-				log.info("Common env vars you may want to add:");
-				log.step("EMAIL_FROM - Sender email address (e.g., noreply@yourdomain.com)");
-				log.step("RESEND_API_KEY - Resend API key for sending emails");
-				log.step("AI_GATEWAY_API_KEY - AI gateway API key for LLM requests");
-				log.blank();
-				const addEnvVars = await confirm({
-					message: "Would you like to add custom environment variables?",
-					default: false,
+			// Read Vercel token
+			let vercelToken: string | null = null;
+			await withSpinner("Reading Vercel CLI config", async () => {
+				vercelToken = await readVercelToken();
+			});
+
+			if (vercelToken) {
+				log.success("Found Vercel token");
+				config.vercel = { token: vercelToken };
+
+				// Get teams
+				const teams = await getVercelTeams(vercelToken);
+
+				if (teams.length > 0) {
+					const teamChoices = teams.map((team) => ({
+						value: team.id,
+						name: `${team.name} (${team.slug})`,
+					}));
+
+					const selectedTeam = await select({
+						message: "Select Vercel team:",
+						choices: teamChoices,
+					});
+
+					config.vercel.team = selectedTeam;
+				} else {
+					log.warn("No Vercel teams found. You may need to create one first.");
+				}
+			} else {
+				log.warn("Vercel token not found. Run 'vercel login' to authenticate.");
+			}
+
+			// Read Supabase token
+			let supabaseToken: string | null = null;
+			await withSpinner("Reading Supabase CLI config", async () => {
+				supabaseToken = await readSupabaseToken();
+			});
+
+			if (supabaseToken) {
+				log.success("Found Supabase token");
+				config.supabase = { token: supabaseToken };
+
+				// Get organizations
+				const orgs = await getSupabaseOrgs(supabaseToken);
+
+				if (orgs.length > 0) {
+					const orgChoices = orgs.map((org) => ({
+						value: org.id,
+						name: org.name,
+					}));
+
+					const selectedOrg = await select({
+						message: "Select Supabase organization:",
+						choices: orgChoices,
+					});
+
+					config.supabase.org = selectedOrg;
+				} else {
+					log.warn(
+						"No Supabase organizations found. You may need to create one first.",
+					);
+				}
+
+				// Select region
+				const selectedRegion = await select({
+					message: "Select default Supabase region:",
+					choices: SUPABASE_REGIONS.map((r) => ({
+						value: r.value,
+						name: `${r.label} (${r.value})`,
+					})),
+					default: "us-east-1",
 				});
 
-				if (addEnvVars) {
-					const envVars: EnvVar[] = [];
-					let addMore = true;
-
-					while (addMore) {
-						const key = await input({
-							message: "Environment variable name:",
-							validate: (value) => {
-								if (!value.trim()) {
-									return "Variable name is required";
-								}
-								if (!/^[A-Z][A-Z0-9_]*$/.test(value.trim())) {
-									return "Variable name must be uppercase, start with a letter, and contain only A-Z, 0-9, and underscores";
-								}
-								if (envVars.some((v) => v.key === value.trim())) {
-									return "Variable already added";
-								}
-								return true;
-							},
-						});
-
-						const value = await password({
-							message: `Value for ${key}:`,
-							mask: "*",
-						});
-
-						const environments = await checkbox({
-							message: "Which environments should this variable be set in?",
-							choices: [
-								{
-									value: "production" as const,
-									name: "Production",
-									checked: true,
-								},
-								{ value: "preview" as const, name: "Preview", checked: true },
-								{
-									value: "development" as const,
-									name: "Development",
-									checked: true,
-								},
-							],
-						});
-
-						if (environments.length === 0) {
-							log.warn("No environments selected, skipping this variable.");
-						} else {
-							envVars.push({
-								key: key.trim(),
-								value,
-								environments: environments as (
-									| "production"
-									| "preview"
-									| "development"
-								)[],
-							});
-							log.success(`Added ${key}`);
-						}
-
-						addMore = await confirm({
-							message: "Add another environment variable?",
-							default: false,
-						});
-					}
-
-					if (envVars.length > 0) {
-						config.envVars = envVars;
-					}
-				}
-
-				// Write config file
-				await fs.writeJson(configPath, config, { spaces: 2 });
-
-				log.blank();
-				log.success(`Configuration saved to ${configPath}`);
-				log.blank();
+				config.supabase.region = selectedRegion;
+			} else {
 				log.warn(
-					"This file contains sensitive tokens - treat it like a password file.",
+					"Supabase token not found. Run 'supabase login' to authenticate.",
 				);
-				log.blank();
-
-				// Show summary
-				log.info("Configuration summary:");
-				if (config.github?.token) {
-					const githubParts = [
-						config.github.org ? `org=${config.github.org}` : "personal account",
-					];
-					if (config.github.email)
-						githubParts.push(`email=${config.github.email}`);
-					if (config.github.name)
-						githubParts.push(`name=${config.github.name}`);
-					log.step(`GitHub: ${githubParts.join(", ")}`);
-				}
-				if (config.vercel?.team) {
-					log.step(`Vercel: team=${config.vercel.team}`);
-				}
-				if (config.supabase?.org) {
-					log.step(
-						`Supabase: org=${config.supabase.org}, region=${config.supabase.region}`,
-					);
-				}
-				if (config.claude?.accessToken) {
-					log.step("Claude Code: credentials configured");
-				}
-				if (config.envVars && config.envVars.length > 0) {
-					log.step(`Custom env vars: ${config.envVars.length} configured`);
-				}
-				log.blank();
-
-				// Check for missing tokens
-				const missingTokens: string[] = [];
-				if (!config.github?.token) missingTokens.push("GitHub");
-				if (!config.vercel?.token) missingTokens.push("Vercel");
-				if (!config.supabase?.token) missingTokens.push("Supabase");
-
-				if (missingTokens.length > 0) {
-					log.warn(`Missing tokens for: ${missingTokens.join(", ")}`);
-					log.info(
-						"Authenticate with these CLIs first, then run this command again:",
-					);
-					if (!config.github?.token) log.step("gh auth login");
-					if (!config.vercel?.token) log.step("vercel login");
-					if (!config.supabase?.token) log.step("supabase login");
-					log.blank();
-				}
-			} catch (error) {
-				if (
-					error instanceof Error &&
-					error.message.includes("User force closed")
-				) {
-					log.blank();
-					log.info("Configuration cancelled.");
-					process.exit(0);
-				}
-				log.error(
-					`Failed to generate config: ${error instanceof Error ? error.message : error}`,
-				);
-				process.exit(1);
 			}
-		},
-	);
+
+			// Read Claude Code credentials (macOS only)
+			if (process.platform === "darwin") {
+				let claudeCredentials: ClaudeConfig | undefined;
+				await withSpinner("Reading Claude Code credentials", async () => {
+					claudeCredentials = await getClaudeCredentials();
+				});
+
+				if (claudeCredentials) {
+					log.success("Found Claude Code credentials");
+					config.claude = claudeCredentials;
+				} else {
+					log.warn(
+						"Claude Code credentials not found. Run 'claude' and log in to authenticate.",
+					);
+				}
+			}
+
+			// Custom environment variables
+			log.blank();
+			log.info("Common env vars you may want to add:");
+			log.step(
+				"EMAIL_FROM - Sender email address (e.g., noreply@yourdomain.com)",
+			);
+			log.step("RESEND_API_KEY - Resend API key for sending emails");
+			log.step("AI_GATEWAY_API_KEY - AI gateway API key for LLM requests");
+			log.blank();
+			const addEnvVars = await confirm({
+				message: "Would you like to add custom environment variables?",
+				default: false,
+			});
+
+			if (addEnvVars) {
+				const envVars: EnvVar[] = [];
+				let addMore = true;
+
+				while (addMore) {
+					const key = await input({
+						message: "Environment variable name:",
+						validate: (value) => {
+							if (!value.trim()) {
+								return "Variable name is required";
+							}
+							if (!/^[A-Z][A-Z0-9_]*$/.test(value.trim())) {
+								return "Variable name must be uppercase, start with a letter, and contain only A-Z, 0-9, and underscores";
+							}
+							if (envVars.some((v) => v.key === value.trim())) {
+								return "Variable already added";
+							}
+							return true;
+						},
+					});
+
+					const value = await password({
+						message: `Value for ${key}:`,
+						mask: "*",
+					});
+
+					const environments = await checkbox({
+						message: "Which environments should this variable be set in?",
+						choices: [
+							{
+								value: "production" as const,
+								name: "Production",
+								checked: true,
+							},
+							{ value: "preview" as const, name: "Preview", checked: true },
+							{
+								value: "development" as const,
+								name: "Development",
+								checked: true,
+							},
+						],
+					});
+
+					if (environments.length === 0) {
+						log.warn("No environments selected, skipping this variable.");
+					} else {
+						envVars.push({
+							key: key.trim(),
+							value,
+							environments: environments as (
+								| "production"
+								| "preview"
+								| "development"
+							)[],
+						});
+						log.success(`Added ${key}`);
+					}
+
+					addMore = await confirm({
+						message: "Add another environment variable?",
+						default: false,
+					});
+				}
+
+				if (envVars.length > 0) {
+					config.envVars = envVars;
+				}
+			}
+
+			// Write config file
+			await fs.writeJson(configPath, config, { spaces: 2 });
+
+			log.blank();
+			log.success(`Configuration saved to ${configPath}`);
+			log.blank();
+			log.warn(
+				"This file contains sensitive tokens - treat it like a password file.",
+			);
+			log.blank();
+
+			// Show summary
+			log.info("Configuration summary:");
+			if (config.github?.token) {
+				const githubParts = [
+					config.github.org ? `org=${config.github.org}` : "personal account",
+				];
+				if (config.github.email)
+					githubParts.push(`email=${config.github.email}`);
+				if (config.github.name) githubParts.push(`name=${config.github.name}`);
+				log.step(`GitHub: ${githubParts.join(", ")}`);
+			}
+			if (config.vercel?.team) {
+				log.step(`Vercel: team=${config.vercel.team}`);
+			}
+			if (config.supabase?.org) {
+				log.step(
+					`Supabase: org=${config.supabase.org}, region=${config.supabase.region}`,
+				);
+			}
+			if (config.claude?.accessToken) {
+				log.step("Claude Code: credentials configured");
+			}
+			if (config.envVars && config.envVars.length > 0) {
+				log.step(`Custom env vars: ${config.envVars.length} configured`);
+			}
+			log.blank();
+
+			// Check for missing tokens
+			const missingTokens: string[] = [];
+			if (!config.github?.token) missingTokens.push("GitHub");
+			if (!config.vercel?.token) missingTokens.push("Vercel");
+			if (!config.supabase?.token) missingTokens.push("Supabase");
+
+			if (missingTokens.length > 0) {
+				log.warn(`Missing tokens for: ${missingTokens.join(", ")}`);
+				log.info(
+					"Authenticate with these CLIs first, then run this command again:",
+				);
+				if (!config.github?.token) log.step("gh auth login");
+				if (!config.vercel?.token) log.step("vercel login");
+				if (!config.supabase?.token) log.step("supabase login");
+				log.blank();
+			}
+		} catch (error) {
+			if (
+				error instanceof Error &&
+				error.message.includes("User force closed")
+			) {
+				log.blank();
+				log.info("Configuration cancelled.");
+				process.exit(0);
+			}
+			log.error(
+				`Failed to generate config: ${error instanceof Error ? error.message : error}`,
+			);
+			process.exit(1);
+		}
+	});

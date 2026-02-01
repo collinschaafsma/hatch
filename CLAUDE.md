@@ -16,7 +16,7 @@ pnpm dev feature <name> --project <project>    # Create feature VM
 pnpm dev list                                  # List projects and VMs
 pnpm dev connect                               # Show VM connection info
 pnpm dev clean <name> --project <project>      # Clean up feature VM
-pnpm dev config --global                       # Generate config file
+pnpm dev config                                # Generate config file
 pnpm dev add <project-name>                    # Add existing project
 
 # Build

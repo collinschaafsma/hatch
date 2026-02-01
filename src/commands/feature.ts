@@ -78,7 +78,7 @@ export const featureCommand = new Command()
 			if (!(await fs.pathExists(configPath))) {
 				log.blank();
 				log.error(`Config file not found: ${configPath}`);
-				log.info("Run 'hatch config --global' to create a config file.");
+				log.info("Run 'hatch config' to create a config file.");
 				log.blank();
 				process.exit(1);
 			}

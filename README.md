@@ -37,7 +37,7 @@ Clone the repo and generate your config file:
 git clone https://github.com/collinschaafsma/hatch.git
 cd hatch
 pnpm install
-pnpm dev config --global
+pnpm dev config
 ```
 
 This creates `~/.hatch.json` with tokens extracted from your logged-in CLIs.
@@ -140,7 +140,7 @@ Hatch generates a complete full-stack monorepo with:
 
 ### The Configuration File
 
-Running `hatch config --global` creates `~/.hatch.json` containing:
+Running `hatch config` creates `~/.hatch.json` containing:
 
 - **GitHub token** - From `gh` CLI config
 - **Vercel token** - From `vercel` CLI config
@@ -153,7 +153,7 @@ This file is copied to VMs during setup so all CLIs authenticate automatically.
 
 You can add custom environment variables (like `RESEND_API_KEY`, `OPENAI_API_KEY`, or Vercel AI gateway vars) during `hatch config`. These get stored in `~/.hatch.json` and are automatically added to Vercel during project setup.
 
-When running `hatch config --global`, you'll be prompted:
+When running `hatch config`, you'll be prompted:
 
 ```
 ? Would you like to add custom environment variables? Yes
@@ -231,9 +231,9 @@ Supabase branching provides isolated databases for each environment:
 
 | Command | Description |
 |---------|-------------|
-| `hatch config` | Create hatch.json in current directory |
-| `hatch config --global` | Create ~/.hatch.json (recommended) |
-| `hatch config --global --refresh` | Refresh tokens without re-prompting for orgs/teams |
+| `hatch config` | Create ~/.hatch.json (default) |
+| `hatch config -o <path>` | Create config at custom path |
+| `hatch config --refresh` | Refresh tokens without re-prompting for orgs/teams |
 
 The config command prompts to add custom environment variables that will be automatically set in Vercel during project setup.
 
@@ -369,7 +369,7 @@ pnpm install
 |---------|-------------|
 | `pnpm dev new <name>` | Create project (ephemeral VM) |
 | `pnpm dev feature <name> --project <project>` | Create feature VM |
-| `pnpm dev config --global` | Generate config file |
+| `pnpm dev config` | Generate config file |
 | `pnpm dev add <name>` | Add existing project |
 | `pnpm dev list` | List projects and VMs |
 | `pnpm dev connect` | Show VM connection info |
