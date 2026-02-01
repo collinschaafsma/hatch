@@ -850,19 +850,6 @@ export const createCommand = new Command()
 						path.join(projectPath, ".github", "workflows", "test.yml"),
 						templates.generateTestWorkflow(name),
 					);
-					await writeFile(
-						path.join(
-							projectPath,
-							".github",
-							"workflows",
-							"claude-code-review.yml",
-						),
-						templates.generateClaudeCodeReviewWorkflow(),
-					);
-					await writeFile(
-						path.join(projectPath, ".github", "workflows", "claude.yml"),
-						templates.generateClaudeWorkflow(),
-					);
 				});
 
 				// Format code with Biome
