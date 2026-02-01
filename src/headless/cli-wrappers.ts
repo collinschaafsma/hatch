@@ -157,6 +157,47 @@ export async function getGhUsername(token?: string): Promise<string> {
 // Vercel CLI
 // ============================================================================
 
+/**
+ * Get the actual production URL for a Vercel project from the API
+ * Falls back to constructed URL if API call fails or no token provided
+ */
+export async function vercelGetProjectUrl(options: {
+	projectId: string;
+	projectName: string;
+	token?: string;
+}): Promise<string> {
+	if (!options.token) {
+		return `https://${options.projectName}.vercel.app`;
+	}
+
+	try {
+		const response = await fetch(
+			`https://api.vercel.com/v9/projects/${options.projectId}`,
+			{
+				headers: {
+					Authorization: `Bearer ${options.token}`,
+				},
+			},
+		);
+
+		if (!response.ok) {
+			return `https://${options.projectName}.vercel.app`;
+		}
+
+		const project = (await response.json()) as { alias?: string[] };
+
+		// Check aliases array - Vercel puts the production domain here
+		if (project.alias?.length) {
+			return `https://${project.alias[0]}`;
+		}
+
+		// Fallback to project name
+		return `https://${options.projectName}.vercel.app`;
+	} catch {
+		return `https://${options.projectName}.vercel.app`;
+	}
+}
+
 export interface VercelAuthStatus {
 	isAuthenticated: boolean;
 	username?: string;

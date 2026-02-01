@@ -4,6 +4,7 @@ import { input } from "@inquirer/prompts";
 import { Command } from "commander";
 import { execa } from "execa";
 import fs from "fs-extra";
+import { vercelGetProjectUrl } from "../headless/cli-wrappers.js";
 import type { HatchConfig, ProjectRecord } from "../types/index.js";
 import { log } from "../utils/logger.js";
 import { getProject, saveProject } from "../utils/project-store.js";
@@ -191,17 +192,27 @@ export const addCommand = new Command()
 						// Parse project ID from output
 						const idMatch = detail.match(/ID:\s*(\S+)/);
 						if (idMatch) {
+							const url = await vercelGetProjectUrl({
+								projectId: idMatch[1],
+								projectName,
+								token: config.vercel?.token,
+							});
 							vercel = {
 								projectId: idMatch[1],
-								url: `https://${projectName}.vercel.app`,
+								url,
 							};
 							vercelSpinner.succeed(`Found Vercel project: ${projectName}`);
 						}
 					} catch {
 						// Fallback: just use the project name
+						const url = await vercelGetProjectUrl({
+							projectId: projectName,
+							projectName,
+							token: config.vercel?.token,
+						});
 						vercel = {
 							projectId: projectName,
-							url: `https://${projectName}.vercel.app`,
+							url,
 						};
 						vercelSpinner.succeed(`Found Vercel project: ${projectName}`);
 					}

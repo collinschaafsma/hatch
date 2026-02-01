@@ -5,6 +5,7 @@ import { withSpinner } from "../utils/spinner.js";
 import {
 	vercelEnvAdd,
 	vercelEnvPull,
+	vercelGetProjectUrl,
 	vercelGitConnect,
 	vercelLink,
 } from "./cli-wrappers.js";
@@ -250,9 +251,11 @@ export async function setupVercel(
 	}
 
 	// Deployment is triggered by git push in the next step
-	// Just return the expected URL
+	// Get the actual URL from Vercel API
+	const url = await vercelGetProjectUrl({ projectId, projectName, token });
+
 	return {
-		url: `https://${projectName}.vercel.app`,
+		url,
 		projectId,
 		projectName,
 	};
