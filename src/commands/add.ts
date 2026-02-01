@@ -192,27 +192,27 @@ export const addCommand = new Command()
 						// Parse project ID from output
 						const idMatch = detail.match(/ID:\s*(\S+)/);
 						if (idMatch) {
-							const url = await vercelGetProjectUrl({
+							const result = await vercelGetProjectUrl({
 								projectId: idMatch[1],
 								projectName,
 								token: config.vercel?.token,
 							});
 							vercel = {
 								projectId: idMatch[1],
-								url,
+								url: result.url,
 							};
 							vercelSpinner.succeed(`Found Vercel project: ${projectName}`);
 						}
 					} catch {
 						// Fallback: just use the project name
-						const url = await vercelGetProjectUrl({
+						const result = await vercelGetProjectUrl({
 							projectId: projectName,
 							projectName,
 							token: config.vercel?.token,
 						});
 						vercel = {
 							projectId: projectName,
-							url,
+							url: result.url,
 						};
 						vercelSpinner.succeed(`Found Vercel project: ${projectName}`);
 					}

@@ -7,6 +7,7 @@ import type {
 import { log } from "../utils/logger.js";
 import { withSpinner } from "../utils/spinner.js";
 import { runBootstrap } from "./bootstrap.js";
+import { vercelWaitForProductionUrl } from "./cli-wrappers.js";
 import {
 	loadConfigFile,
 	resolveConfig,
@@ -231,6 +232,30 @@ export async function runHeadlessSetup(
 				log.warn(
 					"Could not push setup changes - deploy manually with: git push origin main",
 				);
+			}
+		}
+
+		// Wait for Vercel deployment to complete and get the real URL
+		if (vercelResult) {
+			if (!config.quiet) {
+				log.blank();
+				const realUrl = await withSpinner(
+					"Waiting for Vercel deployment to complete",
+					async () => {
+						return vercelWaitForProductionUrl({
+							projectId: vercelResult.projectId,
+							projectName: vercelResult.projectName,
+							token: config.vercel.token,
+						});
+					},
+				);
+				vercelResult.url = realUrl;
+			} else {
+				vercelResult.url = await vercelWaitForProductionUrl({
+					projectId: vercelResult.projectId,
+					projectName: vercelResult.projectName,
+					token: config.vercel.token,
+				});
 			}
 		}
 

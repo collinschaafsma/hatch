@@ -165,9 +165,12 @@ export async function vercelGetProjectUrl(options: {
 	projectId: string;
 	projectName: string;
 	token?: string;
-}): Promise<string> {
+}): Promise<{ url: string; hasAlias: boolean }> {
 	if (!options.token) {
-		return `https://${options.projectName}.vercel.app`;
+		return {
+			url: `https://${options.projectName}.vercel.app`,
+			hasAlias: false,
+		};
 	}
 
 	try {
@@ -181,21 +184,60 @@ export async function vercelGetProjectUrl(options: {
 		);
 
 		if (!response.ok) {
-			return `https://${options.projectName}.vercel.app`;
+			return {
+				url: `https://${options.projectName}.vercel.app`,
+				hasAlias: false,
+			};
 		}
 
 		const project = (await response.json()) as { alias?: string[] };
 
 		// Check aliases array - Vercel puts the production domain here
 		if (project.alias?.length) {
-			return `https://${project.alias[0]}`;
+			return {
+				url: `https://${project.alias[0]}`,
+				hasAlias: true,
+			};
 		}
 
 		// Fallback to project name
-		return `https://${options.projectName}.vercel.app`;
+		return {
+			url: `https://${options.projectName}.vercel.app`,
+			hasAlias: false,
+		};
 	} catch {
-		return `https://${options.projectName}.vercel.app`;
+		return {
+			url: `https://${options.projectName}.vercel.app`,
+			hasAlias: false,
+		};
 	}
+}
+
+/**
+ * Wait for Vercel deployment to complete and return the production URL
+ * Polls until an alias is assigned or timeout is reached
+ */
+export async function vercelWaitForProductionUrl(options: {
+	projectId: string;
+	projectName: string;
+	token?: string;
+	timeoutMs?: number;
+	pollIntervalMs?: number;
+}): Promise<string> {
+	const timeoutMs = options.timeoutMs ?? 120000; // 2 minutes default
+	const pollIntervalMs = options.pollIntervalMs ?? 5000; // 5 seconds default
+	const startTime = Date.now();
+
+	while (Date.now() - startTime < timeoutMs) {
+		const result = await vercelGetProjectUrl(options);
+		if (result.hasAlias) {
+			return result.url;
+		}
+		await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+	}
+
+	// Timeout - return fallback URL
+	return `https://${options.projectName}.vercel.app`;
 }
 
 export interface VercelAuthStatus {
