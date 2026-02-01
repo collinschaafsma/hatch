@@ -157,15 +157,50 @@ export async function getGhUsername(token?: string): Promise<string> {
 // Vercel CLI
 // ============================================================================
 
+interface VercelProductionTarget {
+	alias?: string[];
+	automaticAliases?: string[];
+}
+
 interface VercelProjectResponse {
 	targets?: {
-		production?: {
-			alias?: string[];
-		};
+		production?: VercelProductionTarget;
 	};
 	latestDeployments?: Array<{
 		alias?: string[];
+		automaticAliases?: string[];
 	}>;
+}
+
+/**
+ * Find the "pretty" production alias (the one that's not an automatic team/branch alias)
+ * Automatic aliases look like: my-app-username-projects.vercel.app or my-app-git-main-username-projects.vercel.app
+ * Pretty aliases look like: my-app-gamma-mocha-68.vercel.app
+ *
+ * Returns { prettyAlias, foundPretty } where foundPretty indicates if we found a non-automatic alias
+ */
+function findPrettyAlias(
+	aliases: string[] | undefined,
+	automaticAliases: string[] | undefined,
+): { prettyAlias: string | undefined; foundPretty: boolean } {
+	if (!aliases?.length) return { prettyAlias: undefined, foundPretty: false };
+
+	// If we have automaticAliases, find the alias that's NOT in that list
+	if (automaticAliases?.length) {
+		const autoSet = new Set(automaticAliases);
+		const prettyAlias = aliases.find((alias) => !autoSet.has(alias));
+		if (prettyAlias) return { prettyAlias, foundPretty: true };
+	}
+
+	// Fallback: return first alias that doesn't contain "projects.vercel.app"
+	// (automatic aliases typically have the team name followed by -projects)
+	const prettyAlias = aliases.find(
+		(alias) => !alias.includes("-projects.vercel.app"),
+	);
+	if (prettyAlias) return { prettyAlias, foundPretty: true };
+
+	// No pretty alias found yet - return first alias but mark as not found
+	return { prettyAlias: aliases[0], foundPretty: false };
 }
 
 /**
@@ -203,22 +238,34 @@ export async function vercelGetProjectUrl(options: {
 
 		const project = (await response.json()) as VercelProjectResponse;
 
-		// Check targets.production.alias - this is where Vercel puts the production domains
-		const productionAliases = project.targets?.production?.alias;
-		if (productionAliases?.length) {
-			return {
-				url: `https://${productionAliases[0]}`,
-				hasAlias: true,
-			};
+		// Check targets.production - find the pretty alias (not automatic team/branch alias)
+		const production = project.targets?.production;
+		if (production?.alias?.length) {
+			const { prettyAlias, foundPretty } = findPrettyAlias(
+				production.alias,
+				production.automaticAliases,
+			);
+			if (prettyAlias) {
+				return {
+					url: `https://${prettyAlias}`,
+					hasAlias: foundPretty, // Only true if we found a non-automatic alias
+				};
+			}
 		}
 
-		// Fallback: check latestDeployments[0].alias
-		const latestAliases = project.latestDeployments?.[0]?.alias;
-		if (latestAliases?.length) {
-			return {
-				url: `https://${latestAliases[0]}`,
-				hasAlias: true,
-			};
+		// Fallback: check latestDeployments[0]
+		const latestDeploy = project.latestDeployments?.[0];
+		if (latestDeploy?.alias?.length) {
+			const { prettyAlias, foundPretty } = findPrettyAlias(
+				latestDeploy.alias,
+				latestDeploy.automaticAliases,
+			);
+			if (prettyAlias) {
+				return {
+					url: `https://${prettyAlias}`,
+					hasAlias: foundPretty, // Only true if we found a non-automatic alias
+				};
+			}
 		}
 
 		// Fallback to project name
