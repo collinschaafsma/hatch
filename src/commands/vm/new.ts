@@ -13,6 +13,7 @@ import { log } from "../../utils/logger.js";
 import { saveProject } from "../../utils/project-store.js";
 import { createSpinner } from "../../utils/spinner.js";
 import { scpToRemote, sshExec } from "../../utils/ssh.js";
+import { checkAndPromptTokenRefresh } from "../../utils/token-check.js";
 
 interface VMNewOptions {
 	config?: string;
@@ -67,6 +68,13 @@ export const vmNewCommand = new Command()
 				log.info("Run 'hatch config --global' to create a config file.");
 				log.blank();
 				process.exit(1);
+			}
+
+			// Check for stale tokens
+			const shouldContinue = await checkAndPromptTokenRefresh(configPath);
+			if (!shouldContinue) {
+				log.info("Operation cancelled.");
+				process.exit(0);
 			}
 
 			// Step 2: Create temporary VM
