@@ -45,7 +45,7 @@ This creates `~/.hatch.json` with tokens extracted from your logged-in CLIs.
 ### 2. Create a Project
 
 ```bash
-pnpm dev vm new my-app
+pnpm dev new my-app
 ```
 
 This provisions a temporary exe.dev VM, sets up a complete project (GitHub, Vercel, Supabase), then deletes the VM. The project details are saved locally.
@@ -55,7 +55,7 @@ This provisions a temporary exe.dev VM, sets up a complete project (GitHub, Verc
 Create a feature VM with its own git branch and database branches:
 
 ```bash
-pnpm dev vm feature add-auth --project my-app
+pnpm dev feature add-auth --project my-app
 ```
 
 This:
@@ -93,7 +93,7 @@ claude
 When done with a feature, delete the VM and Supabase branches:
 
 ```bash
-pnpm dev vm clean add-auth --project my-app
+pnpm dev clean add-auth --project my-app
 ```
 
 The project (GitHub, Vercel, Supabase) is preserved—only the VM and feature branches are deleted.
@@ -184,9 +184,9 @@ The variables are stored in `hatch.json`:
 }
 ```
 
-During `vm new` or feature VM setup, these variables are automatically added to your Vercel project and pulled to `.env.local` via `vercel env pull`.
+During `hatch new` or feature VM setup, these variables are automatically added to your Vercel project and pulled to `.env.local` via `vercel env pull`.
 
-### What `vm new` Does
+### What `hatch new` Does
 
 1. **Provisions temp VM** - Creates an exe.dev VM
 2. **Copies config** - Transfers `~/.hatch.json` to the VM
@@ -195,7 +195,7 @@ During `vm new` or feature VM setup, these variables are automatically added to 
 5. **Deletes VM** - The VM is ephemeral, removed after setup
 6. **Saves project** - Stores project info in `~/.hatch/projects.json`
 
-### What `vm feature` Does
+### What `hatch feature` Does
 
 1. **Looks up project** - Gets GitHub URL from `~/.hatch/projects.json`
 2. **Creates new VM** - Provisions exe.dev VM for this feature
@@ -210,10 +210,10 @@ During `vm new` or feature VM setup, these variables are automatically added to 
 Have a project already set up? Add it to Hatch to use feature VMs:
 
 ```bash
-pnpm dev vm add my-existing-app
+pnpm dev add my-existing-app
 ```
 
-This looks up your GitHub, Vercel, and Supabase resources by project name and saves them for tracking. Then use `vm feature` to create isolated development environments.
+This looks up your GitHub, Vercel, and Supabase resources by project name and saves them for tracking. Then use `hatch feature` to create isolated development environments.
 
 ### Database Isolation
 
@@ -237,24 +237,24 @@ Supabase branching provides isolated databases for each environment:
 
 The config command prompts to add custom environment variables that will be automatically set in Vercel during project setup.
 
-**Stale Token Detection:** When running `vm new` or `vm feature`, Hatch automatically checks if your CLI tokens have changed since you last ran `hatch config`. If stale tokens are detected, you'll be prompted to refresh them before proceeding.
+**Stale Token Detection:** When running `hatch new` or `hatch feature`, Hatch automatically checks if your CLI tokens have changed since you last ran `hatch config`. If stale tokens are detected, you'll be prompted to refresh them before proceeding.
 
 ### Project Management
 
 | Command | Description |
 |---------|-------------|
-| `hatch vm new <project>` | Create new project (ephemeral VM setup) |
-| `hatch vm add <project>` | Add existing project to track for feature VMs |
-| `hatch vm list --projects` | List all projects |
+| `hatch new <project>` | Create new project (ephemeral VM setup) |
+| `hatch add <project>` | Add existing project to track for feature VMs |
+| `hatch list --projects` | List all projects |
 
 ### Feature VM Management
 
 | Command | Description |
 |---------|-------------|
-| `hatch vm feature <name> --project <project>` | Create feature VM with branches |
-| `hatch vm connect [feature] --project <project>` | Show connection info |
-| `hatch vm list` | List projects with feature VMs |
-| `hatch vm clean <feature> --project <project>` | Delete feature VM and branches |
+| `hatch feature <name> --project <project>` | Create feature VM with branches |
+| `hatch connect [feature] --project <project>` | Show connection info |
+| `hatch list` | List projects with feature VMs |
+| `hatch clean <feature> --project <project>` | Delete feature VM and branches |
 
 ### Options
 
@@ -312,7 +312,7 @@ Enterprise SSO for B2B applications:
 - User provisioning
 
 ```bash
-pnpm dev vm new my-app --workos
+pnpm dev new my-app --workos
 ```
 
 ## GitHub Actions
@@ -346,16 +346,6 @@ Generated projects come with pre-installed [Claude Code skills](https://docs.ant
 
 Skills are installed from public GitHub repos during project creation. Use `/skills` in Claude Code to see available skills or `/find-skills` to discover more.
 
-## Advanced: Local Development
-
-For local development without VMs, you can run `hatch create` directly:
-
-```bash
-pnpm dev create ../my-app
-```
-
-Then follow the prompts or run `pnpm app:setup` for automated GitHub/Vercel/Supabase configuration.
-
 ---
 
 ## Development (Contributing to Hatch)
@@ -377,10 +367,13 @@ pnpm install
 
 | Command | Description |
 |---------|-------------|
-| `pnpm dev create [name]` | Run CLI in development mode |
+| `pnpm dev new <name>` | Create project (ephemeral VM) |
+| `pnpm dev feature <name> --project <project>` | Create feature VM |
 | `pnpm dev config --global` | Generate config file |
-| `pnpm dev vm new <name>` | Create project (ephemeral VM) |
-| `pnpm dev vm feature <name> --project <project>` | Create feature VM |
+| `pnpm dev add <name>` | Add existing project |
+| `pnpm dev list` | List projects and VMs |
+| `pnpm dev connect` | Show VM connection info |
+| `pnpm dev clean <name> --project <project>` | Clean up feature VM |
 | `pnpm build` | Build with tsup |
 | `pnpm lint` | Lint with Biome |
 | `pnpm format` | Format with Biome |

@@ -4,51 +4,55 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Hatch is a TypeScript CLI tool that scaffolds production-ready Turborepo monorepos. It generates a full-stack setup with Next.js, authentication (Better Auth with email OTP or WorkOS), Drizzle ORM, Vercel AI SDK, and Workflow DevKit.
+Hatch is a TypeScript CLI tool that provisions exe.dev VMs for cloud-first development. It creates projects with GitHub, Vercel, and Supabase, then manages ephemeral feature VMs for isolated development environments.
 
 ## Commands
 
 ```bash
 # Development - run CLI directly
-pnpm dev create [project-name]        # Create with Better Auth
-pnpm dev create [project-name] --workos  # Create with WorkOS
+pnpm dev new <project-name>                    # Create new project
+pnpm dev new <project-name> --workos           # Create with WorkOS auth
+pnpm dev feature <name> --project <project>    # Create feature VM
+pnpm dev list                                  # List projects and VMs
+pnpm dev connect                               # Show VM connection info
+pnpm dev clean <name> --project <project>      # Clean up feature VM
+pnpm dev config --global                       # Generate config file
+pnpm dev add <project-name>                    # Add existing project
 
 # Build
-pnpm build                            # Build with tsup to dist/
+pnpm build                                     # Build with tsup to dist/
 
 # Code Quality
-pnpm lint                             # Lint with Biome
-pnpm format                           # Format with Biome
+pnpm lint                                      # Lint with Biome
+pnpm format                                    # Format with Biome
 ```
 
 ## Architecture
 
 ### CLI Flow
-`src/index.ts` → Commander setup → `src/commands/create.ts` orchestrates the entire project generation
+`src/index.ts` → Commander setup → Individual command files in `src/commands/`
 
-### Template System
-Templates live in `src/templates/` organized by feature. Each exports functions that return stringified content:
-
-- **root/** - Monorepo configs (package.json, turbo.json, pnpm-workspace.yaml, biome.json)
-- **web/** - Next.js app (package.json, next.config, layout, pages, CSS, Tailwind)
-- **db/** - Drizzle ORM setup (client, schema, config)
-- **auth/better-auth/** - Email OTP auth (server config, client, API handler, login/verify pages, middleware)
-- **auth/workos/** - Enterprise SSO (callback route, middleware, login page)
-- **ai/** - Chat API route using Vercel AI SDK
-- **workflow/** - Vercel Workflow DevKit example
-- **dashboard/** - Protected dashboard with AI trigger button
-- **ui/** - Shared UI package structure
+### Commands
+- **new.ts** - Create a new project via ephemeral VM
+- **feature.ts** - Create feature VM with git/Supabase branches
+- **add.ts** - Add existing project to tracking
+- **connect.ts** - Show VM connection info
+- **list.ts** - List projects and feature VMs
+- **clean.ts** - Clean up feature VM and branches
+- **config.ts** - Generate hatch.json config file
 
 ### Utils
-- **exec.ts** - Wrappers for pnpm/git commands via execa
+- **exe-dev.ts** - exe.dev VM management (create, delete, share port)
+- **ssh.ts** - SSH/SCP wrappers for VM communication
 - **spinner.ts** - Ora progress spinners with `withSpinner()` helper
 - **logger.ts** - Colored console output (info, success, warn, error, step)
-- **fs.ts** - File operations via fs-extra
-- **prompts.ts** - Interactive prompts with npm package name validation
+- **project-store.ts** - Persist project records to ~/.hatch/projects.json
+- **vm-store.ts** - Persist VM records to ~/.hatch/vms.json
+- **token-check.ts** - Detect stale tokens and prompt for refresh
 
 ## Generated Project Stack
 
-When users run the CLI, it creates:
+When `hatch new` runs, the install script on the VM creates:
 - Turborepo 2.7+ with pnpm workspaces
 - Next.js 16 with React 19
 - Drizzle ORM 0.45+ with PostgreSQL
@@ -60,6 +64,8 @@ When users run the CLI, it creates:
 
 ## Key Files
 
-- `src/commands/create.ts` - Main orchestration logic (~330 lines)
-- `src/templates/index.ts` - Exports all template generators
-- `src/types/index.ts` - CreateOptions and TemplateContext interfaces
+- `src/index.ts` - CLI entry point with command registration
+- `src/commands/*.ts` - Individual command implementations
+- `src/types/index.ts` - HatchConfig, ProjectRecord, VMRecord interfaces
+- `scripts/install.sh` - VM install script for new projects
+- `scripts/feature-install.sh` - VM setup script for feature VMs

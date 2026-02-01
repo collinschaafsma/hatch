@@ -81,9 +81,7 @@ export async function checkAndPromptTokenRefresh(
 	}
 
 	log.warn(`Stale tokens detected: ${staleTokens.join(", ")}`);
-	log.info(
-		"Your local CLI has newer tokens than your hatch config.",
-	);
+	log.info("Your local CLI has newer tokens than your hatch config.");
 	log.blank();
 
 	const shouldRefresh = await confirm({
