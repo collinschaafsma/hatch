@@ -16,9 +16,17 @@ function getResend(): Resend {
 	return resendClient;
 }
 
+// Get app URL, checking multiple sources for different environments
+function getAppUrl(): string {
+	if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+	if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return \`https://\${process.env.VERCEL_PROJECT_PRODUCTION_URL}\`;
+	if (process.env.VERCEL_URL) return \`https://\${process.env.VERCEL_URL}\`;
+	return "http://localhost:3000";
+}
+
 // Determine if we should use secure cookies
 // Disable for local dev and exe.dev VMs (proxy terminates TLS, so server sees HTTP)
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
+const appUrl = getAppUrl();
 const isExeDevVM = appUrl.includes(".exe.xyz");
 const isLocalDev = appUrl.includes("localhost") || process.env.NODE_ENV === "development";
 const useSecureCookies = !isExeDevVM && !isLocalDev;
@@ -26,7 +34,7 @@ const useSecureCookies = !isExeDevVM && !isLocalDev;
 export const auth = betterAuth({
 	database: drizzleAdapter(db, { provider: "pg" }),
 	trustedOrigins: [
-		process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+		getAppUrl(),
 		// Allow exe.dev VMs for development
 		"https://*.exe.xyz",
 	],

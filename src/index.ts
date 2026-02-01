@@ -5,6 +5,7 @@ import { cleanCommand } from "./commands/clean.js";
 import { configCommand } from "./commands/config.js";
 import { connectCommand } from "./commands/connect.js";
 import { createCommand } from "./commands/create.js";
+import { destroyCommand } from "./commands/destroy.js";
 import { featureCommand } from "./commands/feature.js";
 import { listCommand } from "./commands/list.js";
 import { newCommand } from "./commands/new.js";
@@ -22,6 +23,7 @@ program.addCommand(listCommand);
 program.addCommand(cleanCommand);
 program.addCommand(configCommand);
 program.addCommand(createCommand);
+program.addCommand(destroyCommand);
 
 // If no command is specified, default to help
 if (process.argv.length === 2) {

@@ -756,6 +756,10 @@ setup_better_auth_secrets() {
     print_warning "Could not set development BETTER_AUTH_URL"
   fi
 
+  # Note: NEXT_PUBLIC_APP_URL is handled automatically via VERCEL_PROJECT_PRODUCTION_URL
+  # The app's next.config.ts exposes this to client-side code
+  # For feature VMs, NEXT_PUBLIC_APP_URL is set in .env.local to the exe.xyz URL
+
   # Note: Development secrets will be pulled to .env.local by pull_vercel_env()
   print_success "Better Auth secrets configured for all environments!"
 }
