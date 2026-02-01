@@ -385,8 +385,85 @@ export const configCommand = new Command()
 	.description("Generate a hatch.json config file from local CLI configs")
 	.option("-o, --output <path>", "Output file path", "hatch.json")
 	.option("--global", "Write to ~/.hatch.json instead of current directory")
-	.action(async (options: { output: string; global: boolean }) => {
+	.option(
+		"--refresh",
+		"Refresh only tokens, preserving orgs/teams/env vars from existing config",
+	)
+	.action(async (options: { output: string; global: boolean; refresh: boolean }) => {
 		try {
+			// Determine config path
+			const configPath = options.global
+				? path.join(os.homedir(), ".hatch.json")
+				: path.resolve(process.cwd(), options.output);
+
+			// Handle --refresh: just update tokens, preserve everything else
+			if (options.refresh) {
+				log.blank();
+				log.info("Refreshing tokens in existing config...");
+				log.blank();
+
+				// Load existing config
+				if (!(await fs.pathExists(configPath))) {
+					log.error(`Config file not found: ${configPath}`);
+					log.info("Run 'hatch config --global' first to create a config file.");
+					process.exit(1);
+				}
+
+				const existingConfig: HatchConfig = await fs.readJson(configPath);
+
+				// Read fresh tokens
+				const githubToken = await readGitHubToken();
+				const vercelToken = await readVercelToken();
+				const supabaseToken = await readSupabaseToken();
+				const claudeCredentials = await getClaudeCredentials();
+
+				// Update tokens while preserving other settings
+				if (githubToken) {
+					existingConfig.github = {
+						...existingConfig.github,
+						token: githubToken,
+					};
+					log.success("GitHub token refreshed");
+				} else {
+					log.warn("Could not read GitHub token");
+				}
+
+				if (vercelToken) {
+					existingConfig.vercel = {
+						...existingConfig.vercel,
+						token: vercelToken,
+					};
+					log.success("Vercel token refreshed");
+				} else {
+					log.warn("Could not read Vercel token");
+				}
+
+				if (supabaseToken) {
+					existingConfig.supabase = {
+						...existingConfig.supabase,
+						token: supabaseToken,
+					};
+					log.success("Supabase token refreshed");
+				} else {
+					log.warn("Could not read Supabase token");
+				}
+
+				if (claudeCredentials) {
+					existingConfig.claude = claudeCredentials;
+					log.success("Claude Code credentials refreshed");
+				} else {
+					log.warn("Could not read Claude Code credentials");
+				}
+
+				// Write updated config
+				await fs.writeJson(configPath, existingConfig, { spaces: 2 });
+
+				log.blank();
+				log.success(`Tokens refreshed in ${configPath}`);
+				log.blank();
+				return;
+			}
+
 			log.blank();
 			log.info("Generating hatch.json configuration...");
 			log.blank();
@@ -634,16 +711,11 @@ export const configCommand = new Command()
 				}
 			}
 
-			// Determine output path
-			const outputPath = options.global
-				? path.join(os.homedir(), ".hatch.json")
-				: path.resolve(process.cwd(), options.output);
-
 			// Write config file
-			await fs.writeJson(outputPath, config, { spaces: 2 });
+			await fs.writeJson(configPath, config, { spaces: 2 });
 
 			log.blank();
-			log.success(`Configuration saved to ${outputPath}`);
+			log.success(`Configuration saved to ${configPath}`);
 			log.blank();
 			log.warn(
 				"This file contains sensitive tokens - treat it like a password file.",
