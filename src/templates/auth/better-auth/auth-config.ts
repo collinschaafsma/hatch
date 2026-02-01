@@ -56,7 +56,7 @@ export const auth = betterAuth({
 				// Send email via Resend
 				try {
 					await getResend().emails.send({
-						from: "noreply@yourdomain.com", // Update with your domain
+						from: process.env.EMAIL_FROM || "noreply@yourdomain.com",
 						to: email,
 						subject: type === "sign-in"
 							? "Your sign-in code"
