@@ -233,8 +233,11 @@ Supabase branching provides isolated databases for each environment:
 |---------|-------------|
 | `hatch config` | Create hatch.json in current directory |
 | `hatch config --global` | Create ~/.hatch.json (recommended) |
+| `hatch config --global --refresh` | Refresh tokens without re-prompting for orgs/teams |
 
 The config command prompts to add custom environment variables that will be automatically set in Vercel during project setup.
+
+**Stale Token Detection:** When running `vm new` or `vm feature`, Hatch automatically checks if your CLI tokens have changed since you last ran `hatch config`. If stale tokens are detected, you'll be prompted to refresh them before proceeding.
 
 ### Project Management
 
