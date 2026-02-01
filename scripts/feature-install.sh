@@ -403,6 +403,12 @@ if [[ -n "${GITHUB_TOKEN:-}" ]]; then
         success "Git credentials configured via token"
         GIT_AUTH_CONFIGURED=true
     fi
+
+    # Also set GH_TOKEN in bashrc for tools that need it (like Claude Code for PRs)
+    if ! grep -q "export GH_TOKEN=" ~/.bashrc 2>/dev/null; then
+        echo "export GH_TOKEN=\"${GITHUB_TOKEN}\"" >> ~/.bashrc
+        success "GH_TOKEN added to .bashrc for future sessions"
+    fi
 fi
 
 # Configure git user (required for commits to match GitHub account)
