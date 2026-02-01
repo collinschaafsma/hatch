@@ -157,6 +157,17 @@ export async function getGhUsername(token?: string): Promise<string> {
 // Vercel CLI
 // ============================================================================
 
+interface VercelProjectResponse {
+	targets?: {
+		production?: {
+			alias?: string[];
+		};
+	};
+	latestDeployments?: Array<{
+		alias?: string[];
+	}>;
+}
+
 /**
  * Get the actual production URL for a Vercel project from the API
  * Falls back to constructed URL if API call fails or no token provided
@@ -190,12 +201,22 @@ export async function vercelGetProjectUrl(options: {
 			};
 		}
 
-		const project = (await response.json()) as { alias?: string[] };
+		const project = (await response.json()) as VercelProjectResponse;
 
-		// Check aliases array - Vercel puts the production domain here
-		if (project.alias?.length) {
+		// Check targets.production.alias - this is where Vercel puts the production domains
+		const productionAliases = project.targets?.production?.alias;
+		if (productionAliases?.length) {
 			return {
-				url: `https://${project.alias[0]}`,
+				url: `https://${productionAliases[0]}`,
+				hasAlias: true,
+			};
+		}
+
+		// Fallback: check latestDeployments[0].alias
+		const latestAliases = project.latestDeployments?.[0]?.alias;
+		if (latestAliases?.length) {
+			return {
+				url: `https://${latestAliases[0]}`,
 				hasAlias: true,
 			};
 		}
