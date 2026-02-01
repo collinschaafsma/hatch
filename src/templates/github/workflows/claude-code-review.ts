@@ -22,8 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
-      issues: read
+      pull-requests: write
+      issues: write
       id-token: write
 
     steps:
@@ -37,6 +37,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: \${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: \${{ secrets.GITHUB_TOKEN }}
           prompt: |
             REPO: \${{ github.repository }}
             PR NUMBER: \${{ github.event.pull_request.number }}
