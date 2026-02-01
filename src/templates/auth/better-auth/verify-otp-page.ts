@@ -1,0 +1,136 @@
+export function generateVerifyOTPPage(): string {
+	return `"use client";
+
+import { useState, useEffect, startTransition } from "react";
+import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
+import { Button } from "@workspace/ui/components/button";
+import { Input } from "@workspace/ui/components/input";
+import { Label } from "@workspace/ui/components/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@workspace/ui/components/card";
+
+export default function VerifyOTPPage() {
+	const router = useRouter();
+	const [otp, setOtp] = useState("");
+	// Lazy initialization - read email from sessionStorage immediately
+	const [email] = useState(() =>
+		typeof window !== "undefined"
+			? sessionStorage.getItem("pendingEmail") || ""
+			: ""
+	);
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState("");
+
+	// Redirect if no pending email (after hydration)
+	useEffect(() => {
+		if (!email) {
+			router.push("/login");
+		}
+	}, [email, router]);
+
+	const handleVerify = async (e: React.FormEvent) => {
+		e.preventDefault();
+		setLoading(true);
+		setError("");
+
+		try {
+			const { error } = await authClient.signIn.emailOtp({
+				email,
+				otp,
+			});
+
+			if (error) {
+				setError(error.message || "Invalid code");
+				return;
+			}
+
+			sessionStorage.removeItem("pendingEmail");
+			router.push("/dashboard");
+		} catch {
+			setError("An unexpected error occurred");
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	const handleResend = async () => {
+		setLoading(true);
+		setError("");
+
+		try {
+			const { error } = await authClient.emailOtp.sendVerificationOtp({
+				email,
+				type: "sign-in",
+			});
+
+			if (error) {
+				setError(error.message || "Failed to resend code");
+			}
+		} catch {
+			setError("Failed to resend code");
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	const handleOtpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		// Use transition for non-urgent input updates
+		startTransition(() => {
+			setOtp(e.target.value);
+		});
+	};
+
+	// Don't render form if no email (will redirect)
+	if (!email) {
+		return null;
+	}
+
+	return (
+		<div className="flex min-h-screen items-center justify-center p-4">
+			<Card className="w-full max-w-md">
+				<CardHeader className="text-center">
+					<CardTitle className="text-2xl">Enter Code</CardTitle>
+					<CardDescription>
+						We sent a code to {email}
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<form onSubmit={handleVerify} className="space-y-4">
+						<div className="space-y-2">
+							<Label htmlFor="otp">Verification Code</Label>
+							<Input
+								id="otp"
+								type="text"
+								value={otp}
+								onChange={handleOtpChange}
+								required
+								maxLength={6}
+								className="text-center text-2xl tracking-widest"
+								placeholder="000000"
+							/>
+						</div>
+
+						{error ? (
+							<p className="text-sm text-destructive" role="alert">{error}</p>
+						) : null}
+
+						<Button type="submit" className="w-full" disabled={loading}>
+							{loading ? "Verifying..." : "Verify"}
+						</Button>
+
+						<button
+							type="button"
+							onClick={handleResend}
+							className="w-full text-sm text-muted-foreground hover:underline"
+							disabled={loading}
+						>
+							Resend code
+						</button>
+					</form>
+				</CardContent>
+			</Card>
+		</div>
+	);
+}
+`;
+}

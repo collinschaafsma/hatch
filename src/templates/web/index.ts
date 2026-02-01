@@ -1,0 +1,12 @@
+export { generateWebPackageJson } from "./package-json.js";
+export { generateNextConfig } from "./next-config.js";
+export { generateWebTsconfig } from "./tsconfig.js";
+export { generateRootLayout } from "./layout.js";
+export { generateHomePage } from "./page.js";
+export { generateGlobalsCss } from "./globals-css.js";
+export { generateTailwindConfig } from "./tailwind-config.js";
+export { generatePostcssConfig } from "./postcss-config.js";
+export { generateEnvExample } from "./env-example.js";
+export { generateVercelJson } from "./vercel-json.js";
+export { generateWebGitignore } from "./gitignore.js";
+export { generateWebComponentsJson } from "./components-json.js";

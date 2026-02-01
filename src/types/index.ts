@@ -1,3 +1,38 @@
+export interface CreateOptions {
+	projectName: string;
+	useWorkOS: boolean;
+	headless?: HeadlessOptions;
+}
+
+export interface TemplateContext {
+	projectName: string;
+	useWorkOS: boolean;
+}
+
+// Headless mode types
+
+export interface HeadlessOptions {
+	// GitHub
+	githubToken?: string;
+	githubOrg?: string;
+
+	// Vercel
+	vercelToken?: string;
+	vercelTeam?: string;
+
+	// Supabase
+	supabaseToken?: string;
+	supabaseOrg?: string;
+	supabaseRegion?: string;
+
+	// Behavior
+	conflictStrategy?: "suffix" | "fail";
+	json?: boolean;
+	quiet?: boolean;
+	bootstrap?: boolean;
+	configPath?: string;
+}
+
 export interface ClaudeOAuthAccount {
 	accountUuid: string;
 	emailAddress: string;
@@ -67,6 +102,27 @@ export interface HeadlessResult {
 		projectName: string;
 	};
 	nextSteps?: string[];
+}
+
+export interface ResolvedHeadlessConfig {
+	github: {
+		token: string;
+		org?: string;
+		email?: string;
+		name?: string;
+	};
+	vercel: {
+		token: string;
+		team: string;
+	};
+	supabase: {
+		token: string;
+		org: string;
+		region: string;
+	};
+	conflictStrategy: "suffix" | "fail";
+	json: boolean;
+	quiet: boolean;
 }
 
 // Project types for durable project storage
