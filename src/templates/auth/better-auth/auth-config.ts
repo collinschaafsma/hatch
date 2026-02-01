@@ -32,6 +32,7 @@ const isLocalDev = appUrl.includes("localhost") || process.env.NODE_ENV === "dev
 const useSecureCookies = !isExeDevVM && !isLocalDev;
 
 export const auth = betterAuth({
+	baseURL: getAppUrl(),
 	database: drizzleAdapter(db, { provider: "pg" }),
 	trustedOrigins: [
 		getAppUrl(),
