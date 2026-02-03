@@ -2,12 +2,12 @@ import os from "node:os";
 import path from "node:path";
 import { confirm } from "@inquirer/prompts";
 import { Command } from "commander";
+import { execa } from "execa";
 import fs from "fs-extra";
 import { exeDevRm } from "../utils/exe-dev.js";
 import { log } from "../utils/logger.js";
 import { getProject } from "../utils/project-store.js";
 import { createSpinner } from "../utils/spinner.js";
-import { sshExec } from "../utils/ssh.js";
 import { getVMByFeature, removeVM } from "../utils/vm-store.js";
 
 interface CleanOptions {
@@ -53,20 +53,14 @@ export const cleanCommand = new Command()
 			const configPath =
 				options.config || path.join(os.homedir(), ".hatch.json");
 			let supabaseToken = "";
+			let githubToken = "";
 			if (await fs.pathExists(configPath)) {
 				const config = await fs.readJson(configPath);
 				supabaseToken = config.supabase?.token || "";
+				githubToken = config.github?.token || "";
 			}
 
-			// Environment setup for CLI commands
-			const envPrefix = `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$PATH" && export SUPABASE_ACCESS_TOKEN="${supabaseToken}" &&`;
-
-			const {
-				name: vmName,
-				sshHost,
-				supabaseBranches,
-				githubBranch,
-			} = vmRecord;
+			const { name: vmName, supabaseBranches, githubBranch } = vmRecord;
 
 			// Show what will be deleted
 			log.info(`Feature: ${featureName}`);
@@ -96,7 +90,7 @@ export const cleanCommand = new Command()
 
 			log.blank();
 
-			// Step 1: Delete Supabase branches
+			// Step 1: Delete Supabase branches (using local CLI with API)
 			if (supabaseBranches.length > 0) {
 				const supabaseSpinner = createSpinner(
 					"Deleting Supabase branches",
@@ -107,17 +101,37 @@ export const cleanCommand = new Command()
 
 				for (const branch of supabaseBranches) {
 					try {
-						// First disable persistence (convert to preview branch)
-						await sshExec(
-							sshHost,
-							`${envPrefix} cd ~/${project.github.repo} && supabase branches update ${branch} --persistent=false`,
+						// Use Supabase Management API directly to delete branches
+						// First disable persistence, then delete
+						await execa(
+							"supabase",
+							[
+								"branches",
+								"update",
+								branch,
+								"--persistent=false",
+								"--project-ref",
+								project.supabase.projectRef,
+							],
+							{
+								env: { ...process.env, SUPABASE_ACCESS_TOKEN: supabaseToken },
+							},
 						);
 						// Brief pause to let the update propagate
 						await new Promise((resolve) => setTimeout(resolve, 2000));
 						// Then delete the branch
-						await sshExec(
-							sshHost,
-							`${envPrefix} cd ~/${project.github.repo} && supabase branches delete ${branch}`,
+						await execa(
+							"supabase",
+							[
+								"branches",
+								"delete",
+								branch,
+								"--project-ref",
+								project.supabase.projectRef,
+							],
+							{
+								env: { ...process.env, SUPABASE_ACCESS_TOKEN: supabaseToken },
+							},
 						);
 						deletedBranches.push(branch);
 					} catch (error) {
@@ -138,15 +152,24 @@ export const cleanCommand = new Command()
 				}
 			}
 
-			// Step 2: Delete remote git branch
+			// Step 2: Delete remote git branch (using GitHub API via gh CLI)
 			if (githubBranch) {
 				const gitSpinner = createSpinner(
 					`Deleting remote git branch: ${githubBranch}`,
 				).start();
 				try {
-					await sshExec(
-						sshHost,
-						`cd ~/${project.github.repo} && git push origin --delete ${githubBranch} 2>/dev/null || true`,
+					// Use gh CLI to delete the branch via API (no local clone needed)
+					await execa(
+						"gh",
+						[
+							"api",
+							"-X",
+							"DELETE",
+							`/repos/${project.github.owner}/${project.github.repo}/git/refs/heads/${githubBranch}`,
+						],
+						{
+							env: { ...process.env, GH_TOKEN: githubToken },
+						},
 					);
 					gitSpinner.succeed(`Deleted remote git branch: ${githubBranch}`);
 				} catch {
