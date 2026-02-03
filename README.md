@@ -52,43 +52,43 @@ This provisions a temporary exe.dev VM, sets up a complete project (GitHub, Verc
 
 ### 3. Start Feature Work
 
-Create a feature VM with its own git branch and database branches:
+You have two options for feature development:
+
+#### Option A: Interactive with `hatch feature`
+
+Create a feature VM and drive development yourself:
 
 ```bash
 pnpm dev feature add-auth --project my-app
 ```
 
-This:
-- Creates a new exe.dev VM
-- Clones your repo and installs dependencies
-- Creates a git branch
-- Creates Supabase database branches (feature + test)
-- Saves VM info for easy access
-
-### 4. Connect and Build
+Then SSH in and use Claude Code interactively:
 
 ```bash
 ssh <vm-name>              # Direct SSH
-code --remote ssh-remote+<vm-name> ~/my-app  # VS Code
-```
-
-Start Claude Code and begin building:
-
-```bash
 cd my-app
-pnpm dev                   # Start the dev server
+claude                     # Start Claude Code
 ```
 
 Access your app at `https://<vm-name>.exe.xyz` once the dev server is running on port 3000.
 
-Or use Claude Code to drive development:
+#### Option B: Autonomous with `hatch spike`
+
+Let Claude implement the feature and create a PR automatically:
 
 ```bash
-cd my-app
-claude
+pnpm dev spike add-auth --project my-app --prompt "Add user authentication with email/password login"
 ```
 
-### 5. Clean Up
+Monitor progress while it runs:
+
+```bash
+ssh <vm-name>.exe.xyz 'tail -f ~/spike.log'
+```
+
+When complete, you'll get a PR URL. Review it and merge.
+
+### 4. Clean Up
 
 When done with a feature, delete the VM and Supabase branches:
 
@@ -108,6 +108,19 @@ The project (GitHub, Vercel, Supabase) is preserved—only the VM and feature br
 | **Feature VM** | Ephemeral | VM, git branch, Supabase feature branches |
 
 Projects are created once and persist. Feature VMs are spun up for each piece of work and deleted when done.
+
+### Feature vs Spike
+
+| Aspect | `hatch feature` | `hatch spike` |
+|--------|-----------------|---------------|
+| **Best for** | Complex features, exploration, learning | Well-defined tasks, simple features |
+| **How it works** | SSH in, run `claude` interactively | Agent SDK runs autonomously |
+| **Human involvement** | High—you drive the work | Low—fire and forget |
+| **Output** | You create the PR manually | Automatically creates PR |
+| **Monitoring** | SSH session | Tail logs, check result files |
+| **Cost visibility** | N/A | Tracks tokens + USD cost |
+
+Use `feature` when you want to explore, learn the codebase, or tackle complex multi-step work. Use `spike` for straightforward tasks where you can describe what you want in a prompt.
 
 ### Parallel Development
 
@@ -205,6 +218,42 @@ During `hatch new` or feature VM setup, these variables are automatically added 
 6. **Configures app URLs** - Sets `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` for the VM
 7. **Saves VM info** - Stores in `~/.hatch/vms.json` for easy access
 
+### What `hatch spike` Does
+
+1. **Same setup as feature** - VM, branches, environment (steps 1-7 above)
+2. **Installs Claude Agent SDK** - Adds `@anthropic-ai/claude-agent-sdk` to the project
+3. **Starts agent with your prompt** - Runs autonomously in background
+4. **Agent implements the feature** - Writes code, runs tests, commits changes
+5. **Creates PR automatically** - Pushes branch and opens pull request
+6. **Writes result files** - Cost tracking and status information
+
+**Output files on the VM:**
+- `~/spike.log` - Human-readable progress log
+- `~/spike-progress.jsonl` - Structured tool use events (JSON lines)
+- `~/spike-result.json` - Final status, cost breakdown, session ID
+- `~/pr-url.txt` - The created PR URL
+
+**Monitoring commands:**
+```bash
+ssh <vm>.exe.xyz 'tail -f ~/spike.log'            # Watch progress
+ssh <vm>.exe.xyz 'tail -f ~/spike-progress.jsonl' # Structured events
+ssh <vm>.exe.xyz 'cat ~/spike-result.json'        # Final result + cost
+ssh <vm>.exe.xyz 'cat ~/pr-url.txt'               # Get PR URL
+```
+
+**Cost tracking:** The result file includes token usage and USD cost:
+```json
+{
+  "status": "completed",
+  "sessionId": "session_abc123",
+  "cost": {
+    "inputTokens": 45000,
+    "outputTokens": 12000,
+    "totalUsd": 0.0234
+  }
+}
+```
+
 ### Adding Existing Projects
 
 Have a project already set up? Add it to Hatch to use feature VMs:
@@ -259,11 +308,20 @@ The config command prompts to add custom environment variables that will be auto
 | `hatch list` | List projects with feature VMs |
 | `hatch clean <feature> --project <project>` | Delete feature VM and branches |
 
-### Options
+### Spike Options
 
 | Flag | Description |
 |------|-------------|
-| `--workos` | Use WorkOS instead of Better Auth |
+| `--prompt "<instructions>"` | Required. Instructions for Claude to implement |
+| `--wait` | Wait for spike to complete instead of returning immediately |
+| `--timeout <minutes>` | Max time in minutes when using `--wait` (default: 60) |
+| `--json` | Output result as JSON (useful for automation) |
+
+### General Options
+
+| Flag | Description |
+|------|-------------|
+| `--workos` | Use WorkOS instead of Better Auth (for `new`) |
 | `--project <name>` | Specify project name |
 | `--force` | Skip confirmation for clean command |
 | `--json` | Output as JSON |
@@ -351,69 +409,45 @@ Skills are installed from public GitHub repos during project creation. Use `/ski
 
 ---
 
-## OpenClaw Integration
+## Remote Server Installation
 
-Hatch can be used with [OpenClaw](https://openclaw.ai) to let your AI assistant manage development environments.
+Hatch can be installed on any Linux server (not just macOS) for automation or AI-assisted workflows.
 
-### Setup on your OpenClaw server
+### Install on a Remote Server
 
-1. **Install hatch** on the machine running OpenClaw Gateway:
+1. **Install hatch CLI**:
    ```bash
    curl -fsSL https://raw.githubusercontent.com/collinschaafsma/hatch/main/scripts/master-install.sh | bash
    ```
 
+   This installs Node.js, pnpm, and the hatch CLI to `~/.hatch-cli`.
+
 2. **Transfer your config** from your local machine:
    ```bash
    # On your local machine (after running `hatch config`)
-   scp ~/.hatch.json user@openclaw-server:~/.hatch.json
+   scp ~/.hatch.json user@remote-server:~/.hatch.json
    ```
 
-3. **Install the hatch skill**:
+3. **Verify installation**:
    ```bash
-   # On your OpenClaw server
-   mkdir -p ~/.openclaw/workspace/skills
-   cp -r ~/.hatch-cli/skills/hatch ~/.openclaw/workspace/skills/
+   hatch list --json
    ```
 
-4. **Refresh skills** - Tell your OpenClaw assistant to "refresh skills"
+### OpenClaw Integration
 
-### Usage
+For [OpenClaw](https://openclaw.ai) users, install the hatch skill:
+
+```bash
+mkdir -p ~/.openclaw/workspace/skills
+cp -r ~/.hatch-cli/skills/hatch ~/.openclaw/workspace/skills/
+```
+
+Then tell your OpenClaw assistant to "refresh skills".
 
 Now you can tell your assistant things like:
 - "Create a new hatch project called my-app"
 - "Add a contact form feature to my-app"
 - "Spike a user settings page for my-app and submit a PR"
-
-### Autonomous Spike Command
-
-The `hatch spike` command creates a feature VM and runs the Claude Agent SDK autonomously:
-
-```bash
-hatch spike my-feature --project my-app --prompt "Add a contact form with email validation"
-```
-
-This will:
-1. Create a feature VM with git/database branches
-2. Start the Claude Agent SDK with your instructions
-3. Return monitoring commands to check progress
-4. Claude will implement the feature, commit, and create a PR
-
-Monitor progress with the returned commands:
-```bash
-# Tail the log
-ssh <vm-name>.exe.xyz 'tail -f ~/spike.log'
-
-# Tail structured progress events
-ssh <vm-name>.exe.xyz 'tail -f ~/spike-progress.jsonl'
-
-# Check if done and get result
-ssh <vm-name>.exe.xyz 'test -f ~/spike-done && cat ~/spike-result.json'
-```
-
-Clean up after the PR is merged:
-```bash
-hatch clean my-feature --project my-app
-```
 
 ---
 
