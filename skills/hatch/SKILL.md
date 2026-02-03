@@ -1,7 +1,8 @@
 ---
 name: hatch
-description: Provision exe.dev VMs for cloud-first development. Create projects, feature branches, and autonomous spikes.
-metadata: {"openclaw": {"requires": {"bins": ["pnpm"]}, "emoji": "🐣"}}
+description: Provision exe.dev cloud VMs for development. Use when user wants to create projects, feature branches, spike prototypes, manage VMs, or deploy to Vercel/Supabase. Triggers on "new project", "feature branch", "spike", "VM", "exe.dev", "cloud development".
+compatibility: Designed for Claude Code. Requires pnpm installed locally.
+metadata: {"openclaw": {"requires": {"bins": ["pnpm"]}, "emoji": "🐣"}, "author": "hatch", "version": "1.0"}
 ---
 
 # Hatch - Cloud Development CLI
@@ -48,6 +49,32 @@ Creates VM, runs Claude Agent SDK autonomously, creates PR when done.
 cd ~/.hatch-cli && pnpm dev clean <name> --project <project>
 ```
 Deletes VM and branches after PR is merged.
+
+### Add existing project
+```bash
+cd ~/.hatch-cli && pnpm dev add <project-name>
+```
+Adds an existing GitHub/Vercel/Supabase project to Hatch tracking.
+
+### Show VM connection info
+```bash
+cd ~/.hatch-cli && pnpm dev connect
+```
+Shows SSH connection details for active VMs.
+
+### Generate config file
+```bash
+cd ~/.hatch-cli && pnpm dev config
+```
+Generates `hatch.json` config file with credentials and defaults.
+
+### Destroy project (DANGEROUS)
+```bash
+cd ~/.hatch-cli && pnpm dev destroy <project-name>
+```
+Permanently deletes Supabase project, Vercel project, and local tracking.
+Requires typing project name to confirm. GitHub repo is preserved.
+Only use after all feature VMs are cleaned.
 
 ## When to Use Feature vs Spike
 
