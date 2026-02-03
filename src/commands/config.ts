@@ -380,14 +380,208 @@ const SUPABASE_REGIONS = [
 	{ value: "sa-east-1", label: "South America (São Paulo)" },
 ];
 
+/**
+ * Validate tokens in config file by making API calls
+ */
+async function validateTokens(configPath: string): Promise<{
+	github: { valid: boolean; error?: string };
+	vercel: { valid: boolean; error?: string };
+	supabase: { valid: boolean; error?: string };
+	claude: { valid: boolean; error?: string };
+}> {
+	const { execa } = await import("execa");
+	const config: HatchConfig = await fs.readJson(configPath);
+
+	const results = {
+		github: { valid: false, error: undefined as string | undefined },
+		vercel: { valid: false, error: undefined as string | undefined },
+		supabase: { valid: false, error: undefined as string | undefined },
+		claude: { valid: false, error: undefined as string | undefined },
+	};
+
+	// Validate GitHub token
+	if (config.github?.token) {
+		try {
+			await execa("gh", ["api", "user"], {
+				env: { ...process.env, GITHUB_TOKEN: config.github.token },
+			});
+			results.github.valid = true;
+		} catch (error) {
+			results.github.error =
+				error instanceof Error ? error.message : "Unknown error";
+		}
+	} else {
+		results.github.error = "Token not configured";
+	}
+
+	// Validate Vercel token
+	if (config.vercel?.token) {
+		try {
+			const response = await fetch("https://api.vercel.com/v2/user", {
+				headers: { Authorization: `Bearer ${config.vercel.token}` },
+			});
+			if (response.ok) {
+				results.vercel.valid = true;
+			} else {
+				results.vercel.error = `HTTP ${response.status}`;
+			}
+		} catch (error) {
+			results.vercel.error =
+				error instanceof Error ? error.message : "Unknown error";
+		}
+	} else {
+		results.vercel.error = "Token not configured";
+	}
+
+	// Validate Supabase token
+	if (config.supabase?.token) {
+		try {
+			await execa("supabase", ["orgs", "list", "--output", "json"], {
+				env: { ...process.env, SUPABASE_ACCESS_TOKEN: config.supabase.token },
+			});
+			results.supabase.valid = true;
+		} catch (error) {
+			results.supabase.error =
+				error instanceof Error ? error.message : "Unknown error";
+		}
+	} else {
+		results.supabase.error = "Token not configured";
+	}
+
+	// Validate Claude credentials
+	if (config.claude?.accessToken) {
+		// Check if token is expired
+		const now = Date.now();
+		if (config.claude.expiresAt && config.claude.expiresAt < now) {
+			results.claude.error = "Token expired";
+		} else {
+			// Token exists and is not expired - consider it valid
+			// (We can't easily validate Claude tokens without making an API call)
+			results.claude.valid = true;
+		}
+	} else {
+		results.claude.error = "Credentials not configured";
+	}
+
+	return results;
+}
+
+// Check subcommand
+const checkCommand = new Command()
+	.name("check")
+	.description("Validate tokens in hatch.json are still valid")
+	.option(
+		"-c, --config <path>",
+		"Path to hatch.json config file",
+		path.join(os.homedir(), ".hatch.json"),
+	)
+	.option("--json", "Output result as JSON")
+	.action(async (options: { config: string; json?: boolean }) => {
+		try {
+			const configPath = options.config.startsWith("~")
+				? path.join(os.homedir(), options.config.slice(2))
+				: path.resolve(process.cwd(), options.config);
+
+			if (!(await fs.pathExists(configPath))) {
+				if (options.json) {
+					console.log(
+						JSON.stringify({
+							valid: false,
+							error: `Config file not found: ${configPath}`,
+						}),
+					);
+				} else {
+					log.error(`Config file not found: ${configPath}`);
+					log.info("Run 'hatch config' to create a config file.");
+				}
+				process.exit(1);
+			}
+
+			if (!options.json) {
+				log.blank();
+				log.info(`Checking tokens in ${configPath}...`);
+				log.blank();
+			}
+
+			const results = await validateTokens(configPath);
+
+			if (options.json) {
+				const allValid = Object.values(results).every((r) => r.valid);
+				console.log(
+					JSON.stringify({
+						valid: allValid,
+						tokens: results,
+					}),
+				);
+			} else {
+				let allValid = true;
+
+				if (results.github.valid) {
+					log.success("GitHub: valid");
+				} else {
+					log.error(`GitHub: ${results.github.error}`);
+					allValid = false;
+				}
+
+				if (results.vercel.valid) {
+					log.success("Vercel: valid");
+				} else {
+					log.error(`Vercel: ${results.vercel.error}`);
+					allValid = false;
+				}
+
+				if (results.supabase.valid) {
+					log.success("Supabase: valid");
+				} else {
+					log.error(`Supabase: ${results.supabase.error}`);
+					allValid = false;
+				}
+
+				if (results.claude.valid) {
+					log.success("Claude Code: valid");
+				} else {
+					log.error(`Claude Code: ${results.claude.error}`);
+					allValid = false;
+				}
+
+				log.blank();
+				if (allValid) {
+					log.success("All tokens are valid!");
+				} else {
+					log.warn("Some tokens are invalid or expired.");
+					log.info("Run 'hatch config --refresh' to update tokens.");
+				}
+				log.blank();
+			}
+
+			const allValid = Object.values(results).every((r) => r.valid);
+			process.exit(allValid ? 0 : 1);
+		} catch (error) {
+			if (options.json) {
+				console.log(
+					JSON.stringify({
+						valid: false,
+						error: error instanceof Error ? error.message : String(error),
+					}),
+				);
+			} else {
+				log.error(
+					`Failed to check tokens: ${error instanceof Error ? error.message : error}`,
+				);
+			}
+			process.exit(1);
+		}
+	});
+
 export const configCommand = new Command()
 	.name("config")
-	.description("Generate a hatch.json config file from local CLI configs")
+	.description("Generate and manage hatch.json config file")
 	.option("-o, --output <path>", "Output file path (defaults to ~/.hatch.json)")
 	.option(
 		"--refresh",
 		"Refresh only tokens, preserving orgs/teams/env vars from existing config",
 	)
+	.addCommand(checkCommand)
 	.action(async (options: { output?: string; refresh: boolean }) => {
 		try {
 			// Determine config path - default to global ~/.hatch.json
