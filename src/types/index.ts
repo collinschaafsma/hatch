@@ -160,9 +160,45 @@ export interface VMRecord {
 	createdAt: string; // ISO timestamp
 	supabaseBranches: string[]; // e.g., ["add-auth", "add-auth-test"]
 	githubBranch: string; // e.g., "add-auth"
+	// Spike-specific fields (optional for feature VMs)
+	agentSessionId?: string; // For session resume
+	spikeStatus?: "running" | "completed" | "failed";
 }
 
 export interface VMStore {
 	version: 1;
 	vms: VMRecord[];
+}
+
+// Spike command types
+
+export interface SpikeOptions {
+	project: string;
+	prompt: string;
+	config?: string;
+	timeout?: number;
+	wait?: boolean;
+}
+
+export interface SpikeCost {
+	totalUsd: number;
+	inputTokens: number;
+	outputTokens: number;
+}
+
+export interface SpikeResult {
+	status: "started" | "completed" | "failed";
+	vmName: string;
+	sshHost: string;
+	feature: string;
+	project: string;
+	sessionId?: string;
+	monitor?: {
+		tailLog: string;
+		tailProgress: string;
+		checkDone: string;
+	};
+	prUrl?: string;
+	cost?: SpikeCost;
+	error?: string;
 }

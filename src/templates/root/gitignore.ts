@@ -44,5 +44,8 @@ supabase/.branches/
 # Claude Code
 .claude/settings.local.json
 .claude/settings.json
+
+# Hatch spike agent runner
+agent-runner.ts
 `;
 }

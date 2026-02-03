@@ -9,6 +9,7 @@ import { destroyCommand } from "./commands/destroy.js";
 import { featureCommand } from "./commands/feature.js";
 import { listCommand } from "./commands/list.js";
 import { newCommand } from "./commands/new.js";
+import { spikeCommand } from "./commands/spike.js";
 
 const program = new Command()
 	.name("hatch")
@@ -17,6 +18,7 @@ const program = new Command()
 
 program.addCommand(newCommand);
 program.addCommand(featureCommand);
+program.addCommand(spikeCommand);
 program.addCommand(addCommand);
 program.addCommand(connectCommand);
 program.addCommand(listCommand);

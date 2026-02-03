@@ -1,0 +1,227 @@
+#!/usr/bin/env npx tsx
+/**
+ * Agent Runner Script
+ *
+ * This script runs on the VM and uses the Claude Agent SDK to execute
+ * autonomous tasks. It outputs structured progress events and results.
+ *
+ * Usage:
+ *   npx tsx agent-runner.ts --prompt "..." --project-path /path --feature name [--resume sessionId]
+ *
+ * Outputs:
+ *   ~/spike.log           - Human-readable log
+ *   ~/spike-progress.jsonl - Structured tool use events
+ *   ~/session-id.txt      - Session ID for resume
+ *   ~/spike-done          - Completion marker
+ *   ~/spike-result.json   - Full result with cost/status
+ *   ~/pr-url.txt          - PR URL (written by Claude)
+ */
+
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { parseArgs } from "node:util";
+import { query } from "@anthropic-ai/claude-agent-sdk";
+
+const HOME = process.env.HOME || "/home/exedev";
+const LOG_FILE = path.join(HOME, "spike.log");
+const PROGRESS_FILE = path.join(HOME, "spike-progress.jsonl");
+const SESSION_FILE = path.join(HOME, "session-id.txt");
+const DONE_FILE = path.join(HOME, "spike-done");
+const RESULT_FILE = path.join(HOME, "spike-result.json");
+
+interface ProgressEvent {
+	timestamp: string;
+	type: "tool_start" | "tool_end" | "message" | "error";
+	tool?: string;
+	input?: unknown;
+	output?: unknown;
+	message?: string;
+}
+
+function log(message: string): void {
+	const timestamp = new Date().toISOString();
+	const line = `[${timestamp}] ${message}\n`;
+	fs.appendFileSync(LOG_FILE, line);
+	console.log(message);
+}
+
+function logProgress(event: ProgressEvent): void {
+	fs.appendFileSync(PROGRESS_FILE, `${JSON.stringify(event)}\n`);
+}
+
+function writeResult(result: {
+	status: "completed" | "failed";
+	sessionId?: string;
+	cost?: { totalUsd: number; inputTokens: number; outputTokens: number };
+	error?: string;
+}): void {
+	fs.writeFileSync(RESULT_FILE, JSON.stringify(result, null, 2));
+	fs.writeFileSync(DONE_FILE, "done");
+}
+
+async function main(): Promise<void> {
+	const { values } = parseArgs({
+		options: {
+			prompt: { type: "string" },
+			"project-path": { type: "string" },
+			feature: { type: "string" },
+			resume: { type: "string" },
+		},
+	});
+
+	const prompt = values.prompt;
+	const projectPath = values["project-path"];
+	const feature = values.feature;
+	const resumeSessionId = values.resume;
+
+	if (!prompt || !projectPath || !feature) {
+		console.error(
+			"Usage: npx tsx agent-runner.ts --prompt <prompt> --project-path <path> --feature <name> [--resume <sessionId>]",
+		);
+		process.exit(1);
+	}
+
+	// Initialize log files
+	fs.writeFileSync(LOG_FILE, "");
+	fs.writeFileSync(PROGRESS_FILE, "");
+
+	log(`Starting spike: ${feature}`);
+	log(`Project path: ${projectPath}`);
+	log(`Prompt: ${prompt}`);
+	if (resumeSessionId) {
+		log(`Resuming session: ${resumeSessionId}`);
+	}
+
+	// Build the full prompt with instructions
+	const fullPrompt = `${prompt}
+
+When you are done:
+1. Commit all changes with a descriptive message
+2. Push the branch to origin
+3. Create a pull request using 'gh pr create'
+4. Write the PR URL to ~/pr-url.txt (just the URL, nothing else)
+
+Important: The branch is already created (${feature}). Make your changes, then commit, push, and create the PR.`;
+
+	let totalInputTokens = 0;
+	let totalOutputTokens = 0;
+	let sessionId: string | undefined;
+
+	try {
+		// Run the agent
+		const result = await query({
+			prompt: fullPrompt,
+			options: {
+				cwd: projectPath,
+				allowedTools: ["Bash", "Read", "Write", "Edit", "Glob", "Grep"],
+				maxTurns: 100,
+			},
+			abortController: new AbortController(),
+		});
+
+		// Process messages to extract info
+		for await (const message of result) {
+			// Track session ID
+			if ("session_id" in message && message.session_id) {
+				sessionId = message.session_id as string;
+				fs.writeFileSync(SESSION_FILE, sessionId);
+				log(`Session ID: ${sessionId}`);
+			}
+
+			// Track usage
+			if ("usage" in message && message.usage) {
+				const usage = message.usage as {
+					input_tokens?: number;
+					output_tokens?: number;
+				};
+				if (usage.input_tokens) totalInputTokens += usage.input_tokens;
+				if (usage.output_tokens) totalOutputTokens += usage.output_tokens;
+			}
+
+			// Log tool use
+			if (message.type === "tool_use") {
+				const toolName = (message as { name?: string }).name || "unknown";
+				log(`Tool: ${toolName}`);
+				logProgress({
+					timestamp: new Date().toISOString(),
+					type: "tool_start",
+					tool: toolName,
+					input: (message as { input?: unknown }).input,
+				});
+			}
+
+			// Log tool results
+			if (message.type === "tool_result") {
+				logProgress({
+					timestamp: new Date().toISOString(),
+					type: "tool_end",
+					output:
+						typeof (message as { content?: unknown }).content === "string"
+							? (message as { content: string }).content.slice(0, 500)
+							: "[binary or complex output]",
+				});
+			}
+
+			// Log text messages
+			if (message.type === "text") {
+				const text = (message as { text?: string }).text || "";
+				if (text.trim()) {
+					log(`Claude: ${text.slice(0, 200)}${text.length > 200 ? "..." : ""}`);
+					logProgress({
+						timestamp: new Date().toISOString(),
+						type: "message",
+						message: text,
+					});
+				}
+			}
+		}
+
+		// Calculate cost (Claude pricing: $3/$15 per 1M tokens for Sonnet)
+		const inputCost = (totalInputTokens / 1_000_000) * 3;
+		const outputCost = (totalOutputTokens / 1_000_000) * 15;
+		const totalUsd = inputCost + outputCost;
+
+		log("Completed successfully");
+		log(
+			`Tokens: ${totalInputTokens} input, ${totalOutputTokens} output (~$${totalUsd.toFixed(4)})`,
+		);
+
+		writeResult({
+			status: "completed",
+			sessionId,
+			cost: {
+				totalUsd,
+				inputTokens: totalInputTokens,
+				outputTokens: totalOutputTokens,
+			},
+		});
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		log(`Error: ${errorMessage}`);
+		logProgress({
+			timestamp: new Date().toISOString(),
+			type: "error",
+			message: errorMessage,
+		});
+
+		writeResult({
+			status: "failed",
+			sessionId,
+			error: errorMessage,
+			cost:
+				totalInputTokens > 0
+					? {
+							totalUsd:
+								(totalInputTokens / 1_000_000) * 3 +
+								(totalOutputTokens / 1_000_000) * 15,
+							inputTokens: totalInputTokens,
+							outputTokens: totalOutputTokens,
+						}
+					: undefined,
+		});
+
+		process.exit(1);
+	}
+}
+
+main();

@@ -234,6 +234,8 @@ Supabase branching provides isolated databases for each environment:
 | `hatch config` | Create ~/.hatch.json (default) |
 | `hatch config -o <path>` | Create config at custom path |
 | `hatch config --refresh` | Refresh tokens without re-prompting for orgs/teams |
+| `hatch config check` | Validate tokens are still valid |
+| `hatch config check --json` | Validate tokens and output as JSON |
 
 The config command prompts to add custom environment variables that will be automatically set in Vercel during project setup.
 
@@ -252,6 +254,7 @@ The config command prompts to add custom environment variables that will be auto
 | Command | Description |
 |---------|-------------|
 | `hatch feature <name> --project <project>` | Create feature VM with branches |
+| `hatch spike <name> --project <project> --prompt "<instructions>"` | Create VM and run Claude Agent SDK autonomously |
 | `hatch connect [feature] --project <project>` | Show connection info |
 | `hatch list` | List projects with feature VMs |
 | `hatch clean <feature> --project <project>` | Delete feature VM and branches |
@@ -345,6 +348,72 @@ Generated projects come with pre-installed [Claude Code skills](https://docs.ant
 | `agent-browser` | Browser automation for testing |
 
 Skills are installed from public GitHub repos during project creation. Use `/skills` in Claude Code to see available skills or `/find-skills` to discover more.
+
+---
+
+## OpenClaw Integration
+
+Hatch can be used with [OpenClaw](https://openclaw.ai) to let your AI assistant manage development environments.
+
+### Setup on your OpenClaw server
+
+1. **Install hatch** on the machine running OpenClaw Gateway:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/collinschaafsma/hatch/main/scripts/master-install.sh | bash
+   ```
+
+2. **Transfer your config** from your local machine:
+   ```bash
+   # On your local machine (after running `hatch config`)
+   scp ~/.hatch.json user@openclaw-server:~/.hatch.json
+   ```
+
+3. **Install the hatch skill**:
+   ```bash
+   # On your OpenClaw server
+   mkdir -p ~/.openclaw/workspace/skills
+   cp -r ~/.hatch-cli/skills/hatch ~/.openclaw/workspace/skills/
+   ```
+
+4. **Refresh skills** - Tell your OpenClaw assistant to "refresh skills"
+
+### Usage
+
+Now you can tell your assistant things like:
+- "Create a new hatch project called my-app"
+- "Add a contact form feature to my-app"
+- "Spike a user settings page for my-app and submit a PR"
+
+### Autonomous Spike Command
+
+The `hatch spike` command creates a feature VM and runs the Claude Agent SDK autonomously:
+
+```bash
+hatch spike my-feature --project my-app --prompt "Add a contact form with email validation"
+```
+
+This will:
+1. Create a feature VM with git/database branches
+2. Start the Claude Agent SDK with your instructions
+3. Return monitoring commands to check progress
+4. Claude will implement the feature, commit, and create a PR
+
+Monitor progress with the returned commands:
+```bash
+# Tail the log
+ssh <vm-name>.exe.xyz 'tail -f ~/spike.log'
+
+# Tail structured progress events
+ssh <vm-name>.exe.xyz 'tail -f ~/spike-progress.jsonl'
+
+# Check if done and get result
+ssh <vm-name>.exe.xyz 'test -f ~/spike-done && cat ~/spike-result.json'
+```
+
+Clean up after the PR is merged:
+```bash
+hatch clean my-feature --project my-app
+```
 
 ---
 
