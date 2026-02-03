@@ -62,12 +62,22 @@ Create a feature VM and drive development yourself:
 pnpm dev feature add-auth --project my-app
 ```
 
-Then SSH in and use Claude Code interactively:
+Then connect and start building:
 
 ```bash
 ssh <vm-name>              # Direct SSH
 cd my-app
 claude                     # Start Claude Code
+```
+
+Or connect your IDE for a full development experience:
+
+```bash
+# VS Code
+code --remote ssh-remote+<vm-name> ~/my-app
+
+# Cursor
+cursor --remote ssh-remote+<vm-name> ~/my-app
 ```
 
 Access your app at `https://<vm-name>.exe.xyz` once the dev server is running on port 3000.
@@ -77,7 +87,7 @@ Access your app at `https://<vm-name>.exe.xyz` once the dev server is running on
 Let Claude implement the feature and create a PR automatically:
 
 ```bash
-pnpm dev spike add-auth --project my-app --prompt "Add user authentication with email/password login"
+pnpm dev spike fix-nav --project my-app --prompt "The mobile nav menu doesn't close after clicking a link"
 ```
 
 Monitor progress while it runs:
@@ -147,7 +157,7 @@ Hatch generates a complete full-stack monorepo with:
 - **[Vitest](https://vitest.dev/)** - Fast unit and integration testing
 - **[Biome](https://biomejs.dev/)** - Lightning-fast linting and formatting
 - **[PostHog](https://posthog.com/)** - Product analytics
-- **GitHub Actions** - CI/CD with Claude Code integration
+- **GitHub Actions** - CI/CD
 
 ## How It Works
 
@@ -164,20 +174,28 @@ This file is copied to VMs during setup so all CLIs authenticate automatically.
 
 ### Custom Environment Variables
 
-You can add custom environment variables (like `RESEND_API_KEY`, `OPENAI_API_KEY`, or Vercel AI gateway vars) during `hatch config`. These get stored in `~/.hatch.json` and are automatically added to Vercel during project setup.
+You can add custom environment variables (like `RESEND_API_KEY`, `AI_GATEWAY_API_KEY`, or `EMAIL_FROM`) during `hatch config`. These get stored in `~/.hatch.json` and are automatically added to Vercel during project setup.
+
+**Required for production:** To have your production deployment work end-to-end out of the box, you'll need to set:
+- `RESEND_API_KEY` - For sending authentication emails
+- `AI_GATEWAY_API_KEY` - For AI/LLM functionality
+- `EMAIL_FROM` - The sender address for auth emails (e.g., `noreply@yourdomain.com`)
 
 When running `hatch config`, you'll be prompted:
 
 ```
 ? Would you like to add custom environment variables? Yes
-? Environment variable name: RESEND_API_KEY
-? Value for RESEND_API_KEY: ********
+? Environment variable name: AI_GATEWAY_API_KEY
+? Value for AI_GATEWAY_API_KEY: ********
 ? Which environments should this variable be set in?
   ◉ Production
   ◉ Preview
   ◉ Development
-✔ Added RESEND_API_KEY
-? Add another environment variable? No
+✔ Added AI_GATEWAY_API_KEY
+? Add another environment variable? Yes
+? Environment variable name: EMAIL_FROM
+? Value for EMAIL_FROM: noreply@example.com
+...
 ```
 
 The variables are stored in `hatch.json`:
@@ -189,8 +207,8 @@ The variables are stored in `hatch.json`:
   "supabase": { ... },
   "envVars": [
     {
-      "key": "RESEND_API_KEY",
-      "value": "re_...",
+      "key": "AI_GATEWAY_API_KEY",
+      "value": "sk-...",
       "environments": ["production", "preview", "development"]
     }
   ]
@@ -288,7 +306,7 @@ Supabase branching provides isolated databases for each environment:
 
 The config command prompts to add custom environment variables that will be automatically set in Vercel during project setup.
 
-**Stale Token Detection:** When running `hatch new` or `hatch feature`, Hatch automatically checks if your CLI tokens have changed since you last ran `hatch config`. If stale tokens are detected, you'll be prompted to refresh them before proceeding.
+**Stale Token Detection:** When running `hatch new`, `hatch feature`, or `hatch spike`, Hatch automatically checks if your CLI tokens have changed since you last ran `hatch config`. If stale tokens are detected, you'll be prompted to refresh them before proceeding.
 
 ### Project Management
 
@@ -384,8 +402,6 @@ The generated project includes:
 |----------|-------------|
 | `checks.yml` | Lint and typecheck on PRs |
 | `test.yml` | Run tests with PostgreSQL |
-| `claude-code-review.yml` | AI-powered code review |
-| `claude.yml` | Interactive Claude via `@claude` mentions |
 
 ## Claude Code Skills
 
@@ -430,7 +446,8 @@ Hatch can be installed on any Linux server (not just macOS) for automation or AI
 
 3. **Verify installation**:
    ```bash
-   hatch list --json
+   cd ~/.hatch-cli
+   pnpm dev list --json
    ```
 
 ### OpenClaw Integration
@@ -447,7 +464,7 @@ Then tell your OpenClaw assistant to "refresh skills".
 Now you can tell your assistant things like:
 - "Create a new hatch project called my-app"
 - "Add a contact form feature to my-app"
-- "Spike a user settings page for my-app and submit a PR"
+- "Spike a user settings page for my-app"
 
 ---
 

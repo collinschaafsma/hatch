@@ -1,31 +1,41 @@
 ---
 name: hatch
 description: Provision exe.dev VMs for cloud-first development. Create projects, feature branches, and autonomous spikes.
-metadata: {"openclaw": {"requires": {"bins": ["hatch"]}, "emoji": "🐣"}}
+metadata: {"openclaw": {"requires": {"bins": ["pnpm"]}, "emoji": "🐣"}}
 ---
 
 # Hatch - Cloud Development CLI
 
 Hatch provisions exe.dev VMs with GitHub, Vercel, and Supabase integration.
 
+Hatch is installed at `~/.hatch-cli`. All commands must be run from that directory using `pnpm dev`.
+
 ## Commands
 
 ### List projects and VMs
-`hatch list --json`
+```bash
+cd ~/.hatch-cli && pnpm dev list --json
+```
 Use first to find project names. Returns JSON with projects array and vms array.
 
 ### Create new project
-`hatch new <project-name>`
+```bash
+cd ~/.hatch-cli && pnpm dev new <project-name>
+```
 Creates a new project with GitHub repo, Vercel deployment, and Supabase database.
 Takes 5-10 minutes. Returns Vercel URL when complete.
 
 ### Create feature VM (interactive development)
-`hatch feature <name> --project <project>`
+```bash
+cd ~/.hatch-cli && pnpm dev feature <name> --project <project>
+```
 Creates isolated VM with git/database branches. Returns SSH host and preview URL.
 User will SSH in and drive development with Claude Code.
 
 ### Autonomous spike (fire and forget)
-`hatch spike <name> --project <project> --prompt "<instructions>"`
+```bash
+cd ~/.hatch-cli && pnpm dev spike <name> --project <project> --prompt "<instructions>"
+```
 Creates VM, runs Claude Agent SDK autonomously, creates PR when done.
 
 **Options:**
@@ -34,19 +44,21 @@ Creates VM, runs Claude Agent SDK autonomously, creates PR when done.
 - `--json` - Output result as JSON
 
 ### Clean up
-`hatch clean <name> --project <project>`
+```bash
+cd ~/.hatch-cli && pnpm dev clean <name> --project <project>
+```
 Deletes VM and branches after PR is merged.
 
 ## When to Use Feature vs Spike
 
-### Use `hatch feature` when:
+### Use `feature` when:
 - The task is complex or requires exploration
 - The user wants to learn the codebase
 - Requirements are unclear and need iteration
 - Multiple back-and-forth interactions are expected
 - The user explicitly asks for interactive development
 
-### Use `hatch spike` when:
+### Use `spike` when:
 - The task is well-defined and can be described in a prompt
 - The user wants a "fire and forget" experience
 - Simple features: add a form, create an API endpoint, etc.
@@ -109,25 +121,43 @@ Report costs to the user when a spike completes.
 ## Workflows
 
 ### Create new project
-1. `hatch new my-app` - creates project (5-10 min)
-2. Share Vercel URL when complete
+```bash
+cd ~/.hatch-cli && pnpm dev new my-app
+```
+Share Vercel URL when complete.
 
 ### Manual feature development
-1. `hatch list --json` - find project name
-2. `hatch feature my-feature --project my-app` - create VM
-3. Share SSH host so user can connect with Claude Code
+```bash
+# Find project name
+cd ~/.hatch-cli && pnpm dev list --json
+
+# Create feature VM
+cd ~/.hatch-cli && pnpm dev feature my-feature --project my-app
+```
+Share SSH host so user can connect with Claude Code.
 
 ### Autonomous spike
-1. `hatch list --json` - find project name
-2. `hatch spike my-feature --project my-app --prompt "Add contact form"` - start spike
-3. Optionally monitor with: `ssh <vm>.exe.xyz 'tail -f ~/spike.log'`
-4. Check for completion: `ssh <vm>.exe.xyz 'test -f ~/spike-done && cat ~/spike-result.json'`
-5. Share PR URL when complete
-6. `hatch clean my-feature --project my-app` - cleanup after merge
+```bash
+# Find project name
+cd ~/.hatch-cli && pnpm dev list --json
+
+# Start spike
+cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "Add contact form"
+
+# Optionally monitor progress
+ssh <vm>.exe.xyz 'tail -f ~/spike.log'
+
+# Check for completion
+ssh <vm>.exe.xyz 'test -f ~/spike-done && cat ~/spike-result.json'
+
+# Clean up after PR is merged
+cd ~/.hatch-cli && pnpm dev clean my-feature --project my-app
+```
+Share PR URL when complete.
 
 ### Blocking spike (wait for completion)
 ```bash
-hatch spike my-feature --project my-app --prompt "Add contact form" --wait --json
+cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "Add contact form" --wait --json
 ```
 Returns full result including PR URL and cost when done.
 
@@ -137,8 +167,8 @@ If a spike fails:
 1. Check `~/spike.log` for error details
 2. The VM remains running for debugging
 3. User can SSH in and fix issues manually
-4. Or clean up with `hatch clean` and try again
+4. Or clean up with `cd ~/.hatch-cli && pnpm dev clean` and try again
 
-If `hatch spike` itself fails (before agent starts):
+If the spike command itself fails (before agent starts):
 - The command automatically rolls back and deletes the VM
 - Check error message for the cause (missing config, network issues, etc.)
