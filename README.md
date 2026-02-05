@@ -8,6 +8,38 @@ A CLI tool that scaffolds production-ready Turborepo monorepos with Next.js, aut
 
 A modern stack (Next.js 16, React 19, Drizzle, Tailwind 4, shadcn/ui) with auth, AI, workflows, and testing already wired up. Skip the boilerplate and start building.
 
+## Why Hatch
+
+Most AI coding tools generate throwaway prototypes. The code works in a demo but falls apart when you try to ship it: wrong versions, missing auth, no database migrations, no CI, no deployment pipeline. You end up rewriting everything to make it production-grade.
+
+Hatch takes the opposite approach. Every project starts with a production-ready architecture that you can deploy on day one.
+
+**Current dependencies, every time.** Next.js 16, React 19, Drizzle 0.45+, Tailwind 4, Turborepo 2.7+. No outdated starter templates. Every `hatch new` pulls the latest stable versions so you're never starting behind.
+
+**Real authentication.** Email OTP via Better Auth and Resend, or enterprise SSO via WorkOS. Not a mock login screen—actual auth flows with session management and database-backed user records.
+
+**Real database.** Supabase PostgreSQL with Drizzle ORM, type-safe schema, and migrations. Feature branches get isolated database branches so you never corrupt shared state.
+
+**AI and workflows built in.** Vercel AI SDK with Vercel AI Gateway, plus durable workflows with SSE streaming. Not bolted on after the fact—wired into the monorepo from the start.
+
+**UI ready to go.** Tailwind 4 with shadcn/ui components pre-configured in a shared package. Start building interfaces immediately instead of spending time on design system setup.
+
+**Testing and linting from the start.** Vitest configured with example tests and factories so you have working patterns to follow. Biome handles linting and formatting with zero config. CI runs both on every PR.
+
+**Deployed to your infrastructure.** GitHub repo in your org, Vercel project on your team, Supabase in your organization. All environment variables, CI/CD, and preview deployments are configured automatically. Push to main and you're live.
+
+**All env setup handled.** Hatch extracts tokens from your logged-in CLIs, copies them to VMs, authenticates every tool, and pulls environment variables into your project. No manual `.env` wrangling or secrets management.
+
+**Loaded with Claude Code skills.** Every generated project ships with curated skills for React performance, AI SDK patterns, auth best practices, component design, and more. Claude Code is productive in your codebase from the first session.
+
+**Isolated dev environments.** Each feature gets its own VM, git branch, and database branch. Run multiple features in parallel with zero conflicts. When you're done, `hatch clean` tears it all down.
+
+**Built for teams.** The generated monorepo follows conventions that professional engineering teams expect: typed schemas, a services layer, proper project structure, CI checks, and preview deployments per PR. A new engineer can clone the repo and understand where things go.
+
+**Primed for coding agents.** Every project includes a `CLAUDE.md` with full codebase context, pre-installed skills, and `hatch spike` can run Claude autonomously on its own VM to implement features and open PRs. The architecture is consistent and well-documented—exactly what agents need to be effective.
+
+**No graduation step.** The codebase you build features in is the codebase you ship. Same stack in development and production. There's no "rewrite it properly" phase because the architecture is already proper.
+
 ## Requirements
 
 **macOS** is required (credential extraction uses Keychain).
