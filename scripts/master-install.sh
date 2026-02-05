@@ -141,7 +141,45 @@ else
 fi
 
 # ============================================================================
-# Step 5: Install Claude Code
+# Step 5: Check/Install Vercel CLI
+# ============================================================================
+info "Checking Vercel CLI..."
+
+if command -v vercel &> /dev/null; then
+    success "Vercel CLI is installed"
+else
+    info "Installing Vercel CLI..."
+    mkdir -p ~/.local/lib ~/.local/bin
+    npm install --prefix ~/.local/lib vercel
+    cat > ~/.local/bin/vercel << 'WRAPPER'
+#!/bin/bash
+exec node ~/.local/lib/node_modules/vercel/dist/vc.js "$@"
+WRAPPER
+    chmod +x ~/.local/bin/vercel
+    command -v vercel &> /dev/null && success "Vercel CLI installed" || warn "Vercel CLI installation failed"
+fi
+
+# ============================================================================
+# Step 6: Check/Install Supabase CLI
+# ============================================================================
+info "Checking Supabase CLI..."
+
+if command -v supabase &> /dev/null; then
+    success "Supabase CLI is installed"
+else
+    info "Installing Supabase CLI..."
+    mkdir -p ~/.local/lib ~/.local/bin
+    npm install --prefix ~/.local/lib supabase
+    cat > ~/.local/bin/supabase << 'WRAPPER'
+#!/bin/bash
+exec ~/.local/lib/node_modules/supabase/bin/supabase "$@"
+WRAPPER
+    chmod +x ~/.local/bin/supabase
+    command -v supabase &> /dev/null && success "Supabase CLI installed" || warn "Supabase CLI installation failed"
+fi
+
+# ============================================================================
+# Step 7: Install Claude Code
 # ============================================================================
 info "Installing/updating Claude Code..."
 
@@ -164,7 +202,7 @@ else
 fi
 
 # ============================================================================
-# Step 6: Clone and build hatch
+# Step 8: Clone and build hatch
 # ============================================================================
 HATCH_DIR="$HOME/.hatch-cli"
 
@@ -189,7 +227,7 @@ pnpm build
 success "Hatch CLI built"
 
 # ============================================================================
-# Step 7: Set up hatch alias
+# Step 9: Set up hatch alias
 # ============================================================================
 ALIAS_LINE='alias hatch="node ~/.hatch-cli/dist/index.js"'
 BASHRC="$HOME/.bashrc"
