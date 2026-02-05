@@ -335,6 +335,8 @@ Supabase branching provides isolated databases for each environment:
 | `hatch config --refresh` | Refresh tokens without re-prompting for orgs/teams |
 | `hatch config check` | Validate tokens are still valid |
 | `hatch config check --json` | Validate tokens and output as JSON |
+| `hatch config-push <ssh-host>` | Push ~/.hatch.json to a remote server |
+| `hatch config-push <ssh-host> -c <path>` | Push custom config file to a remote server |
 
 The config command prompts to add custom environment variables that will be automatically set in Vercel during project setup.
 
@@ -481,7 +483,7 @@ Hatch can be installed on any Linux server (not just macOS) for automation or AI
 2. **Transfer your config** from your local machine:
    ```bash
    # On your local machine (after running `hatch config`)
-   scp ~/.hatch.json user@remote-server:~/.hatch.json
+   pnpm dev config-push user@remote-server
    ```
 
 3. **Verify installation**:
@@ -550,6 +552,7 @@ pnpm install
 | `pnpm dev list` | List projects and VMs |
 | `pnpm dev connect` | Show VM connection info |
 | `pnpm dev clean <name> --project <project>` | Clean up feature VM |
+| `pnpm dev config-push <ssh-host>` | Push config to remote server |
 | `pnpm dev update [ssh-host]` | Update hatch on remote server (or locally) |
 | `pnpm build` | Build with tsup |
 | `pnpm lint` | Lint with Biome |
