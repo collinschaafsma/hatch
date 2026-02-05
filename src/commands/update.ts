@@ -51,8 +51,10 @@ async function updateRemote(
 	}
 	sshSpinner.succeed("SSH connection OK");
 
-	// Wrap in login shell so pnpm/node are on PATH in non-interactive SSH
-	const login = (cmd: string) => `bash -lc '${cmd}'`;
+	// pnpm lives in ~/.local/share/pnpm (installed via corepack) and isn't
+	// on PATH in non-interactive SSH sessions. Prepend it explicitly.
+	const withPath = (cmd: string) =>
+		`export PATH="$HOME/.local/share/pnpm:$PATH" && ${cmd}`;
 
 	// Pull latest changes
 	const pullSpinner = createSpinner("Pulling latest changes").start();
@@ -68,7 +70,7 @@ async function updateRemote(
 	if (!options.skipInstall) {
 		const installSpinner = createSpinner("Installing dependencies").start();
 		try {
-			await sshExec(host, login("cd ~/.hatch-cli && pnpm install"), {
+			await sshExec(host, withPath("cd ~/.hatch-cli && pnpm install"), {
 				timeoutMs: 120_000,
 			});
 			installSpinner.succeed("Dependencies installed");
@@ -81,7 +83,7 @@ async function updateRemote(
 	// Build
 	const buildSpinner = createSpinner("Building hatch").start();
 	try {
-		await sshExec(host, login("cd ~/.hatch-cli && pnpm build"), {
+		await sshExec(host, withPath("cd ~/.hatch-cli && pnpm build"), {
 			timeoutMs: 120_000,
 		});
 		buildSpinner.succeed("Build complete");
