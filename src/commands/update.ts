@@ -51,8 +51,8 @@ async function updateRemote(
 	}
 	sshSpinner.succeed("SSH connection OK");
 
-	// Source profile so pnpm/node are on PATH in non-interactive SSH
-	const src = "source ~/.bashrc 2>/dev/null || source ~/.profile 2>/dev/null; ";
+	// Wrap in login shell so pnpm/node are on PATH in non-interactive SSH
+	const login = (cmd: string) => `bash -lc '${cmd}'`;
 
 	// Pull latest changes
 	const pullSpinner = createSpinner("Pulling latest changes").start();
@@ -68,7 +68,7 @@ async function updateRemote(
 	if (!options.skipInstall) {
 		const installSpinner = createSpinner("Installing dependencies").start();
 		try {
-			await sshExec(host, `${src}cd ~/.hatch-cli && pnpm install`, {
+			await sshExec(host, login("cd ~/.hatch-cli && pnpm install"), {
 				timeoutMs: 120_000,
 			});
 			installSpinner.succeed("Dependencies installed");
@@ -81,7 +81,7 @@ async function updateRemote(
 	// Build
 	const buildSpinner = createSpinner("Building hatch").start();
 	try {
-		await sshExec(host, `${src}cd ~/.hatch-cli && pnpm build`, {
+		await sshExec(host, login("cd ~/.hatch-cli && pnpm build"), {
 			timeoutMs: 120_000,
 		});
 		buildSpinner.succeed("Build complete");
