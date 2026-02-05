@@ -59,13 +59,12 @@ ${projectName}/
 │       ├── lib/          # Utilities and auth
 │       ├── services/     # Business logic layer
 │       ├── workflows/    # Vercel Workflow DevKit
-│       ├── evals/        # LLM evaluation tests
 │       └── __tests__/    # Vitest tests
 ├── packages/
 │   └── ui/               # Shared UI components
 ├── scripts/              # Setup scripts
-└── supabase/             # Supabase configuration
-└── .github/workflows/   # CI/CD workflows
+├── supabase/             # Supabase configuration
+└── .github/workflows/    # CI/CD workflows
 \`\`\`
 
 ---
@@ -130,6 +129,9 @@ pnpm --filter web test:coverage
 
 Copy \`apps/web/.env.local.example\` to \`apps/web/.env.local\` and configure:
 
+### App
+- \`NEXT_PUBLIC_APP_URL\` - Public-facing application URL
+
 ### Database
 - \`DATABASE_URL\` - PostgreSQL connection string
 - \`TEST_DATABASE_URL\` - Test database connection string
@@ -156,16 +158,6 @@ Better Auth (Email OTP) or WorkOS:
 |----------|---------|-------------|
 | \`checks.yml\` | Pull request | Runs linting and type checking |
 | \`test.yml\` | Pull request | Runs Vitest tests with PostgreSQL |
-| \`claude-code-review.yml\` | Pull request | AI-powered code review |
-| \`claude.yml\` | \`@claude\` mention | Interactive Claude in issues/PRs |
-
-### Claude Integration
-
-Mention \`@claude\` in any issue or PR comment to get AI assistance:
-- Code explanations
-- Bug analysis
-- Implementation suggestions
-- Review feedback
 
 ---
 
@@ -175,7 +167,7 @@ This project includes [Vercel Workflow DevKit](https://vercel.com/docs/workflow-
 
 ### Example Workflow
 
-The included example workflow (\`workflows/example.ts\`) demonstrates:
+The included example workflow (\`workflows/ai-agent.ts\`) demonstrates:
 - Multi-step AI processing with OpenAI
 - Real-time progress streaming via SSE
 - Error handling and retry logic
@@ -197,7 +189,7 @@ Client                    Server
 \`\`\`
 
 Key files:
-- \`workflows/example.ts\` - Workflow definition with progress emits
+- \`workflows/ai-agent.ts\` - Workflow definition with progress emits
 - \`app/api/workflow/route.ts\` - Starts workflow runs
 - \`app/api/workflow-progress/[runId]/route.ts\` - SSE progress stream
 - \`hooks/use-workflow-progress.ts\` - React hook for consuming progress

@@ -64,8 +64,7 @@ ${name}/
 │   ├── db/                      # Drizzle ORM schema and client
 │   ├── lib/                     # Shared utilities
 │   ├── services/                # Data access layer
-│   ├── workflows/               # Vercel Workflows
-│   └── evals/                   # LLM evaluation framework
+│   └── workflows/               # Vercel Workflows
 ├── packages/
 │   └── ui/                      # Shared UI components
 └── docker-compose.yml           # PostgreSQL database
