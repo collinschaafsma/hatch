@@ -18,6 +18,7 @@ pnpm dev connect                               # Show VM connection info
 pnpm dev clean <name> --project <project>      # Clean up feature VM
 pnpm dev config                                # Generate config file
 pnpm dev add <project-name>                    # Add existing project
+pnpm dev update [ssh-host]                     # Update hatch (remote or local)
 
 # Build
 pnpm build                                     # Build with tsup to dist/
@@ -40,6 +41,7 @@ pnpm format                                    # Format with Biome
 - **list.ts** - List projects and feature VMs
 - **clean.ts** - Clean up feature VM and branches
 - **config.ts** - Generate hatch.json config file
+- **update.ts** - Update hatch CLI on a remote server or locally
 
 ### Utils
 - **exe-dev.ts** - exe.dev VM management (create, delete, share port)

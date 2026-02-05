@@ -68,6 +68,12 @@ cd ~/.hatch-cli && pnpm dev config
 ```
 Generates `hatch.json` config file with credentials and defaults.
 
+### Update hatch
+```bash
+cd ~/.hatch-cli && pnpm dev update
+```
+Pulls latest code, reinstalls dependencies, rebuilds, and updates OpenClaw skills if installed.
+
 ### Destroy project (DANGEROUS)
 ```bash
 cd ~/.hatch-cli && pnpm dev destroy <project-name>

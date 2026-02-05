@@ -10,6 +10,7 @@ import { featureCommand } from "./commands/feature.js";
 import { listCommand } from "./commands/list.js";
 import { newCommand } from "./commands/new.js";
 import { spikeCommand } from "./commands/spike.js";
+import { updateCommand } from "./commands/update.js";
 
 const program = new Command()
 	.name("hatch")
@@ -26,6 +27,7 @@ program.addCommand(cleanCommand);
 program.addCommand(configCommand);
 program.addCommand(createCommand);
 program.addCommand(destroyCommand);
+program.addCommand(updateCommand);
 
 // If no command is specified, default to help
 if (process.argv.length === 2) {

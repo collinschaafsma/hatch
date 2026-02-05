@@ -358,6 +358,14 @@ The config command prompts to add custom environment variables that will be auto
 | `hatch list` | List projects with feature VMs |
 | `hatch clean <feature> --project <project>` | Delete feature VM and branches |
 
+### Remote Management
+
+| Command | Description |
+|---------|-------------|
+| `hatch update <ssh-host>` | Update hatch on a remote server via SSH |
+| `hatch update` | Update local hatch installation (run on remote server) |
+| `hatch update --skip-install` | Update without reinstalling dependencies |
+
 ### Spike Options
 
 | Flag | Description |
@@ -487,11 +495,27 @@ Hatch can be installed on any Linux server (not just macOS) for automation or AI
 For [OpenClaw](https://openclaw.ai) users, install the hatch skill:
 
 ```bash
-mkdir -p ~/.openclaw/workspace/skills
-cp -r ~/.hatch-cli/skills/hatch ~/.openclaw/workspace/skills/
+mkdir -p ~/.openclaw/skills
+cp -r ~/.hatch-cli/skills/hatch ~/.openclaw/skills/
 ```
 
 Then tell your OpenClaw assistant to "refresh skills".
+
+### Update on a Remote Server
+
+From your local machine, update hatch on a remote server:
+
+```bash
+pnpm dev update user@remote-server
+```
+
+Or update locally on the server itself:
+
+```bash
+cd ~/.hatch-cli && pnpm dev update
+```
+
+This pulls the latest code, reinstalls dependencies, rebuilds, and updates the OpenClaw skill if installed.
 
 Now you can tell your assistant things like:
 - "Create a new hatch project called my-app"
@@ -526,6 +550,7 @@ pnpm install
 | `pnpm dev list` | List projects and VMs |
 | `pnpm dev connect` | Show VM connection info |
 | `pnpm dev clean <name> --project <project>` | Clean up feature VM |
+| `pnpm dev update [ssh-host]` | Update hatch on remote server (or locally) |
 | `pnpm build` | Build with tsup |
 | `pnpm lint` | Lint with Biome |
 | `pnpm format` | Format with Biome |
