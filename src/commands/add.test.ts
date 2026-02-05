@@ -1,5 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createMockProjectRecord } from "../../__tests__/mocks/stores.js";
+import {
+	type MockInstance,
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
+import { createMockProjectRecord } from "../__tests__/mocks/stores.js";
 
 vi.mock("fs-extra", () => ({
 	default: {
@@ -48,9 +56,9 @@ vi.mock("../utils/spinner.js", () => ({
 import { input } from "@inquirer/prompts";
 import { execa } from "execa";
 import fs from "fs-extra";
-import { getProject, saveProject } from "../utils/project-store.js";
 import { vercelGetProjectUrl } from "../headless/cli-wrappers.js";
 import { log } from "../utils/logger.js";
+import { getProject, saveProject } from "../utils/project-store.js";
 import { addCommand } from "./add.js";
 
 const mockInput = vi.mocked(input);
@@ -62,7 +70,7 @@ const mockVercelGetProjectUrl = vi.mocked(vercelGetProjectUrl);
 const mockLog = vi.mocked(log);
 
 describe("add command", () => {
-	let mockExit: ReturnType<typeof vi.spyOn>;
+	let mockExit: MockInstance;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -108,7 +116,7 @@ describe("add command", () => {
 	describe("Supabase lookup", () => {
 		it("should error when Supabase is not provided", async () => {
 			mockGetProject.mockResolvedValue(undefined);
-			mockExeca.mockImplementation(async (cmd) => {
+			mockExeca.mockImplementation((async (cmd: string) => {
 				if (cmd === "gh") {
 					return {
 						stdout: JSON.stringify({
@@ -123,7 +131,7 @@ describe("add command", () => {
 					return { stdout: "[]", stderr: "" } as never;
 				}
 				throw new Error("Not found");
-			});
+			}) as never);
 			mockInput.mockResolvedValue("");
 
 			await expect(
@@ -139,7 +147,7 @@ describe("add command", () => {
 	describe("Vercel lookup", () => {
 		it("should error when Vercel is not provided", async () => {
 			mockGetProject.mockResolvedValue(undefined);
-			mockExeca.mockImplementation(async (cmd) => {
+			mockExeca.mockImplementation((async (cmd: string) => {
 				if (cmd === "gh") {
 					return {
 						stdout: JSON.stringify({
@@ -162,7 +170,7 @@ describe("add command", () => {
 					return { stdout: "", stderr: "" } as never;
 				}
 				throw new Error("Not found");
-			});
+			}) as never);
 			mockInput.mockResolvedValue("");
 
 			await expect(
@@ -174,7 +182,7 @@ describe("add command", () => {
 
 		it("should prompt for Vercel info when not found", async () => {
 			mockGetProject.mockResolvedValue(undefined);
-			mockExeca.mockImplementation(async (cmd, args) => {
+			mockExeca.mockImplementation((async (cmd: string, args?: string[]) => {
 				if (cmd === "gh") {
 					return {
 						stdout: JSON.stringify({
@@ -197,7 +205,7 @@ describe("add command", () => {
 					return { stdout: "other-project", stderr: "" } as never;
 				}
 				throw new Error("Not found");
-			});
+			}) as never);
 			mockInput
 				.mockResolvedValueOnce("manual_id")
 				.mockResolvedValueOnce("https://custom.vercel.app");
@@ -219,7 +227,7 @@ describe("add command", () => {
 	describe("save project", () => {
 		it("should save project record with all details", async () => {
 			mockGetProject.mockResolvedValue(undefined);
-			mockExeca.mockImplementation(async (cmd, args) => {
+			mockExeca.mockImplementation((async (cmd: string, args?: string[]) => {
 				if (cmd === "gh") {
 					return {
 						stdout: JSON.stringify({
@@ -245,9 +253,10 @@ describe("add command", () => {
 					return { stdout: "ID: prj_123", stderr: "" } as never;
 				}
 				throw new Error("Not found");
-			});
+			}) as never);
 			mockVercelGetProjectUrl.mockResolvedValue({
 				url: "https://my-project.vercel.app",
+				hasAlias: true,
 			});
 			mockSaveProject.mockResolvedValue(undefined);
 

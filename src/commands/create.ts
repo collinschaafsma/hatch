@@ -186,10 +186,6 @@ export const createCommand = new Command()
 						templates.generateGitignore(),
 					);
 					await writeFile(
-						path.join(projectPath, ".mcp.json"),
-						templates.generateMcpJson(),
-					);
-					await writeFile(
 						path.join(projectPath, "CLAUDE.md"),
 						templates.generateClaudeMd(name, useWorkOS),
 					);

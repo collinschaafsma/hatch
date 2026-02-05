@@ -2,8 +2,8 @@
 import { Command } from "commander";
 import { addCommand } from "./commands/add.js";
 import { cleanCommand } from "./commands/clean.js";
-import { configCommand } from "./commands/config.js";
 import { configPushCommand } from "./commands/config-push.js";
+import { configCommand } from "./commands/config.js";
 import { connectCommand } from "./commands/connect.js";
 import { createCommand } from "./commands/create.js";
 import { destroyCommand } from "./commands/destroy.js";

@@ -44,23 +44,23 @@ describe("token-refresh utilities", () => {
 
 	describe("refreshTokens", () => {
 		it("should update GitHub token from gh CLI", async () => {
-			mockFs.readJson.mockImplementation(async (path: string) => {
+			mockFs.readJson.mockImplementation((async (path: string) => {
 				if (path === "/config.json") {
 					return {
 						github: { token: "old_gh_token", org: "my-org" },
 					} as never;
 				}
 				return {} as never;
-			});
+			}) as never);
 			mockFs.pathExists.mockResolvedValue(false as never);
 			mockFs.writeJson.mockResolvedValue(undefined as never);
-			mockExeca.mockImplementation(async (cmd, args) => {
+			mockExeca.mockImplementation((async (cmd: string, args?: string[]) => {
 				if (cmd === "gh" && args?.includes("auth")) {
 					return { stdout: "new_gh_token", stderr: "" } as never;
 				}
 				// Fail other commands to prevent reading other tokens
 				throw new Error("Not found");
-			});
+			}) as never);
 
 			await refreshTokens("/config.json");
 
@@ -74,7 +74,7 @@ describe("token-refresh utilities", () => {
 		});
 
 		it("should update Vercel token from CLI config", async () => {
-			mockFs.readJson.mockImplementation(async (path: string) => {
+			mockFs.readJson.mockImplementation((async (path: string) => {
 				if (path === "/config.json") {
 					return {
 						vercel: { token: "old_vercel_token", team: "my-team" },
@@ -85,13 +85,13 @@ describe("token-refresh utilities", () => {
 					return { token: "new_vercel_token" } as never;
 				}
 				return {} as never;
-			});
-			mockFs.pathExists.mockImplementation(async (path: string) => {
+			}) as never);
+			mockFs.pathExists.mockImplementation((async (path: string) => {
 				if (path.includes("com.vercel.cli") || path.includes(".vercel")) {
 					return true as never;
 				}
 				return false as never;
-			});
+			}) as never);
 			mockFs.writeJson.mockResolvedValue(undefined as never);
 			mockExeca.mockRejectedValue(new Error("Not found") as never);
 
@@ -108,22 +108,22 @@ describe("token-refresh utilities", () => {
 
 		it("should update Supabase token from keychain on macOS", async () => {
 			Object.defineProperty(process, "platform", { value: "darwin" });
-			mockFs.readJson.mockImplementation(async (path: string) => {
+			mockFs.readJson.mockImplementation((async (path: string) => {
 				if (path === "/config.json") {
 					return {
 						supabase: { token: "old_supabase_token", org: "my-org" },
 					} as never;
 				}
 				return {} as never;
-			});
+			}) as never);
 			mockFs.pathExists.mockResolvedValue(false as never);
 			mockFs.writeJson.mockResolvedValue(undefined as never);
-			mockExeca.mockImplementation(async (cmd, args) => {
+			mockExeca.mockImplementation((async (cmd: string, args?: string[]) => {
 				if (cmd === "security" && args?.includes("Supabase CLI")) {
 					return { stdout: "new_supabase_token", stderr: "" } as never;
 				}
 				throw new Error("Not found");
-			});
+			}) as never);
 
 			await refreshTokens("/config.json");
 
@@ -139,17 +139,17 @@ describe("token-refresh utilities", () => {
 		it("should decode base64 Supabase token from keychain", async () => {
 			Object.defineProperty(process, "platform", { value: "darwin" });
 			const base64Token = Buffer.from("decoded_token").toString("base64");
-			mockFs.readJson.mockImplementation(async (path: string) => {
+			mockFs.readJson.mockImplementation((async (path: string) => {
 				if (path === "/config.json") {
 					return {
 						supabase: { token: "old", org: "org" },
 					} as never;
 				}
 				return {} as never;
-			});
+			}) as never);
 			mockFs.pathExists.mockResolvedValue(false as never);
 			mockFs.writeJson.mockResolvedValue(undefined as never);
-			mockExeca.mockImplementation(async (cmd, args) => {
+			mockExeca.mockImplementation((async (cmd: string, args?: string[]) => {
 				if (cmd === "security" && args?.includes("Supabase CLI")) {
 					return {
 						stdout: `go-keyring-base64:${base64Token}`,
@@ -157,7 +157,7 @@ describe("token-refresh utilities", () => {
 					} as never;
 				}
 				throw new Error("Not found");
-			});
+			}) as never);
 
 			await refreshTokens("/config.json");
 
@@ -171,7 +171,7 @@ describe("token-refresh utilities", () => {
 		});
 
 		it("should preserve existing config settings when refreshing", async () => {
-			mockFs.readJson.mockImplementation(async (path: string) => {
+			mockFs.readJson.mockImplementation((async (path: string) => {
 				if (path === "/config.json") {
 					return {
 						github: { token: "old", org: "my-org", email: "me@example.com" },
@@ -181,7 +181,7 @@ describe("token-refresh utilities", () => {
 					} as never;
 				}
 				return {} as never;
-			});
+			}) as never);
 			mockFs.pathExists.mockResolvedValue(false as never);
 			mockFs.writeJson.mockResolvedValue(undefined as never);
 			mockExeca.mockRejectedValue(new Error("Not found") as never);
@@ -191,9 +191,15 @@ describe("token-refresh utilities", () => {
 			expect(mockFs.writeJson).toHaveBeenCalledWith(
 				"/config.json",
 				expect.objectContaining({
-					github: expect.objectContaining({ org: "my-org", email: "me@example.com" }),
+					github: expect.objectContaining({
+						org: "my-org",
+						email: "me@example.com",
+					}),
 					vercel: expect.objectContaining({ team: "my-team" }),
-					supabase: expect.objectContaining({ org: "sb-org", region: "us-east-1" }),
+					supabase: expect.objectContaining({
+						org: "sb-org",
+						region: "us-east-1",
+					}),
 					envVars: [{ key: "API_KEY", value: "secret" }],
 				}),
 				{ spaces: 2 },
@@ -202,14 +208,14 @@ describe("token-refresh utilities", () => {
 
 		it("should use environment variable for GitHub token", async () => {
 			process.env.GITHUB_TOKEN = "env_gh_token";
-			mockFs.readJson.mockImplementation(async (path: string) => {
+			mockFs.readJson.mockImplementation((async (path: string) => {
 				if (path === "/config.json") {
 					return {
 						github: { token: "old" },
 					} as never;
 				}
 				return {} as never;
-			});
+			}) as never);
 			mockFs.pathExists.mockResolvedValue(false as never);
 			mockFs.writeJson.mockResolvedValue(undefined as never);
 
@@ -226,14 +232,14 @@ describe("token-refresh utilities", () => {
 
 		it("should use GH_TOKEN environment variable", async () => {
 			process.env.GH_TOKEN = "gh_env_token";
-			mockFs.readJson.mockImplementation(async (path: string) => {
+			mockFs.readJson.mockImplementation((async (path: string) => {
 				if (path === "/config.json") {
 					return {
 						github: { token: "old" },
 					} as never;
 				}
 				return {} as never;
-			});
+			}) as never);
 			mockFs.pathExists.mockResolvedValue(false as never);
 			mockFs.writeJson.mockResolvedValue(undefined as never);
 
@@ -250,14 +256,14 @@ describe("token-refresh utilities", () => {
 
 		it("should use VERCEL_TOKEN environment variable", async () => {
 			process.env.VERCEL_TOKEN = "vercel_env_token";
-			mockFs.readJson.mockImplementation(async (path: string) => {
+			mockFs.readJson.mockImplementation((async (path: string) => {
 				if (path === "/config.json") {
 					return {
 						vercel: { token: "old" },
 					} as never;
 				}
 				return {} as never;
-			});
+			}) as never);
 			mockFs.pathExists.mockResolvedValue(false as never);
 			mockFs.writeJson.mockResolvedValue(undefined as never);
 			mockExeca.mockRejectedValue(new Error("Not found") as never);
@@ -275,14 +281,14 @@ describe("token-refresh utilities", () => {
 
 		it("should use SUPABASE_ACCESS_TOKEN environment variable", async () => {
 			process.env.SUPABASE_ACCESS_TOKEN = "supabase_env_token";
-			mockFs.readJson.mockImplementation(async (path: string) => {
+			mockFs.readJson.mockImplementation((async (path: string) => {
 				if (path === "/config.json") {
 					return {
 						supabase: { token: "old" },
 					} as never;
 				}
 				return {} as never;
-			});
+			}) as never);
 			mockFs.pathExists.mockResolvedValue(false as never);
 			mockFs.writeJson.mockResolvedValue(undefined as never);
 			mockExeca.mockRejectedValue(new Error("Not found") as never);
@@ -300,19 +306,19 @@ describe("token-refresh utilities", () => {
 
 		it("should update Claude credentials on macOS", async () => {
 			Object.defineProperty(process, "platform", { value: "darwin" });
-			mockFs.readJson.mockImplementation(async (path: string) => {
+			mockFs.readJson.mockImplementation((async (path: string) => {
 				if (path === "/config.json") {
 					return {} as never;
 				}
 				// .claude.json doesn't exist
 				throw new Error("Not found");
-			});
-			mockFs.pathExists.mockImplementation(async (path: string) => {
+			}) as never);
+			mockFs.pathExists.mockImplementation((async (path: string) => {
 				// No .claude.json file
 				return false as never;
-			});
+			}) as never);
 			mockFs.writeJson.mockResolvedValue(undefined as never);
-			mockExeca.mockImplementation(async (cmd, args) => {
+			mockExeca.mockImplementation((async (cmd: string, args?: string[]) => {
 				if (cmd === "security" && args?.includes("Claude Code-credentials")) {
 					return {
 						stdout: JSON.stringify({
@@ -327,7 +333,7 @@ describe("token-refresh utilities", () => {
 					} as never;
 				}
 				throw new Error("Not found");
-			});
+			}) as never);
 
 			await refreshTokens("/config.json");
 

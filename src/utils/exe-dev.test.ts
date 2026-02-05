@@ -9,7 +9,6 @@ vi.mock("./ssh.js", () => ({
 }));
 
 import { execa } from "execa";
-import { checkSSHConnection } from "./ssh.js";
 import {
 	checkExeDevAccess,
 	exeDevList,
@@ -19,6 +18,7 @@ import {
 	exeDevSharePort,
 	waitForVMReady,
 } from "./exe-dev.js";
+import { checkSSHConnection } from "./ssh.js";
 
 const mockExeca = vi.mocked(execa);
 const mockCheckSSH = vi.mocked(checkSSHConnection);
@@ -218,7 +218,8 @@ describe("exe-dev utilities", () => {
 	describe("exeDevList", () => {
 		it("should parse VM list output", async () => {
 			mockExeca.mockResolvedValue({
-				stdout: "name           status\nfortune-sprite running\nhappy-cloud    stopped",
+				stdout:
+					"name           status\nfortune-sprite running\nhappy-cloud    stopped",
 				stderr: "",
 			} as never);
 
@@ -326,7 +327,12 @@ describe("exe-dev utilities", () => {
 
 			expect(mockExeca).toHaveBeenCalledWith(
 				"ssh",
-				expect.arrayContaining(["exe.dev", "share", "set-public", "fortune-sprite"]),
+				expect.arrayContaining([
+					"exe.dev",
+					"share",
+					"set-public",
+					"fortune-sprite",
+				]),
 				expect.any(Object),
 			);
 		});
@@ -371,11 +377,9 @@ describe("exe-dev utilities", () => {
 
 			// Create the promise and immediately set up error handling
 			let error: Error | undefined;
-			const promise = waitForVMReady("test.exe.xyz", 5000, 1000).catch(
-				(e) => {
-					error = e;
-				},
-			);
+			const promise = waitForVMReady("test.exe.xyz", 5000, 1000).catch((e) => {
+				error = e;
+			});
 
 			// Advance past the timeout
 			await vi.advanceTimersByTimeAsync(6000);
@@ -409,9 +413,7 @@ describe("exe-dev utilities", () => {
 		});
 
 		it("should use default interval of 3 seconds", async () => {
-			mockCheckSSH
-				.mockResolvedValueOnce(false)
-				.mockResolvedValueOnce(true);
+			mockCheckSSH.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
 
 			const promise = waitForVMReady("test.exe.xyz");
 

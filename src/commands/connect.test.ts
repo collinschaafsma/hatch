@@ -1,8 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	type MockInstance,
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
 import {
 	createMockProjectRecord,
 	createMockVMRecord,
-} from "../../__tests__/mocks/stores.js";
+} from "../__tests__/mocks/stores.js";
 
 vi.mock("@inquirer/prompts", () => ({
 	select: vi.fn(),
@@ -29,9 +37,9 @@ vi.mock("../utils/logger.js", () => ({
 }));
 
 import { select } from "@inquirer/prompts";
+import { log } from "../utils/logger.js";
 import { getProject } from "../utils/project-store.js";
 import { getVMByFeature, listVMs } from "../utils/vm-store.js";
-import { log } from "../utils/logger.js";
 import { connectCommand } from "./connect.js";
 
 const mockSelect = vi.mocked(select);
@@ -41,7 +49,7 @@ const mockListVMs = vi.mocked(listVMs);
 const mockLog = vi.mocked(log);
 
 describe("connect command", () => {
-	let mockExit: ReturnType<typeof vi.spyOn>;
+	let mockExit: MockInstance;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -148,9 +156,9 @@ describe("connect command", () => {
 		it("should show error when no VMs exist", async () => {
 			mockListVMs.mockResolvedValue([]);
 
-			await expect(
-				connectCommand.parseAsync(["node", "test"]),
-			).rejects.toThrow("process.exit called");
+			await expect(connectCommand.parseAsync(["node", "test"])).rejects.toThrow(
+				"process.exit called",
+			);
 
 			expect(mockLog.error).toHaveBeenCalledWith("No feature VMs found.");
 			expect(mockLog.info).toHaveBeenCalledWith(
@@ -199,7 +207,9 @@ describe("connect command", () => {
 			await connectCommand.parseAsync(["node", "test"]);
 
 			expect(mockLog.step).toHaveBeenCalledWith(
-				expect.stringContaining("vscode://vscode-remote/ssh-remote+test-vm.exe.xyz"),
+				expect.stringContaining(
+					"vscode://vscode-remote/ssh-remote+test-vm.exe.xyz",
+				),
 			);
 		});
 
@@ -253,9 +263,9 @@ describe("connect command", () => {
 			]);
 			mockSelect.mockRejectedValue(new Error("User force closed the prompt"));
 
-			await expect(
-				connectCommand.parseAsync(["node", "test"]),
-			).rejects.toThrow("process.exit called");
+			await expect(connectCommand.parseAsync(["node", "test"])).rejects.toThrow(
+				"process.exit called",
+			);
 
 			// Exit code 0 for user cancellation
 			expect(mockExit).toHaveBeenCalledWith(0);
@@ -264,9 +274,9 @@ describe("connect command", () => {
 		it("should handle other errors with exit code 1", async () => {
 			mockListVMs.mockRejectedValue(new Error("Database error"));
 
-			await expect(
-				connectCommand.parseAsync(["node", "test"]),
-			).rejects.toThrow("process.exit called");
+			await expect(connectCommand.parseAsync(["node", "test"])).rejects.toThrow(
+				"process.exit called",
+			);
 
 			expect(mockLog.error).toHaveBeenCalledWith(
 				"Failed to get VM info: Database error",

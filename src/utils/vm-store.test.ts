@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createMockVMRecord } from "../../__tests__/mocks/stores.js";
+import { createMockVMRecord } from "../__tests__/mocks/stores.js";
 
 vi.mock("fs-extra", () => ({
 	default: {
@@ -72,7 +72,10 @@ describe("vm-store utilities", () => {
 
 		it("should return empty store when vms is not an array", async () => {
 			mockFs.pathExists.mockResolvedValue(true as never);
-			mockFs.readJson.mockResolvedValue({ version: 1, vms: "invalid" } as never);
+			mockFs.readJson.mockResolvedValue({
+				version: 1,
+				vms: "invalid",
+			} as never);
 
 			const store = await loadVMStore();
 

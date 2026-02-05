@@ -1,4 +1,4 @@
-import type { ProjectRecord, VMRecord } from "../../src/types/index.js";
+import type { ProjectRecord, VMRecord } from "../../types/index.js";
 
 export function createMockProjectRecord(
 	overrides: Partial<ProjectRecord> = {},

@@ -1,8 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	type MockInstance,
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
 import {
 	createMockProjectRecord,
 	createMockVMRecord,
-} from "../../__tests__/mocks/stores.js";
+} from "../__tests__/mocks/stores.js";
 
 vi.mock("fs-extra", () => ({
 	default: {
@@ -51,9 +59,9 @@ vi.mock("../utils/spinner.js", () => ({
 import { input } from "@inquirer/prompts";
 import { execa } from "execa";
 import fs from "fs-extra";
-import { getProject, deleteProject } from "../utils/project-store.js";
-import { listVMsByProject } from "../utils/vm-store.js";
 import { log } from "../utils/logger.js";
+import { deleteProject, getProject } from "../utils/project-store.js";
+import { listVMsByProject } from "../utils/vm-store.js";
 import { destroyCommand } from "./destroy.js";
 
 const mockInput = vi.mocked(input);
@@ -65,7 +73,7 @@ const mockListVMsByProject = vi.mocked(listVMsByProject);
 const mockLog = vi.mocked(log);
 
 describe("destroy command", () => {
-	let mockExit: ReturnType<typeof vi.spyOn>;
+	let mockExit: MockInstance;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -287,12 +295,12 @@ describe("destroy command", () => {
 		});
 
 		it("should show manual cleanup for Supabase failure", async () => {
-			mockExeca.mockImplementation(async (cmd, args) => {
+			mockExeca.mockImplementation((async (cmd: string, args?: string[]) => {
 				if (cmd === "supabase" && args?.includes("projects")) {
 					throw new Error("API error");
 				}
 				return { stdout: "", stderr: "" } as never;
-			});
+			}) as never);
 			mockDeleteProject.mockResolvedValue(undefined);
 
 			await destroyCommand.parseAsync([
@@ -309,12 +317,12 @@ describe("destroy command", () => {
 		});
 
 		it("should show manual cleanup for Vercel failure", async () => {
-			mockExeca.mockImplementation(async (cmd) => {
+			mockExeca.mockImplementation((async (cmd: string) => {
 				if (cmd === "vercel") {
 					throw new Error("Not authorized");
 				}
 				return { stdout: "", stderr: "" } as never;
-			});
+			}) as never);
 			mockDeleteProject.mockResolvedValue(undefined);
 
 			await destroyCommand.parseAsync([

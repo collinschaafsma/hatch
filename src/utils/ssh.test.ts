@@ -183,7 +183,8 @@ describe("ssh utilities", () => {
 			await checkSSHConnection("host");
 
 			const call = mockExeca.mock.calls[0];
-			const timeoutIndex = call[1].indexOf("ConnectTimeout=5");
+			const args = call[1] as string[];
+			const timeoutIndex = args.indexOf("ConnectTimeout=5");
 			expect(timeoutIndex).toBeGreaterThan(-1);
 		});
 	});

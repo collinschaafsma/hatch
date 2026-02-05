@@ -1,8 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	type MockInstance,
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
 import {
 	createMockProjectRecord,
 	createMockVMRecord,
-} from "../../__tests__/mocks/stores.js";
+} from "../__tests__/mocks/stores.js";
 
 vi.mock("fs-extra", () => ({
 	default: {
@@ -55,10 +63,10 @@ vi.mock("../utils/spinner.js", () => ({
 import { confirm } from "@inquirer/prompts";
 import { execa } from "execa";
 import fs from "fs-extra";
-import { getProject } from "../utils/project-store.js";
-import { getVMByFeature, removeVM } from "../utils/vm-store.js";
 import { exeDevRm } from "../utils/exe-dev.js";
 import { log } from "../utils/logger.js";
+import { getProject } from "../utils/project-store.js";
+import { getVMByFeature, removeVM } from "../utils/vm-store.js";
 import { cleanCommand } from "./clean.js";
 
 const mockConfirm = vi.mocked(confirm);
@@ -71,7 +79,7 @@ const mockExeDevRm = vi.mocked(exeDevRm);
 const mockLog = vi.mocked(log);
 
 describe("clean command", () => {
-	let mockExit: ReturnType<typeof vi.spyOn>;
+	let mockExit: MockInstance;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -221,12 +229,7 @@ describe("clean command", () => {
 
 			expect(mockExeca).toHaveBeenCalledWith(
 				"gh",
-				[
-					"api",
-					"-X",
-					"DELETE",
-					"/repos/owner/repo/git/refs/heads/feat-branch",
-				],
+				["api", "-X", "DELETE", "/repos/owner/repo/git/refs/heads/feat-branch"],
 				expect.any(Object),
 			);
 		});

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createMockProjectRecord } from "../../__tests__/mocks/stores.js";
+import { createMockProjectRecord } from "../__tests__/mocks/stores.js";
 
 vi.mock("fs-extra", () => ({
 	default: {

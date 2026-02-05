@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	createMockProjectRecord,
 	createMockVMRecord,
-} from "../../__tests__/mocks/stores.js";
+} from "../__tests__/mocks/stores.js";
 
 vi.mock("../utils/project-store.js", () => ({
 	listProjects: vi.fn(),
@@ -46,7 +46,9 @@ describe("list command", () => {
 	describe("--json option", () => {
 		it("should output projects and VMs as JSON", async () => {
 			const projects = [createMockProjectRecord({ name: "my-project" })];
-			const vms = [createMockVMRecord({ name: "my-vm", project: "my-project" })];
+			const vms = [
+				createMockVMRecord({ name: "my-vm", project: "my-project" }),
+			];
 			mockListProjects.mockResolvedValue(projects);
 			mockListVMs.mockResolvedValue(vms);
 
