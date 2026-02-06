@@ -108,3 +108,13 @@ export async function listVMsByProject(project: string): Promise<VMRecord[]> {
 	const store = await loadVMStore();
 	return store.vms.filter((v) => v.project === project);
 }
+
+/**
+ * Get active spikes (completed status, ready for iteration)
+ */
+export async function getActiveSpikes(project?: string): Promise<VMRecord[]> {
+	const store = await loadVMStore();
+	return store.vms.filter(
+		(v) => v.spikeStatus === "completed" && (!project || v.project === project),
+	);
+}

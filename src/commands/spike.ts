@@ -20,7 +20,7 @@ import {
 	isClaudeTokenExpired,
 	refreshClaudeTokenOnly,
 } from "../utils/token-refresh.js";
-import { addVM, updateVM } from "../utils/vm-store.js";
+import { addVM, getVM, updateVM } from "../utils/vm-store.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,6 +33,369 @@ interface SpikeCommandOptions {
 	timeout?: number;
 	wait?: boolean;
 	json?: boolean;
+	continue?: string;
+}
+
+/**
+ * Handle spike continuation (--continue flag)
+ * Reuses existing VM to add additional commits to the same PR
+ */
+async function handleContinuation(
+	featureName: string,
+	options: SpikeCommandOptions,
+	continueVmName: string,
+	outputJson: (result: SpikeResult) => void,
+): Promise<void> {
+	try {
+		if (!options.json) {
+			log.blank();
+			log.info(`Continuing spike on VM: ${continueVmName}`);
+			log.info(`Project: ${options.project}`);
+			log.info(`Prompt: "${options.prompt}"`);
+			log.blank();
+		}
+
+		// Step 1: Look up the VM
+		const vm = await getVM(continueVmName);
+		if (!vm) {
+			const result: SpikeResult = {
+				status: "failed",
+				vmName: continueVmName,
+				sshHost: "",
+				feature: featureName,
+				project: options.project,
+				error: `VM not found: ${continueVmName}`,
+			};
+			outputJson(result);
+			if (!options.json) {
+				log.error(`VM not found: ${continueVmName}`);
+				log.info("Run 'hatch list --json' to see available VMs.");
+			}
+			process.exit(1);
+		}
+
+		// Validate VM state
+		if (vm.spikeStatus === "running") {
+			const result: SpikeResult = {
+				status: "failed",
+				vmName: continueVmName,
+				sshHost: vm.sshHost,
+				feature: vm.feature,
+				project: vm.project,
+				error: "Spike is still running. Wait for it to complete first.",
+			};
+			outputJson(result);
+			if (!options.json) {
+				log.error("Spike is still running. Wait for it to complete first.");
+				log.info(`Monitor with: ssh ${vm.sshHost} 'tail -f ~/spike.log'`);
+			}
+			process.exit(1);
+		}
+
+		if (vm.spikeStatus !== "completed") {
+			const result: SpikeResult = {
+				status: "failed",
+				vmName: continueVmName,
+				sshHost: vm.sshHost,
+				feature: vm.feature,
+				project: vm.project,
+				error: `Spike status is "${vm.spikeStatus}". Can only continue completed spikes.`,
+			};
+			outputJson(result);
+			if (!options.json) {
+				log.error(
+					`Spike status is "${vm.spikeStatus}". Can only continue completed spikes.`,
+				);
+			}
+			process.exit(1);
+		}
+
+		// Step 2: Check SSH is still accessible
+		const accessSpinner = options.json
+			? null
+			: createSpinner("Checking VM is still accessible").start();
+
+		try {
+			await sshExec(vm.sshHost, "echo ok", { timeoutMs: 10000 });
+			accessSpinner?.succeed("VM is accessible");
+		} catch {
+			accessSpinner?.fail("VM is not accessible");
+			const result: SpikeResult = {
+				status: "failed",
+				vmName: continueVmName,
+				sshHost: vm.sshHost,
+				feature: vm.feature,
+				project: vm.project,
+				error:
+					"Cannot connect to VM. It may have been deleted. Start a new spike instead.",
+			};
+			outputJson(result);
+			if (!options.json) {
+				log.error(
+					"Cannot connect to VM. It may have been deleted. Start a new spike instead.",
+				);
+			}
+			process.exit(1);
+		}
+
+		// Step 3: Load and refresh config
+		const configPath = options.config || path.join(os.homedir(), ".hatch.json");
+		if (!(await fs.pathExists(configPath))) {
+			const result: SpikeResult = {
+				status: "failed",
+				vmName: continueVmName,
+				sshHost: vm.sshHost,
+				feature: vm.feature,
+				project: vm.project,
+				error: `Config file not found: ${configPath}`,
+			};
+			outputJson(result);
+			if (!options.json) {
+				log.error(`Config file not found: ${configPath}`);
+			}
+			process.exit(1);
+		}
+
+		let config = await fs.readJson(configPath);
+
+		// Auto-refresh Claude token if expired
+		if (isClaudeTokenExpired(config)) {
+			const refreshed = await refreshClaudeTokenOnly(configPath);
+			if (!refreshed) {
+				const result: SpikeResult = {
+					status: "failed",
+					vmName: continueVmName,
+					sshHost: vm.sshHost,
+					feature: vm.feature,
+					project: vm.project,
+					error: "Claude token expired. Run 'claude' to re-authenticate.",
+				};
+				outputJson(result);
+				if (!options.json) {
+					log.error("Claude token expired. Run 'claude' to re-authenticate.");
+				}
+				process.exit(1);
+			}
+			if (!options.json) {
+				log.success("Claude token refreshed");
+			}
+			config = await fs.readJson(configPath);
+		}
+
+		// Step 4: Copy fresh config to VM (tokens may have refreshed)
+		const configSpinner = options.json
+			? null
+			: createSpinner("Copying updated config to VM").start();
+		await scpToRemote(configPath, vm.sshHost, "~/.hatch.json");
+		configSpinner?.succeed("Config updated on VM");
+
+		// Step 5: Look up project for path info
+		const project = await getProject(vm.project);
+		if (!project) {
+			const result: SpikeResult = {
+				status: "failed",
+				vmName: continueVmName,
+				sshHost: vm.sshHost,
+				feature: vm.feature,
+				project: vm.project,
+				error: `Project not found: ${vm.project}`,
+			};
+			outputJson(result);
+			if (!options.json) {
+				log.error(`Project not found: ${vm.project}`);
+			}
+			process.exit(1);
+		}
+
+		const projectPath = `~/${project.github.repo}`;
+		const supabaseToken = config.supabase?.token || "";
+		const envPrefix = `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.claude/local/bin:$PATH" && export SUPABASE_ACCESS_TOKEN="${supabaseToken}" &&`;
+
+		// Step 6: Update VM record to running
+		const currentIteration = (vm.spikeIterations || 1) + 1;
+		await updateVM(continueVmName, {
+			spikeStatus: "running",
+			spikeIterations: currentIteration,
+		});
+
+		// Step 7: Clear the done file so we can track new completion
+		await sshExec(vm.sshHost, "rm -f ~/spike-done ~/spike-result.json");
+
+		// Step 8: Start agent in background
+		const agentSpinner = options.json
+			? null
+			: createSpinner(
+					`Starting Claude agent (iteration ${currentIteration})`,
+				).start();
+
+		const escapedPrompt = options.prompt
+			.replace(/\\/g, "\\\\")
+			.replace(/"/g, '\\"')
+			.replace(/\$/g, "\\$")
+			.replace(/`/g, "\\`");
+
+		const agentCommand = `${envPrefix} cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${vm.feature} --project ${vm.project} > /dev/null 2>&1 < /dev/null &)`;
+
+		await sshExec(vm.sshHost, agentCommand);
+		agentSpinner?.succeed(
+			`Claude agent started (iteration ${currentIteration})`,
+		);
+
+		// Build the result
+		const result: SpikeResult = {
+			status: "started",
+			vmName: continueVmName,
+			sshHost: vm.sshHost,
+			feature: vm.feature,
+			project: vm.project,
+			monitor: {
+				tailLog: `ssh ${vm.sshHost} 'tail -f ~/spike.log'`,
+				tailProgress: `ssh ${vm.sshHost} 'tail -f ~/spike-progress.jsonl'`,
+				checkDone: `ssh ${vm.sshHost} 'test -f ~/spike-done && cat ~/spike-result.json'`,
+			},
+		};
+
+		if (options.wait) {
+			// Wait for completion
+			const waitSpinner = options.json
+				? null
+				: createSpinner("Waiting for Claude agent to finish").start();
+
+			const timeoutMinutes = Number.parseInt(
+				options.timeout?.toString() || "60",
+				10,
+			);
+			const timeoutMs = timeoutMinutes * 60 * 1000;
+			const startTime = Date.now();
+			const pollInterval = 30000;
+
+			let completed = false;
+			while (Date.now() - startTime < timeoutMs) {
+				try {
+					const { stdout } = await sshExec(
+						vm.sshHost,
+						"test -f ~/spike-done && echo 'done' || echo 'running'",
+					);
+					if (stdout.trim() === "done") {
+						completed = true;
+						break;
+					}
+				} catch {
+					// Continue waiting
+				}
+				await new Promise((resolve) => setTimeout(resolve, pollInterval));
+			}
+
+			if (completed) {
+				try {
+					const { stdout: resultJson } = await sshExec(
+						vm.sshHost,
+						"cat ~/spike-result.json 2>/dev/null || echo '{}'",
+					);
+					const spikeResult = JSON.parse(resultJson);
+
+					const { stdout: prUrl } = await sshExec(
+						vm.sshHost,
+						"cat ~/pr-url.txt 2>/dev/null || echo ''",
+					);
+
+					result.status = spikeResult.status || "completed";
+					result.sessionId = spikeResult.sessionId;
+					result.cost = spikeResult.cost;
+					result.prUrl = prUrl.trim() || vm.prUrl || undefined;
+
+					// Update VM record with cumulative cost
+					const previousCost = vm.cumulativeCost || {
+						totalUsd: 0,
+						inputTokens: 0,
+						outputTokens: 0,
+					};
+					const newCost = spikeResult.cost || {
+						totalUsd: 0,
+						inputTokens: 0,
+						outputTokens: 0,
+					};
+
+					await updateVM(continueVmName, {
+						spikeStatus: result.status === "completed" ? "completed" : "failed",
+						agentSessionId: spikeResult.sessionId,
+						prUrl: result.prUrl,
+						cumulativeCost: {
+							totalUsd: previousCost.totalUsd + newCost.totalUsd,
+							inputTokens: previousCost.inputTokens + newCost.inputTokens,
+							outputTokens: previousCost.outputTokens + newCost.outputTokens,
+						},
+					});
+
+					waitSpinner?.succeed("Iteration completed");
+				} catch {
+					result.status = "completed";
+					await updateVM(continueVmName, { spikeStatus: "completed" });
+					waitSpinner?.succeed("Iteration completed (could not read result)");
+				}
+			} else {
+				result.status = "failed";
+				result.error = `Spike timed out after ${timeoutMinutes} minutes`;
+				await updateVM(continueVmName, { spikeStatus: "failed" });
+				waitSpinner?.fail(`Spike timed out after ${timeoutMinutes} minutes`);
+			}
+		}
+
+		outputJson(result);
+
+		if (!options.json) {
+			log.blank();
+			log.success(`Spike iteration ${currentIteration} started!`);
+			log.blank();
+			log.info("Spike details:");
+			log.step(`VM:        ${continueVmName}`);
+			log.step(`SSH:       ${vm.sshHost}`);
+			log.step(`Feature:   ${vm.feature}`);
+			log.step(`Project:   ${vm.project}`);
+			log.step(`Iteration: ${currentIteration}`);
+			log.blank();
+			log.info("Monitor progress:");
+			log.step(`Tail log:      ${result.monitor?.tailLog}`);
+			log.step(`Tail progress: ${result.monitor?.tailProgress}`);
+			log.step(`Check done:    ${result.monitor?.checkDone}`);
+			log.blank();
+			if (result.prUrl) {
+				log.success(`PR URL: ${result.prUrl}`);
+				log.blank();
+			}
+			if (result.cost) {
+				log.info(
+					`This iteration: $${result.cost.totalUsd.toFixed(4)} (${result.cost.inputTokens} in / ${result.cost.outputTokens} out)`,
+				);
+				log.blank();
+			}
+		}
+	} catch (error) {
+		if (error instanceof Error && error.message.includes("User force closed")) {
+			if (!options.json) {
+				log.blank();
+				log.info("Operation cancelled.");
+			}
+		} else {
+			const result: SpikeResult = {
+				status: "failed",
+				vmName: continueVmName,
+				sshHost: "",
+				feature: featureName,
+				project: options.project,
+				error: error instanceof Error ? error.message : String(error),
+			};
+			outputJson(result);
+
+			if (!options.json) {
+				log.blank();
+				log.error(
+					`Failed to continue spike: ${error instanceof Error ? error.message : error}`,
+				);
+			}
+		}
+		process.exit(1);
+	}
 }
 
 export const spikeCommand = new Command()
@@ -51,6 +414,10 @@ export const spikeCommand = new Command()
 	.option("--timeout <minutes>", "Maximum build time in minutes", "60")
 	.option("--wait", "Wait for completion instead of running in background")
 	.option("--json", "Output result as JSON")
+	.option(
+		"--continue <vm-name>",
+		"Continue an existing spike on the specified VM",
+	)
 	.action(async (featureName: string, options: SpikeCommandOptions) => {
 		let vmName: string | undefined;
 		let sshHost: string | undefined;
@@ -60,6 +427,17 @@ export const spikeCommand = new Command()
 				console.log(JSON.stringify(result, null, 2));
 			}
 		};
+
+		// Handle continuation mode
+		if (options.continue) {
+			await handleContinuation(
+				featureName,
+				options,
+				options.continue,
+				outputJson,
+			);
+			return;
+		}
 
 		try {
 			if (!options.json) {
@@ -469,6 +847,8 @@ export const spikeCommand = new Command()
 				supabaseBranches: [mainBranch, testBranch],
 				githubBranch: featureName,
 				spikeStatus: "running",
+				spikeIterations: 1,
+				originalPrompt: options.prompt,
 			};
 			await addVM(vmRecord);
 
@@ -486,7 +866,7 @@ export const spikeCommand = new Command()
 
 			// Use nohup to run agent in background (use pnpm tsx since we installed it)
 			// Wrap in subshell and redirect stdin to fully detach from SSH
-			const agentCommand = `${envPrefix} cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${featureName} > /dev/null 2>&1 < /dev/null &)`;
+			const agentCommand = `${envPrefix} cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${featureName} --project ${project.name} > /dev/null 2>&1 < /dev/null &)`;
 
 			await sshExec(sshHost, agentCommand);
 			agentSpinner?.succeed("Claude agent started in background");
@@ -561,6 +941,8 @@ export const spikeCommand = new Command()
 							spikeStatus:
 								result.status === "completed" ? "completed" : "failed",
 							agentSessionId: spikeResult.sessionId,
+							prUrl: result.prUrl,
+							cumulativeCost: spikeResult.cost,
 						});
 
 						waitSpinner?.succeed("Spike completed");

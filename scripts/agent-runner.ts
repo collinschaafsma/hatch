@@ -28,6 +28,23 @@ const PROGRESS_FILE = path.join(HOME, "spike-progress.jsonl");
 const SESSION_FILE = path.join(HOME, "session-id.txt");
 const DONE_FILE = path.join(HOME, "spike-done");
 const RESULT_FILE = path.join(HOME, "spike-result.json");
+const CONTEXT_FILE = path.join(HOME, "spike-context.json");
+const PR_URL_FILE = path.join(HOME, "pr-url.txt");
+
+interface SpikeIteration {
+	prompt: string;
+	sessionId?: string;
+	timestamp: string;
+	cost: { totalUsd: number; inputTokens: number; outputTokens: number };
+}
+
+interface SpikeContext {
+	feature: string;
+	project: string;
+	projectPath: string;
+	prUrl?: string;
+	iterations: SpikeIteration[];
+}
 
 interface ProgressEvent {
 	timestamp: string;
@@ -59,12 +76,39 @@ function writeResult(result: {
 	fs.writeFileSync(DONE_FILE, "done");
 }
 
+function loadContext(): SpikeContext | null {
+	try {
+		if (fs.existsSync(CONTEXT_FILE)) {
+			return JSON.parse(fs.readFileSync(CONTEXT_FILE, "utf-8"));
+		}
+	} catch {
+		// Corrupted or missing, start fresh
+	}
+	return null;
+}
+
+function saveContext(context: SpikeContext): void {
+	fs.writeFileSync(CONTEXT_FILE, JSON.stringify(context, null, 2));
+}
+
+function loadPrUrl(): string | undefined {
+	try {
+		if (fs.existsSync(PR_URL_FILE)) {
+			return fs.readFileSync(PR_URL_FILE, "utf-8").trim() || undefined;
+		}
+	} catch {
+		// Missing
+	}
+	return undefined;
+}
+
 async function main(): Promise<void> {
 	const { values } = parseArgs({
 		options: {
 			prompt: { type: "string" },
 			"project-path": { type: "string" },
 			feature: { type: "string" },
+			project: { type: "string" },
 			resume: { type: "string" },
 		},
 	});
@@ -72,11 +116,12 @@ async function main(): Promise<void> {
 	const prompt = values.prompt;
 	const projectPath = values["project-path"];
 	const feature = values.feature;
+	const project = values.project || "";
 	const resumeSessionId = values.resume;
 
 	if (!prompt || !projectPath || !feature) {
 		console.error(
-			"Usage: npx tsx agent-runner.ts --prompt <prompt> --project-path <path> --feature <name> [--resume <sessionId>]",
+			"Usage: npx tsx agent-runner.ts --prompt <prompt> --project-path <path> --feature <name> [--project <name>] [--resume <sessionId>]",
 		);
 		process.exit(1);
 	}
@@ -85,15 +130,56 @@ async function main(): Promise<void> {
 	fs.writeFileSync(LOG_FILE, "");
 	fs.writeFileSync(PROGRESS_FILE, "");
 
-	log(`Starting spike: ${feature}`);
+	// Load existing context (for iterations)
+	const existingContext = loadContext();
+	const existingPrUrl = loadPrUrl();
+	const isIteration =
+		existingContext !== null && existingContext.iterations.length > 0;
+
+	log(
+		`Starting spike: ${feature}${isIteration ? ` (iteration ${existingContext.iterations.length + 1})` : ""}`,
+	);
 	log(`Project path: ${projectPath}`);
 	log(`Prompt: ${prompt}`);
+	if (existingPrUrl) {
+		log(`Existing PR: ${existingPrUrl}`);
+	}
 	if (resumeSessionId) {
 		log(`Resuming session: ${resumeSessionId}`);
 	}
 
 	// Build the full prompt with instructions
-	const fullPrompt = `${prompt}
+	let fullPrompt: string;
+
+	if (isIteration && existingPrUrl) {
+		// Continuation prompt - don't create new PR
+		const previousWork = existingContext.iterations
+			.map(
+				(iter, i) =>
+					`- Iteration ${i + 1}: "${iter.prompt}" (completed ${iter.timestamp})`,
+			)
+			.join("\n");
+
+		fullPrompt = `You are continuing work on feature "${feature}".
+
+Previous work:
+${previousWork}
+
+A PR already exists at: ${existingPrUrl}
+
+For this iteration, add new commits to the existing branch and push.
+Do NOT create a new PR - the existing one will update automatically.
+
+Current request: ${prompt}
+
+When you are done:
+1. Commit all changes with a descriptive message
+2. Push the branch to origin (the PR will update automatically)
+
+Important: The branch already exists (${feature}). Make your changes, commit, and push.`;
+	} else {
+		// First iteration - create PR
+		fullPrompt = `${prompt}
 
 When you are done:
 1. Commit all changes with a descriptive message
@@ -102,6 +188,7 @@ When you are done:
 4. Write the PR URL to ~/pr-url.txt (just the URL, nothing else)
 
 Important: The branch is already created (${feature}). Make your changes, then commit, push, and create the PR.`;
+	}
 
 	let totalInputTokens = 0;
 	let totalOutputTokens = 0;
@@ -186,14 +273,40 @@ Important: The branch is already created (${feature}). Make your changes, then c
 			`Tokens: ${totalInputTokens} input, ${totalOutputTokens} output (~$${totalUsd.toFixed(4)})`,
 		);
 
+		// Update context file with this iteration
+		const currentCost = {
+			totalUsd,
+			inputTokens: totalInputTokens,
+			outputTokens: totalOutputTokens,
+		};
+
+		const newIteration: SpikeIteration = {
+			prompt,
+			sessionId,
+			timestamp: new Date().toISOString(),
+			cost: currentCost,
+		};
+
+		const updatedContext: SpikeContext = existingContext
+			? {
+					...existingContext,
+					prUrl: loadPrUrl() || existingContext.prUrl,
+					iterations: [...existingContext.iterations, newIteration],
+				}
+			: {
+					feature,
+					project,
+					projectPath,
+					prUrl: loadPrUrl(),
+					iterations: [newIteration],
+				};
+
+		saveContext(updatedContext);
+
 		writeResult({
 			status: "completed",
 			sessionId,
-			cost: {
-				totalUsd,
-				inputTokens: totalInputTokens,
-				outputTokens: totalOutputTokens,
-			},
+			cost: currentCost,
 		});
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);

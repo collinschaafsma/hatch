@@ -163,6 +163,11 @@ export interface VMRecord {
 	// Spike-specific fields (optional for feature VMs)
 	agentSessionId?: string; // For session resume
 	spikeStatus?: "running" | "completed" | "failed";
+	// Iteration fields (for spike continuations)
+	spikeIterations?: number; // Count: 1 = original, 2+ = continued
+	originalPrompt?: string; // First prompt for context
+	cumulativeCost?: SpikeCost; // Total across iterations
+	prUrl?: string; // Store PR URL locally
 }
 
 export interface VMStore {

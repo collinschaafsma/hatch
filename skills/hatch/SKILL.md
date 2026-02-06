@@ -104,6 +104,50 @@ Only use after all feature VMs are cleaned.
 
 **Rule of thumb:** If you can describe the task completely in 1-2 sentences, use spike. If you need to ask clarifying questions or the task has many unknowns, use feature.
 
+## Iterating on a Spike
+
+When a user wants to make changes to an existing spike (e.g., "add phone number to that form"), you can continue the spike instead of starting fresh.
+
+### Checking for Active Spikes
+
+```bash
+cd ~/.hatch-cli && pnpm dev list --json
+```
+
+Look for VMs with `spikeStatus: "completed"` matching the project. These are eligible for continuation.
+
+### Continuing a Spike
+
+```bash
+cd ~/.hatch-cli && pnpm dev spike <feature> --project <project> --continue <vm-name> --prompt "additional changes"
+```
+
+**Options:**
+- `--continue <vm-name>` - Continue an existing spike on the specified VM
+- `--wait` - Block until iteration completes
+- `--json` - Output result as JSON
+
+### What Happens on Continuation
+
+The agent will:
+1. Load context of all previous prompts from `~/spike-context.json`
+2. Make changes based on the new prompt
+3. Add new commits to the existing branch
+4. Push to update the existing PR (no new PR created)
+
+### When to Ask About Continuation
+
+When the user's request relates to a recently completed spike:
+1. Check for active spikes in the same project
+2. Ask: "You have an active spike 'feature-name' with PR at [url]. Continue that spike with additional changes, or start a new one?"
+3. If continuing, use `--continue <vm-name>`
+
+### Continuation Limitations
+
+- Can only continue spikes with `spikeStatus: "completed"`
+- Cannot continue while a spike is still running
+- If VM is unreachable, user must clean and start fresh
+
 ## Monitoring Spike Progress
 
 After starting a spike, monitor with these SSH commands:
