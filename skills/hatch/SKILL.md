@@ -68,6 +68,10 @@ cd ~/.hatch-cli && pnpm dev config
 ```
 Generates `hatch.json` config file with credentials and defaults.
 
+**Options:**
+- `--refresh` - Refresh all tokens (preserves orgs/teams/env vars)
+- `--refresh-claude` - Refresh only Claude credentials (useful when Claude token expires)
+
 ### Update hatch
 ```bash
 cd ~/.hatch-cli && pnpm dev update
@@ -193,6 +197,10 @@ Share PR URL when complete.
 cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "Add contact form" --wait --json
 ```
 Returns full result including PR URL and cost when done.
+
+## Token Auto-Refresh
+
+The `feature` and `spike` commands automatically refresh Claude credentials if expired. If auto-refresh fails (e.g., Claude CLI not authenticated on the server), run `claude` interactively to re-authenticate, then retry.
 
 ## Error Handling
 

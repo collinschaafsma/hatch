@@ -16,6 +16,10 @@ import { getProject } from "../utils/project-store.js";
 import { createSpinner } from "../utils/spinner.js";
 import { scpToRemote, sshExec } from "../utils/ssh.js";
 import { checkAndPromptTokenRefresh } from "../utils/token-check.js";
+import {
+	isClaudeTokenExpired,
+	refreshClaudeTokenOnly,
+} from "../utils/token-refresh.js";
 import { addVM, updateVM } from "../utils/vm-store.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -142,7 +146,33 @@ export const spikeCommand = new Command()
 			}
 
 			// Load config to get tokens
-			const config = await fs.readJson(configPath);
+			let config = await fs.readJson(configPath);
+
+			// Silently auto-refresh Claude token if expired
+			if (isClaudeTokenExpired(config)) {
+				const refreshed = await refreshClaudeTokenOnly(configPath);
+				if (!refreshed) {
+					const result: SpikeResult = {
+						status: "failed",
+						vmName: "",
+						sshHost: "",
+						feature: featureName,
+						project: options.project,
+						error: "Claude token expired. Run 'claude' to re-authenticate.",
+					};
+					outputJson(result);
+					if (!options.json) {
+						log.error("Claude token expired. Run 'claude' to re-authenticate.");
+					}
+					process.exit(1);
+				}
+				if (!options.json) {
+					log.success("Claude token refreshed");
+				}
+				// Reload config with fresh token
+				config = await fs.readJson(configPath);
+			}
+
 			const supabaseToken = config.supabase?.token || "";
 			const vercelToken = config.vercel?.token || "";
 

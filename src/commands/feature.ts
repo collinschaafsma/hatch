@@ -16,6 +16,10 @@ import { getProject } from "../utils/project-store.js";
 import { createSpinner } from "../utils/spinner.js";
 import { scpToRemote, sshExec } from "../utils/ssh.js";
 import { checkAndPromptTokenRefresh } from "../utils/token-check.js";
+import {
+	isClaudeTokenExpired,
+	refreshClaudeTokenOnly,
+} from "../utils/token-refresh.js";
 import { addVM } from "../utils/vm-store.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -91,7 +95,20 @@ export const featureCommand = new Command()
 			}
 
 			// Load config to get tokens for CLI commands
-			const config = await fs.readJson(configPath);
+			let config = await fs.readJson(configPath);
+
+			// Silently auto-refresh Claude token if expired
+			if (isClaudeTokenExpired(config)) {
+				const refreshed = await refreshClaudeTokenOnly(configPath);
+				if (!refreshed) {
+					log.error("Claude token expired. Run 'claude' to re-authenticate.");
+					process.exit(1);
+				}
+				log.success("Claude token refreshed");
+				// Reload config with fresh token
+				config = await fs.readJson(configPath);
+			}
+
 			const supabaseToken = config.supabase?.token || "";
 			const vercelToken = config.vercel?.token || "";
 

@@ -333,6 +333,7 @@ Supabase branching provides isolated databases for each environment:
 | `hatch config` | Create ~/.hatch.json (default) |
 | `hatch config -o <path>` | Create config at custom path |
 | `hatch config --refresh` | Refresh tokens without re-prompting for orgs/teams |
+| `hatch config --refresh-claude` | Refresh only Claude credentials (preserves other tokens) |
 | `hatch config check` | Validate tokens are still valid |
 | `hatch config check --json` | Validate tokens and output as JSON |
 | `hatch config-push <ssh-host>` | Push ~/.hatch.json to a remote server |
@@ -486,7 +487,14 @@ Hatch can be installed on any Linux server (not just macOS) for automation or AI
    pnpm dev config-push user@remote-server
    ```
 
-3. **Verify installation**:
+3. **Authenticate Claude Code** on the remote server:
+   ```bash
+   claude
+   ```
+
+   Complete the interactive OAuth login. This creates `~/.claude/.credentials.json` which hatch uses for Claude token refresh. You only need to do this once per server.
+
+4. **Verify installation**:
    ```bash
    cd ~/.hatch-cli
    pnpm dev list --json
