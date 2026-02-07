@@ -411,7 +411,7 @@ export const spikeCommand = new Command()
 		"Path to hatch.json config file",
 		path.join(os.homedir(), ".hatch.json"),
 	)
-	.option("--timeout <minutes>", "Maximum build time in minutes", "60")
+	.option("--timeout <minutes>", "Maximum build time in minutes", "240")
 	.option("--wait", "Wait for completion instead of running in background")
 	.option("--json", "Output result as JSON")
 	.option(

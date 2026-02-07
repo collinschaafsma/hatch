@@ -41,7 +41,7 @@ Creates VM, runs Claude Agent SDK autonomously, creates PR when done.
 
 **Options:**
 - `--wait` - Block until spike completes (default: return immediately)
-- `--timeout <minutes>` - Max time when using `--wait` (default: 60)
+- `--timeout <minutes>` - Max time when using `--wait` (default: 240)
 - `--json` - Output result as JSON
 
 ### Clean up
@@ -257,3 +257,15 @@ If a spike fails:
 If the spike command itself fails (before agent starts):
 - The command automatically rolls back and deletes the VM
 - Check error message for the cause (missing config, network issues, etc.)
+
+## Important: Do Not Modify VM Code Directly
+
+NEVER SSH into a spike VM to make code changes directly. This bypasses the Claude agent
+running on the VM which has full project context, proper tooling, and tracks its work.
+
+Instead:
+- Use `hatch spike --continue <vm-name> --prompt "description of changes"` to iterate
+- The agent on the VM has Claude Code with Bash, Read, Write, Edit, Glob, and Grep tools
+- Direct SSH modifications will conflict with the agent's work and won't be tracked
+
+You may SSH into VMs only for **read-only monitoring** (e.g., `tail -f ~/spike.log`).

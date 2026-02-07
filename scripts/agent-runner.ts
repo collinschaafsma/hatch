@@ -172,22 +172,28 @@ Do NOT create a new PR - the existing one will update automatically.
 
 Current request: ${prompt}
 
-When you are done:
-1. Commit all changes with a descriptive message
-2. Push the branch to origin (the PR will update automatically)
+When you are done implementing your changes:
+1. Run \`pnpm lint\` from the project root and fix any lint errors
+2. Run \`pnpm typecheck\` from the project root and fix any type errors
+3. Run the test suite to verify your changes don't break existing tests — if tests need updates, fix them
+4. Commit all changes with a descriptive message
+5. Push the branch to origin (the PR will update automatically)
 
-Important: The branch already exists (${feature}). Make your changes, commit, and push.`;
+Important: The branch already exists (${feature}). Make your changes, verify quality, commit, and push.`;
 	} else {
 		// First iteration - create PR
 		fullPrompt = `${prompt}
 
-When you are done:
-1. Commit all changes with a descriptive message
-2. Push the branch to origin
-3. Create a pull request using 'gh pr create'
-4. Write the PR URL to ~/pr-url.txt (just the URL, nothing else)
+When you are done implementing your changes:
+1. Run \`pnpm lint\` from the project root and fix any lint errors
+2. Run \`pnpm typecheck\` from the project root and fix any type errors
+3. Run the test suite to verify your changes don't break existing tests — if tests need updates, fix them
+4. Commit all changes with a descriptive message
+5. Push the branch to origin
+6. Create a pull request using 'gh pr create'
+7. Write the PR URL to ~/pr-url.txt (just the URL, nothing else)
 
-Important: The branch is already created (${feature}). Make your changes, then commit, push, and create the PR.`;
+Important: The branch is already created (${feature}). Make your changes, verify quality, then commit, push, and create the PR.`;
 	}
 
 	let totalInputTokens = 0;
