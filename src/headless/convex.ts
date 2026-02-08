@@ -319,7 +319,7 @@ export async function setConvexEnvVarViaAPI(
 	envVars: Array<{ name: string; value: string }>,
 ): Promise<void> {
 	const response = await fetch(
-		`https://${deploymentName}.convex.cloud/api/update_environment_variables`,
+		`https://${deploymentName}.convex.cloud/api/v1/update_environment_variables`,
 		{
 			method: "POST",
 			headers: {
