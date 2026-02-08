@@ -4,6 +4,7 @@ import { input } from "@inquirer/prompts";
 import { Command } from "commander";
 import { execa } from "execa";
 import fs from "fs-extra";
+import { deleteConvexProjectBySlug } from "../headless/convex.js";
 import type { HatchConfig } from "../types/index.js";
 import { log } from "../utils/logger.js";
 import { deleteProject, getProject } from "../utils/project-store.js";
@@ -17,6 +18,7 @@ interface DestroyOptions {
 
 interface DestroyResult {
 	supabaseProject: { success: boolean; error?: string };
+	convexProject: { success: boolean; error?: string };
 	vercelProject: { success: boolean; error?: string };
 	localStore: { success: boolean; error?: string };
 }
@@ -51,7 +53,9 @@ export const destroyCommand = new Command()
 				config = await fs.readJson(configPath);
 			}
 
+			const useConvex = project.backendProvider === "convex";
 			const supabaseToken = config.supabase?.token || "";
+			const convexAccessToken = config.convex?.accessToken || "";
 			const vercelTeam = config.vercel?.team || "";
 
 			// Check for feature VMs - must be cleaned first
@@ -74,11 +78,20 @@ export const destroyCommand = new Command()
 			log.info(`Project: ${projectName}`);
 			log.blank();
 
-			log.step("Supabase:");
-			log.info(
-				`    → Project: ${project.supabase.projectRef} (${project.supabase.region})`,
-			);
-			log.blank();
+			if (useConvex) {
+				log.step("Convex:");
+				log.info(`    → Project: ${project.convex?.projectSlug}`);
+				if (project.convex?.deploymentUrl) {
+					log.info(`    → Deployment: ${project.convex.deploymentUrl}`);
+				}
+				log.blank();
+			} else {
+				log.step("Supabase:");
+				log.info(
+					`    → Project: ${project.supabase?.projectRef} (${project.supabase?.region})`,
+				);
+				log.blank();
+			}
 
 			log.step("Vercel:");
 			log.info(`    → Project: ${projectName} (${project.vercel.projectId})`);
@@ -109,105 +122,140 @@ export const destroyCommand = new Command()
 			// Track results for summary
 			const results: DestroyResult = {
 				supabaseProject: { success: false },
+				convexProject: { success: false },
 				vercelProject: { success: false },
 				localStore: { success: false },
 			};
 
-			const supabaseEnv = {
-				...process.env,
-				SUPABASE_ACCESS_TOKEN: supabaseToken,
-			};
-
-			// Phase 4: Delete standard Supabase branches (dev, dev-test)
-			const branchSpinner = createSpinner(
-				"Deleting Supabase branches (dev, dev-test)",
-			).start();
-
-			const standardBranches = ["dev", "dev-test"];
-			let branchesDeleted = 0;
-
-			for (const branch of standardBranches) {
+			if (useConvex) {
+				// Phase 4-5 (Convex): Delete Convex project
+				const convexSpinner = createSpinner("Deleting Convex project").start();
 				try {
-					// First set to non-persistent (preview)
-					await execa(
-						"supabase",
-						[
-							"branches",
-							"update",
-							branch,
-							"--persistent=false",
-							"--project-ref",
-							project.supabase.projectRef,
-						],
-						{ stdio: "pipe", env: supabaseEnv },
-					);
-
-					// Brief pause
-					await new Promise((resolve) => setTimeout(resolve, 2000));
-
-					// Then delete
-					await execa(
-						"supabase",
-						[
-							"branches",
-							"delete",
-							branch,
-							"--project-ref",
-							project.supabase.projectRef,
-						],
-						{ stdio: "pipe", env: supabaseEnv },
-					);
-
-					branchesDeleted++;
-				} catch {
-					// Continue - branch may not exist or already deleted
+					const slug = project.convex?.projectSlug;
+					if (!slug) {
+						throw new Error("No Convex project slug found in project record");
+					}
+					if (!convexAccessToken) {
+						throw new Error(
+							"No Convex access token found in config (~/.hatch.json)",
+						);
+					}
+					await deleteConvexProjectBySlug(slug, convexAccessToken);
+					results.convexProject = { success: true };
+					convexSpinner.succeed("Deleted Convex project");
+				} catch (error) {
+					const errorMsg =
+						error instanceof Error ? error.message : String(error);
+					results.convexProject = { success: false, error: errorMsg };
+					convexSpinner.fail("Failed to delete Convex project");
 				}
-			}
 
-			if (branchesDeleted === standardBranches.length) {
-				branchSpinner.succeed("Deleted Supabase branches (dev, dev-test)");
-			} else if (branchesDeleted > 0) {
-				branchSpinner.warn(
-					`Deleted ${branchesDeleted}/${standardBranches.length} branches`,
-				);
-			} else {
-				branchSpinner.warn(
-					"Could not delete branches (may not exist or already deleted)",
-				);
-			}
-
-			// Phase 5: Delete Supabase Project
-			const supabaseSpinner = createSpinner(
-				"Deleting Supabase project",
-			).start();
-			try {
-				await execa(
-					"supabase",
-					["projects", "delete", project.supabase.projectRef, "--yes"],
-					{
-						stdio: "pipe",
-						env: {
-							...process.env,
-							SUPABASE_ACCESS_TOKEN: supabaseToken,
-						},
-					},
-				);
+				// Mark Supabase as N/A for Convex projects
 				results.supabaseProject = { success: true };
-				supabaseSpinner.succeed("Deleted Supabase project");
-			} catch (error) {
-				const errorMsg = error instanceof Error ? error.message : String(error);
-				const hasPersistentBranches = errorMsg.includes("persistent branches");
-				results.supabaseProject = {
-					success: false,
-					error: hasPersistentBranches
-						? "Project has persistent branches - delete them first via Supabase dashboard"
-						: errorMsg,
+			} else {
+				// Phase 4-5 (Supabase): Delete branches then project
+				const supabaseEnv = {
+					...process.env,
+					SUPABASE_ACCESS_TOKEN: supabaseToken,
 				};
-				supabaseSpinner.fail(
-					hasPersistentBranches
-						? "Failed - delete persistent branches first (Supabase dashboard)"
-						: "Failed to delete Supabase project",
-				);
+
+				// Phase 4: Delete standard Supabase branches (dev, dev-test)
+				const branchSpinner = createSpinner(
+					"Deleting Supabase branches (dev, dev-test)",
+				).start();
+
+				const standardBranches = ["dev", "dev-test"];
+				let branchesDeleted = 0;
+
+				for (const branch of standardBranches) {
+					try {
+						// First set to non-persistent (preview)
+						await execa(
+							"supabase",
+							[
+								"branches",
+								"update",
+								branch,
+								"--persistent=false",
+								"--project-ref",
+								project.supabase?.projectRef ?? "",
+							],
+							{ stdio: "pipe", env: supabaseEnv },
+						);
+
+						// Brief pause
+						await new Promise((resolve) => setTimeout(resolve, 2000));
+
+						// Then delete
+						await execa(
+							"supabase",
+							[
+								"branches",
+								"delete",
+								branch,
+								"--project-ref",
+								project.supabase?.projectRef ?? "",
+							],
+							{ stdio: "pipe", env: supabaseEnv },
+						);
+
+						branchesDeleted++;
+					} catch {
+						// Continue - branch may not exist or already deleted
+					}
+				}
+
+				if (branchesDeleted === standardBranches.length) {
+					branchSpinner.succeed("Deleted Supabase branches (dev, dev-test)");
+				} else if (branchesDeleted > 0) {
+					branchSpinner.warn(
+						`Deleted ${branchesDeleted}/${standardBranches.length} branches`,
+					);
+				} else {
+					branchSpinner.warn(
+						"Could not delete branches (may not exist or already deleted)",
+					);
+				}
+
+				// Phase 5: Delete Supabase Project
+				const supabaseSpinner = createSpinner(
+					"Deleting Supabase project",
+				).start();
+				try {
+					await execa(
+						"supabase",
+						["projects", "delete", project.supabase?.projectRef ?? "", "--yes"],
+						{
+							stdio: "pipe",
+							env: {
+								...process.env,
+								SUPABASE_ACCESS_TOKEN: supabaseToken,
+							},
+						},
+					);
+					results.supabaseProject = { success: true };
+					supabaseSpinner.succeed("Deleted Supabase project");
+				} catch (error) {
+					const errorMsg =
+						error instanceof Error ? error.message : String(error);
+					const hasPersistentBranches = errorMsg.includes(
+						"persistent branches",
+					);
+					results.supabaseProject = {
+						success: false,
+						error: hasPersistentBranches
+							? "Project has persistent branches - delete them first via Supabase dashboard"
+							: errorMsg,
+					};
+					supabaseSpinner.fail(
+						hasPersistentBranches
+							? "Failed - delete persistent branches first (Supabase dashboard)"
+							: "Failed to delete Supabase project",
+					);
+				}
+
+				// Mark Convex as N/A for Supabase projects
+				results.convexProject = { success: true };
 			}
 
 			// Phase 6: Delete Vercel Project
@@ -252,6 +300,7 @@ export const destroyCommand = new Command()
 
 			const allSuccess =
 				results.supabaseProject.success &&
+				results.convexProject.success &&
 				results.vercelProject.success &&
 				results.localStore.success;
 
@@ -263,11 +312,19 @@ export const destroyCommand = new Command()
 				);
 				log.blank();
 
+				if (!results.convexProject.success) {
+					log.error("Convex project:");
+					log.info(`    ${results.convexProject.error}`);
+					log.info(
+						`    Manual: Delete via https://dashboard.convex.dev (project: ${project.convex?.projectSlug})`,
+					);
+				}
+
 				if (!results.supabaseProject.success) {
 					log.error("Supabase project:");
 					log.info(`    ${results.supabaseProject.error}`);
 					log.info(
-						`    Manual: SUPABASE_ACCESS_TOKEN=<token> supabase projects delete ${project.supabase.projectRef} --yes`,
+						`    Manual: SUPABASE_ACCESS_TOKEN=<token> supabase projects delete ${project.supabase?.projectRef} --yes`,
 					);
 				}
 

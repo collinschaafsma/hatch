@@ -341,6 +341,27 @@ export async function setConvexEnvVarViaAPI(
 }
 
 /**
+ * Look up a Convex project by slug name and delete it.
+ * Resolves the projectId internally via the team's project list.
+ */
+export async function deleteConvexProjectBySlug(
+	slug: string,
+	accessToken: string,
+): Promise<void> {
+	const { teamId } = await getConvexTokenDetails(accessToken);
+	const projects = await listConvexProjects(teamId, accessToken);
+	const project = projects.find(
+		(p) => p.name.toLowerCase() === slug.toLowerCase(),
+	);
+	if (!project) {
+		throw new Error(
+			`Convex project "${slug}" not found in team. It may have already been deleted.`,
+		);
+	}
+	await deleteConvexProject(project.id, accessToken);
+}
+
+/**
  * Delete a Convex project via the Management API
  */
 export async function deleteConvexProject(
