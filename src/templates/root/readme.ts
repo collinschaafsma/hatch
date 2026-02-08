@@ -180,10 +180,10 @@ Each feature branch gets its own Convex project so preview deployments are fully
 1. **Per-branch env vars** — \`hatch feature\` sets \`CONVEX_DEPLOY_KEY\`, \`NEXT_PUBLIC_CONVEX_URL\`, and \`NEXT_PUBLIC_CONVEX_SITE_URL\` as Vercel env vars scoped to the feature branch's preview deployments via the Vercel API.
 
 2. **Build command** — \`vercel.json\` uses a conditional build:
-   - **Production**: \`npx convex deploy --cmd 'pnpm build'\` deploys to the main Convex project.
-   - **Preview**: Unsets \`VERCEL\` and \`VERCEL_ENV\` before running \`npx convex deploy\` so the Convex CLI accepts the feature project's production deploy key in a non-production Vercel environment.
+   - **Production**: \`npx convex deploy && pnpm build\` deploys to the main Convex project.
+   - **Preview**: Unsets \`VERCEL\` and \`VERCEL_ENV\` before running \`npx convex deploy\` so the Convex CLI accepts the feature project's production deploy key in a non-production Vercel environment. The Next.js build runs separately so Vercel Workflow DevKit can detect the Vercel environment.
 
-3. **Auth URL resolution** — The auth client checks \`NEXT_PUBLIC_VERCEL_URL\` (deployment-specific) before \`NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL\` (always production). This ensures preview deployments send auth requests to themselves, not the production domain.
+3. **Auth URL resolution** — The auth client uses \`window.location.origin\` in the browser so auth requests always target the current deployment's origin. This avoids CORS mismatches between preview URLs. The Convex backend's Better Auth config includes \`trustedOrigins\` with \`*.vercel.app\` and \`*.exe.xyz\` wildcards to accept requests from any preview or VM origin.
 
 4. **Cleanup** — \`hatch clean\` removes the per-branch Vercel env vars and deletes the feature Convex project.
 
