@@ -30,8 +30,9 @@ export const auth = betterAuth({
 	database: drizzleAdapter(db, { provider: "pg" }),
 	trustedOrigins: [
 		getAppUrl(),
-		// Allow exe.dev VMs for development
+		// Allow exe.dev VMs and Vercel preview deployments
 		"https://*.exe.xyz",
+		"https://*.vercel.app",
 	],
 	emailAndPassword: {
 		enabled: false, // Using OTP only
