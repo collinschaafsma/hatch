@@ -8,13 +8,13 @@ function getBaseURL(): string {
 	if (process.env.NEXT_PUBLIC_APP_URL) {
 		return process.env.NEXT_PUBLIC_APP_URL;
 	}
+	// Vercel deployment URL (preview-specific, checked first so previews don't use production URL)
+	if (process.env.NEXT_PUBLIC_VERCEL_URL) {
+		return \`https://\${process.env.NEXT_PUBLIC_VERCEL_URL}\`;
+	}
 	// Vercel production domain (automatic system env var)
 	if (process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL) {
 		return \`https://\${process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL}\`;
-	}
-	// Vercel preview deployments
-	if (process.env.NEXT_PUBLIC_VERCEL_URL) {
-		return \`https://\${process.env.NEXT_PUBLIC_VERCEL_URL}\`;
 	}
 	// Local development
 	return "http://localhost:3000";

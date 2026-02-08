@@ -162,6 +162,7 @@ This project uses Convex with separate projects for isolated environments:
 | Environment | Backend | Purpose |
 |-------------|---------|---------|
 | **Production** | Main Convex project | Live application (deployed via Vercel build) |
+| **Preview** | Separate Convex project per branch | Vercel preview deployments |
 | **Development** | Dev deployment | Local development (\`npx convex dev\`) |
 | **Feature VMs** | Separate Convex project | Isolated feature development (created by \`hatch feature\`) |
 
@@ -172,12 +173,19 @@ When code is merged to main, Vercel automatically:
 2. Builds the Next.js application
 3. Deploys to Vercel
 
-This is configured in \`vercel.json\`:
-\`\`\`json
-{
-  "buildCommand": "npx convex deploy --cmd 'pnpm build'"
-}
-\`\`\`
+### Preview Deployments
+
+Each feature branch gets its own Convex project so preview deployments are fully isolated. This is managed automatically by \`hatch feature\`:
+
+1. **Per-branch env vars** — \`hatch feature\` sets \`CONVEX_DEPLOY_KEY\`, \`NEXT_PUBLIC_CONVEX_URL\`, and \`NEXT_PUBLIC_CONVEX_SITE_URL\` as Vercel env vars scoped to the feature branch's preview deployments via the Vercel API.
+
+2. **Build command** — \`vercel.json\` uses a conditional build:
+   - **Production**: \`npx convex deploy --cmd 'pnpm build'\` deploys to the main Convex project.
+   - **Preview**: Unsets \`VERCEL\` and \`VERCEL_ENV\` before running \`npx convex deploy\` so the Convex CLI accepts the feature project's production deploy key in a non-production Vercel environment.
+
+3. **Auth URL resolution** — The auth client checks \`NEXT_PUBLIC_VERCEL_URL\` (deployment-specific) before \`NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL\` (always production). This ensures preview deployments send auth requests to themselves, not the production domain.
+
+4. **Cleanup** — \`hatch clean\` removes the per-branch Vercel env vars and deletes the feature Convex project.
 
 The \`CONVEX_DEPLOY_KEY\` env var in Vercel authorizes the deployment.`
 		: `## Database Environments
@@ -229,12 +237,7 @@ The project is configured for Vercel deployment with automatic Convex deploys:
    vercel --prod
    \`\`\`
 
-Convex functions deploy automatically during the build via \`vercel.json\`:
-\`\`\`json
-{
-  "buildCommand": "npx convex deploy --cmd 'pnpm build'"
-}
-\`\`\``
+Convex functions deploy automatically during the build via \`vercel.json\`. See [Preview Deployments](#preview-deployments) above for how preview builds are handled.`
 		: `## Deployment
 
 ### Vercel
