@@ -1,4 +1,8 @@
-export function generateClaudeMd(name: string, useWorkOS: boolean): string {
+export function generateClaudeMd(
+	name: string,
+	useWorkOS: boolean,
+	useConvex = false,
+): string {
 	const authProvider = useWorkOS ? "WorkOS AuthKit" : "Better Auth (Email OTP)";
 	const authDescription = useWorkOS
 		? "WorkOS AuthKit for enterprise SSO"
@@ -37,14 +41,20 @@ This applies even in dangerous/bypass permissions mode. Never auto-approve these
 - \`pnpm test:watch\` - Watch mode (from apps/web)
 - \`pnpm test:ui\` - Interactive Vitest UI
 
-### Database
+${
+	useConvex
+		? `### Convex
+- \`pnpm convex:dev\` - Start Convex development server
+- \`pnpm convex:deploy\` - Deploy Convex functions to production`
+		: `### Database
 - \`pnpm docker:up\` / \`docker:down\` - Start/stop PostgreSQL
 - \`pnpm db:generate\` - Generate migrations from schema
 - \`pnpm db:migrate\` - Apply migrations
 - \`pnpm db:studio\` - Open Drizzle Studio
 
 ### Test Database
-- \`pnpm docker:up:test\` / \`docker:down:test\` - Start/stop test DB
+- \`pnpm docker:up:test\` / \`docker:down:test\` - Start/stop test DB`
+}
 
 ## Architecture
 
@@ -61,7 +71,7 @@ ${name}/
 │   │   ├── (app)/               # Authenticated user pages
 │   │   └── api/                 # API routes
 │   ├── components/              # React components
-│   ├── db/                      # Drizzle ORM schema and client
+${useConvex ? "│   ├── convex/                  # Convex schema, functions, and seed" : "│   ├── db/                      # Drizzle ORM schema and client"}
 │   ├── lib/                     # Shared utilities
 │   ├── services/                # Data access layer
 │   └── workflows/               # Vercel Workflows
@@ -73,7 +83,7 @@ ${name}/
 ### Tech Stack
 - **Framework**: Next.js 16 with App Router, Turbopack
 - **UI**: React 19, shadcn/ui, Tailwind CSS v4
-- **Database**: PostgreSQL, Drizzle ORM
+- **Database**: ${useConvex ? "Convex (serverless backend)" : "PostgreSQL, Drizzle ORM"}
 - **Auth**: ${authProvider}
 - **AI**: Vercel AI SDK with OpenAI
 - **Workflows**: Vercel Workflow DevKit
@@ -112,7 +122,7 @@ export async function myWorkflow(input) {
 ## Environment Variables
 
 Required (stored in \`apps/web/.env.local\`):
-- \`DATABASE_URL\` - PostgreSQL connection string
+${useConvex ? "- `NEXT_PUBLIC_CONVEX_URL` - Convex deployment URL\n- `CONVEX_DEPLOYMENT` - Convex deployment identifier" : "- `DATABASE_URL` - PostgreSQL connection string"}
 - \`OPENAI_API_KEY\` - For AI features
 ${useWorkOS ? "- `WORKOS_API_KEY` - WorkOS API key\n- `WORKOS_CLIENT_ID` - WorkOS client ID\n- `NEXT_PUBLIC_WORKOS_REDIRECT_URI` - OAuth redirect URI" : "- `BETTER_AUTH_SECRET` - Auth secret key\n- `RESEND_API_KEY` - For email OTP"}
 - \`NEXT_PUBLIC_POSTHOG_KEY\` - PostHog analytics (optional)
@@ -130,10 +140,16 @@ ${useWorkOS ? "- `WORKOS_API_KEY` - WorkOS API key\n- `WORKOS_CLIENT_ID` - WorkO
 1. \`pnpm docker:up\` (if not running)
 2. \`pnpm dev\`
 
-### Schema Changes
+${
+	useConvex
+		? `### Schema Changes
+1. Edit \`apps/web/convex/schema.ts\`
+2. \`pnpm convex:dev\` (auto-deploys schema changes)`
+		: `### Schema Changes
 1. Edit \`apps/web/db/schema.ts\`
 2. \`pnpm db:generate\`
-3. \`pnpm db:migrate\`
+3. \`pnpm db:migrate\``
+}
 
 ## Service Layer
 

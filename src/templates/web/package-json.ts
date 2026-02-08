@@ -1,4 +1,7 @@
-export function generateWebPackageJson(useWorkOS: boolean): string {
+export function generateWebPackageJson(
+	useWorkOS: boolean,
+	useConvex = false,
+): string {
 	// Build dependencies object with auth-specific packages, alphabetically sorted
 	const dependencies: Record<string, string> = {
 		"@ai-sdk/react": "^3.0.35",
@@ -8,10 +11,18 @@ export function generateWebPackageJson(useWorkOS: boolean): string {
 		...(useWorkOS
 			? { "@workos-inc/authkit-nextjs": "^2.13.0" }
 			: { "better-auth": "^1.4.12" }),
-		"drizzle-orm": "^0.45.1",
+		...(useConvex
+			? {
+					convex: "^1.31.0",
+					"convex-helpers": "^0.1.0",
+					"@convex-dev/better-auth": "^0.10.0",
+				}
+			: {
+					"drizzle-orm": "^0.45.1",
+					pg: "^8.16.3",
+				}),
 		next: "^16.1.1",
 		"next-safe-action": "^8.0.11",
-		pg: "^8.16.3",
 		"posthog-js": "^1.320.0",
 		"posthog-node": "^5.20.0",
 		react: "^19.2.3",
@@ -29,49 +40,64 @@ export function generateWebPackageJson(useWorkOS: boolean): string {
 		Object.entries(dependencies).sort(([a], [b]) => a.localeCompare(b)),
 	);
 
+	// Build scripts based on backend
+	const scripts: Record<string, string> = {
+		dev: "next dev --turbopack",
+		build: "next build",
+		start: "next start",
+		lint: "biome check .",
+		typecheck: "tsc --noEmit",
+		test: "vitest run",
+		"test:watch": "vitest",
+		"test:ui": "vitest --ui",
+		"test:coverage": "vitest run --coverage",
+	};
+
+	if (useConvex) {
+		scripts["convex:dev"] = "npx convex dev";
+		scripts["convex:deploy"] = "npx convex deploy";
+	} else {
+		scripts["db:generate"] = "drizzle-kit generate";
+		scripts["db:migrate"] = "drizzle-kit migrate";
+		scripts["db:migrate:deploy"] = "drizzle-kit migrate";
+		scripts["db:push"] = "drizzle-kit push";
+		scripts["db:studio"] = "drizzle-kit studio";
+	}
+
+	// Build devDependencies based on backend
+	const devDependencies: Record<string, string> = {
+		"@faker-js/faker": "^10.2.0",
+		"@tailwindcss/postcss": "^4.1.18",
+		"@testing-library/dom": "^10.4.1",
+		"@testing-library/jest-dom": "^6.9.1",
+		"@testing-library/react": "^16.3.1",
+		"@testing-library/user-event": "^14.6.1",
+		"@types/node": "^25.0.8",
+		"@types/react": "^19.2.8",
+		"@types/react-dom": "^19.2.3",
+		"@vitejs/plugin-react": "^5.1.2",
+		dotenv: "^17.2.3",
+		jsdom: "^27.4.0",
+		postcss: "^8.5.6",
+		tailwindcss: "^4.1.18",
+		typescript: "^5.9.3",
+		"vite-tsconfig-paths": "^6.0.4",
+		vitest: "^4.0.17",
+	};
+
+	if (!useConvex) {
+		devDependencies["@types/pg"] = "^8.16.0";
+		devDependencies["drizzle-kit"] = "^0.31.8";
+	}
+
 	return `${JSON.stringify(
 		{
 			name: "web",
 			version: "0.0.1",
 			private: true,
-			scripts: {
-				dev: "next dev --turbopack",
-				build: "next build",
-				start: "next start",
-				lint: "biome check .",
-				typecheck: "tsc --noEmit",
-				test: "vitest run",
-				"test:watch": "vitest",
-				"test:ui": "vitest --ui",
-				"test:coverage": "vitest run --coverage",
-				"db:generate": "drizzle-kit generate",
-				"db:migrate": "drizzle-kit migrate",
-				"db:migrate:deploy": "drizzle-kit migrate",
-				"db:push": "drizzle-kit push",
-				"db:studio": "drizzle-kit studio",
-			},
+			scripts,
 			dependencies: sortedDeps,
-			devDependencies: {
-				"@faker-js/faker": "^10.2.0",
-				"@tailwindcss/postcss": "^4.1.18",
-				"@testing-library/dom": "^10.4.1",
-				"@testing-library/jest-dom": "^6.9.1",
-				"@testing-library/react": "^16.3.1",
-				"@testing-library/user-event": "^14.6.1",
-				"@types/node": "^25.0.8",
-				"@types/pg": "^8.16.0",
-				"@types/react": "^19.2.8",
-				"@types/react-dom": "^19.2.3",
-				"@vitejs/plugin-react": "^5.1.2",
-				dotenv: "^17.2.3",
-				"drizzle-kit": "^0.31.8",
-				jsdom: "^27.4.0",
-				postcss: "^8.5.6",
-				tailwindcss: "^4.1.18",
-				typescript: "^5.9.3",
-				"vite-tsconfig-paths": "^6.0.4",
-				vitest: "^4.0.17",
-			},
+			devDependencies,
 		},
 		null,
 		2,

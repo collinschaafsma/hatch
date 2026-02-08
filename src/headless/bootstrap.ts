@@ -102,14 +102,17 @@ export async function authenticateClis(
 	}
 
 	// Supabase - uses SUPABASE_ACCESS_TOKEN env var automatically, just verify
-	const supabaseStatus = await supabaseAuthStatus(config.supabase.token);
-	if (!supabaseStatus.isAuthenticated) {
-		throw new Error(
-			"Supabase authentication failed. Check your SUPABASE_ACCESS_TOKEN.",
-		);
-	}
-	if (!quiet) {
-		log.success("Supabase CLI authenticated");
+	// Skip for Convex backend
+	if (config.backendProvider !== "convex" && config.supabase) {
+		const supabaseStatus = await supabaseAuthStatus(config.supabase.token);
+		if (!supabaseStatus.isAuthenticated) {
+			throw new Error(
+				"Supabase authentication failed. Check your SUPABASE_ACCESS_TOKEN.",
+			);
+		}
+		if (!quiet) {
+			log.success("Supabase CLI authenticated");
+		}
 	}
 }
 

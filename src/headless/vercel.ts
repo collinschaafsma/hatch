@@ -8,6 +8,7 @@ import {
 	vercelGitConnect,
 	vercelLink,
 } from "./cli-wrappers.js";
+import type { ConvexSetupResult } from "./convex.js";
 import type { SupabaseSetupResult } from "./supabase.js";
 
 export interface VercelSetupResult {
@@ -251,6 +252,207 @@ export async function setupVercel(
 
 	// Deployment is triggered by git push in the next step
 	// Return a placeholder URL - the real URL will be fetched after deployment
+	return {
+		url: `https://${projectName}.vercel.app`,
+		projectId,
+		projectName,
+	};
+}
+
+/**
+ * Set up Vercel project with Convex-specific environment variables
+ */
+export async function setupVercelForConvex(
+	projectName: string,
+	projectPath: string,
+	config: ResolvedHeadlessConfig,
+	convexResult: ConvexSetupResult,
+	customEnvVars?: EnvVar[],
+): Promise<VercelSetupResult> {
+	const token = config.vercel.token;
+	const team = config.vercel.team;
+	const webPath = `${projectPath}/apps/web`;
+
+	// Link to Vercel
+	let projectId: string;
+
+	if (!config.quiet) {
+		const linkResult = await withSpinner(
+			`Linking Vercel project ${projectName}`,
+			async () => {
+				return vercelLink({
+					projectName,
+					team,
+					cwd: webPath,
+					token,
+				});
+			},
+		);
+		projectId = linkResult.projectId;
+	} else {
+		const linkResult = await vercelLink({
+			projectName,
+			team,
+			cwd: webPath,
+			token,
+		});
+		projectId = linkResult.projectId;
+	}
+
+	// Set root directory
+	if (projectId && projectId !== "unknown") {
+		if (!config.quiet) {
+			await withSpinner("Setting Vercel root directory", async () => {
+				await setVercelRootDirectory(projectId, "apps/web", token);
+			});
+		} else {
+			await setVercelRootDirectory(projectId, "apps/web", token);
+		}
+	}
+
+	// Connect Git repository
+	const { execa } = await import("execa");
+	let gitUrl: string | undefined;
+	try {
+		const gitResult = await execa("git", ["remote", "get-url", "origin"], {
+			cwd: projectPath,
+		});
+		gitUrl = gitResult.stdout.trim();
+	} catch {
+		// Git remote might not exist yet
+	}
+
+	if (gitUrl) {
+		try {
+			if (!config.quiet) {
+				await withSpinner("Connecting Git to Vercel", async () => {
+					await vercelGitConnect({ cwd: webPath, token, gitUrl });
+				});
+			} else {
+				await vercelGitConnect({ cwd: webPath, token, gitUrl });
+			}
+		} catch {
+			if (!config.quiet) {
+				log.warn(
+					"Could not auto-connect Git - may already be connected or connect manually in Vercel dashboard",
+				);
+			}
+		}
+	}
+
+	// Set Convex-specific environment variables
+	// deploymentUrl = https://{name}.convex.cloud (client queries)
+	// siteUrl = https://{name}.convex.site (HTTP actions, auth routes)
+	const siteUrl = convexResult.deploymentUrl.replace(
+		".convex.cloud",
+		".convex.site",
+	);
+	const envVars: Array<{
+		key: string;
+		value: string;
+		environments: ("production" | "preview" | "development")[];
+	}> = [
+		{
+			key: "NEXT_PUBLIC_CONVEX_URL",
+			value: convexResult.deploymentUrl,
+			environments: ["production", "preview", "development"],
+		},
+		{
+			key: "NEXT_PUBLIC_CONVEX_SITE_URL",
+			value: siteUrl,
+			environments: ["production", "preview", "development"],
+		},
+	];
+
+	// Add deploy key for build-time access
+	if (convexResult.deployKey) {
+		envVars.push({
+			key: "CONVEX_DEPLOY_KEY",
+			value: convexResult.deployKey,
+			environments: ["production", "preview", "development"],
+		});
+	}
+
+	// Better Auth secret for Convex
+	const authSecret = generateAuthSecret();
+	envVars.push({
+		key: "BETTER_AUTH_SECRET",
+		value: authSecret,
+		environments: ["production", "preview", "development"],
+	});
+
+	// Set env vars
+	if (!config.quiet) {
+		await withSpinner("Setting Vercel environment variables", async () => {
+			for (const env of envVars) {
+				await vercelEnvAdd({
+					key: env.key,
+					value: env.value,
+					environments: env.environments,
+					cwd: webPath,
+					token,
+				});
+			}
+		});
+	} else {
+		for (const env of envVars) {
+			await vercelEnvAdd({
+				key: env.key,
+				value: env.value,
+				environments: env.environments,
+				cwd: webPath,
+				token,
+			});
+		}
+	}
+
+	// Set custom env vars from hatch.json
+	if (customEnvVars?.length) {
+		if (!config.quiet) {
+			await withSpinner("Setting custom environment variables", async () => {
+				for (const env of customEnvVars) {
+					await vercelEnvAdd({
+						key: env.key,
+						value: env.value,
+						environments: env.environments,
+						cwd: webPath,
+						token,
+					});
+				}
+			});
+		} else {
+			for (const env of customEnvVars) {
+				await vercelEnvAdd({
+					key: env.key,
+					value: env.value,
+					environments: env.environments,
+					cwd: webPath,
+					token,
+				});
+			}
+		}
+	}
+
+	// Pull env vars to .env.local
+	try {
+		if (!config.quiet) {
+			await withSpinner(
+				"Pulling Vercel environment to .env.local",
+				async () => {
+					await vercelEnvPull({ cwd: webPath, token });
+				},
+			);
+		} else {
+			await vercelEnvPull({ cwd: webPath, token });
+		}
+	} catch {
+		if (!config.quiet) {
+			log.warn(
+				"Could not pull env vars - they may need to be configured manually",
+			);
+		}
+	}
+
 	return {
 		url: `https://${projectName}.vercel.app`,
 		projectId,

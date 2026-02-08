@@ -224,7 +224,97 @@ else
 fi
 
 # ============================================================================
-# Step 5: Install CLI tools (gh, vercel, supabase, claude)
+# Step 5: Authenticate GitHub (needed before cloning)
+# ============================================================================
+GIT_AUTH_CONFIGURED=false
+
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    info "Authenticating GitHub CLI..."
+    # Don't suppress errors so we can debug auth issues
+    if echo "$GITHUB_TOKEN" | gh auth login --with-token 2>/dev/null; then
+        success "GitHub CLI authenticated"
+        # Configure git to use gh as credential helper
+        if gh auth setup-git; then
+            success "Git configured to use GitHub CLI"
+            GIT_AUTH_CONFIGURED=true
+        else
+            warn "Could not configure git credential helper"
+        fi
+    else
+        warn "GitHub CLI authentication failed - will try direct token auth for git"
+    fi
+
+    # Fallback: Configure git to use token directly via credential helper
+    if [[ "$GIT_AUTH_CONFIGURED" != "true" ]]; then
+        info "Setting up git credential helper with token..."
+        # .git-credentials is a file, not a directory
+        echo "https://${GITHUB_TOKEN}:x-oauth-basic@github.com" > ~/.git-credentials
+        chmod 600 ~/.git-credentials
+        git config --global credential.helper "store --file ~/.git-credentials"
+        success "Git credentials configured via token"
+        GIT_AUTH_CONFIGURED=true
+    fi
+
+    # Also set GH_TOKEN in bashrc for tools that need it (like Claude Code for PRs)
+    if ! grep -q "export GH_TOKEN=" ~/.bashrc 2>/dev/null; then
+        echo "export GH_TOKEN=\"${GITHUB_TOKEN}\"" >> ~/.bashrc
+        success "GH_TOKEN added to .bashrc for future sessions"
+    fi
+fi
+
+# Configure git user (required for commits to match GitHub account)
+if [[ -n "${HATCH_GITHUB_EMAIL:-}" ]]; then
+    info "Configuring git user email..."
+    git config --global user.email "$HATCH_GITHUB_EMAIL"
+    success "Git user.email set to $HATCH_GITHUB_EMAIL"
+fi
+
+if [[ -n "${HATCH_GITHUB_NAME:-}" ]]; then
+    info "Configuring git user name..."
+    git config --global user.name "$HATCH_GITHUB_NAME"
+    success "Git user.name set to $HATCH_GITHUB_NAME"
+fi
+
+# ============================================================================
+# Step 6: Clone the project repo
+# ============================================================================
+PROJECT_PATH="$HOME/$PROJECT_NAME"
+
+if [[ -d "$PROJECT_PATH" ]]; then
+    warn "Project directory already exists at $PROJECT_PATH"
+    info "Pulling latest changes..."
+    cd "$PROJECT_PATH"
+    git pull
+else
+    info "Cloning repository to $PROJECT_PATH..."
+    if ! git clone "$GITHUB_URL" "$PROJECT_PATH"; then
+        error "Failed to clone repository: $GITHUB_URL"
+        echo "" >&2
+        echo "This could be because:"
+        echo "  - The repository is private and credentials are not configured"
+        echo "  - The repository URL is incorrect"
+        echo "  - Network issues"
+        echo "" >&2
+        echo "GitHub token present: ${GITHUB_TOKEN:+yes}${GITHUB_TOKEN:-no}"
+        echo "Git auth configured: $GIT_AUTH_CONFIGURED"
+        exit 1
+    fi
+    cd "$PROJECT_PATH"
+fi
+
+# ============================================================================
+# Step 6.5: Auto-detect backend from project files
+# ============================================================================
+USE_CONVEX=false
+if grep -q '"convex"' "$PROJECT_PATH/apps/web/package.json" 2>/dev/null; then
+    USE_CONVEX=true
+    info "Detected backend: Convex"
+else
+    info "Detected backend: Supabase"
+fi
+
+# ============================================================================
+# Step 7: Install CLI tools
 # ============================================================================
 info "Checking CLI tools..."
 
@@ -269,8 +359,10 @@ WRAPPER
     command -v vercel &> /dev/null && success "Vercel CLI installed" || warn "Vercel CLI installation failed"
 fi
 
-# Supabase CLI
-if command -v supabase &> /dev/null; then
+# Supabase CLI (skip for Convex projects)
+if [[ "$USE_CONVEX" == "true" ]]; then
+    info "Skipping Supabase CLI (Convex backend)"
+elif command -v supabase &> /dev/null; then
     success "Supabase CLI is installed"
 else
     info "Installing Supabase CLI..."
@@ -373,107 +465,29 @@ else
 fi
 
 # ============================================================================
-# Step 6: Authenticate CLIs (if tokens available)
+# Step 8: Authenticate remaining CLIs
 # ============================================================================
-GIT_AUTH_CONFIGURED=false
-
-if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    info "Authenticating GitHub CLI..."
-    # Don't suppress errors so we can debug auth issues
-    if echo "$GITHUB_TOKEN" | gh auth login --with-token; then
-        success "GitHub CLI authenticated"
-        # Configure git to use gh as credential helper
-        if gh auth setup-git; then
-            success "Git configured to use GitHub CLI"
-            GIT_AUTH_CONFIGURED=true
-        else
-            warn "Could not configure git credential helper"
-        fi
-    else
-        warn "GitHub CLI authentication failed - will try direct token auth for git"
-    fi
-
-    # Fallback: Configure git to use token directly via credential helper
-    if [[ "$GIT_AUTH_CONFIGURED" != "true" ]]; then
-        info "Setting up git credential helper with token..."
-        # .git-credentials is a file, not a directory
-        echo "https://${GITHUB_TOKEN}:x-oauth-basic@github.com" > ~/.git-credentials
-        chmod 600 ~/.git-credentials
-        git config --global credential.helper "store --file ~/.git-credentials"
-        success "Git credentials configured via token"
-        GIT_AUTH_CONFIGURED=true
-    fi
-
-    # Also set GH_TOKEN in bashrc for tools that need it (like Claude Code for PRs)
-    if ! grep -q "export GH_TOKEN=" ~/.bashrc 2>/dev/null; then
-        echo "export GH_TOKEN=\"${GITHUB_TOKEN}\"" >> ~/.bashrc
-        success "GH_TOKEN added to .bashrc for future sessions"
-    fi
-fi
-
-# Configure git user (required for commits to match GitHub account)
-if [[ -n "${HATCH_GITHUB_EMAIL:-}" ]]; then
-    info "Configuring git user email..."
-    git config --global user.email "$HATCH_GITHUB_EMAIL"
-    success "Git user.email set to $HATCH_GITHUB_EMAIL"
-fi
-
-if [[ -n "${HATCH_GITHUB_NAME:-}" ]]; then
-    info "Configuring git user name..."
-    git config --global user.name "$HATCH_GITHUB_NAME"
-    success "Git user.name set to $HATCH_GITHUB_NAME"
-fi
-
 # Vercel and Supabase use env vars automatically
 if [[ -n "${VERCEL_TOKEN:-}" ]]; then
     info "Vercel CLI will use VERCEL_TOKEN from environment"
 fi
 
-if [[ -n "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
+if [[ "$USE_CONVEX" != "true" ]] && [[ -n "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
     info "Supabase CLI will use SUPABASE_ACCESS_TOKEN from environment"
 fi
 
 # ============================================================================
-# Step 7: Clone the project repo
-# ============================================================================
-PROJECT_PATH="$HOME/$PROJECT_NAME"
-
-if [[ -d "$PROJECT_PATH" ]]; then
-    warn "Project directory already exists at $PROJECT_PATH"
-    info "Pulling latest changes..."
-    cd "$PROJECT_PATH"
-    git pull
-else
-    info "Cloning repository to $PROJECT_PATH..."
-    if ! git clone "$GITHUB_URL" "$PROJECT_PATH"; then
-        error "Failed to clone repository: $GITHUB_URL"
-        echo "" >&2
-        echo "This could be because:"
-        echo "  - The repository is private and credentials are not configured"
-        echo "  - The repository URL is incorrect"
-        echo "  - Network issues"
-        echo "" >&2
-        echo "GitHub token present: ${GITHUB_TOKEN:+yes}${GITHUB_TOKEN:-no}"
-        echo "Git auth configured: $GIT_AUTH_CONFIGURED"
-        exit 1
-    fi
-    cd "$PROJECT_PATH"
-fi
-
-# ============================================================================
-# Step 8: Install dependencies
+# Step 9: Install dependencies
 # ============================================================================
 info "Installing project dependencies..."
 pnpm install
 success "Dependencies installed"
 
 # ============================================================================
-# Step 9: Link Supabase project (if supabase directory exists)
+# Step 10: Link Supabase project (if applicable)
 # ============================================================================
-if [[ -d "$PROJECT_PATH/supabase" ]] || [[ -f "$PROJECT_PATH/supabase/config.toml" ]]; then
+if [[ "$USE_CONVEX" != "true" ]] && { [[ -d "$PROJECT_PATH/supabase" ]] || [[ -f "$PROJECT_PATH/supabase/config.toml" ]]; }; then
     info "Linking Supabase project..."
-    # The supabase link command needs the project ref, which should be in .env or config
-    # For now, just verify the CLI is working
     if command -v supabase &> /dev/null; then
         success "Supabase CLI ready (run 'supabase link' manually if needed)"
     fi

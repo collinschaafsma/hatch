@@ -10,8 +10,12 @@ export function generateNextSteps(
 ): string[] {
 	const steps: string[] = [];
 
-	// Supabase-Vercel integration
-	if (result.supabase && result.vercel) {
+	// Backend-specific integration steps
+	if (result.convex) {
+		steps.push(
+			`Convex dashboard: ${result.convex.deploymentUrl || "https://dashboard.convex.dev"}`,
+		);
+	} else if (result.supabase && result.vercel) {
 		steps.push(
 			"Set up Supabase-Vercel integration: https://vercel.com/integrations/supabase",
 		);
@@ -78,6 +82,13 @@ export function outputHuman(result: HeadlessResult): void {
 		log.step(`Project: ${result.supabase.projectName}`);
 		log.step(`Region: ${result.supabase.region}`);
 		log.step(`Ref: ${result.supabase.projectRef}`);
+	}
+
+	if (result.convex) {
+		log.blank();
+		log.info("Convex:");
+		log.step(`URL: ${result.convex.deploymentUrl}`);
+		log.step(`Project: ${result.convex.projectSlug}`);
 	}
 
 	if (result.vercel) {

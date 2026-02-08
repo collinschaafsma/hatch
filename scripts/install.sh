@@ -22,6 +22,7 @@ error() { echo -e "${RED}error${NC} $1" >&2; exit 1; }
 PROJECT_NAME=""
 CONFIG_PATH=""
 EXTRA_ARGS=""
+USE_CONVEX=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -31,6 +32,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         --config=*)
             CONFIG_PATH="${1#*=}"
+            shift
+            ;;
+        --convex)
+            USE_CONVEX=true
+            EXTRA_ARGS="$EXTRA_ARGS --convex"
             shift
             ;;
         -*)
@@ -279,8 +285,10 @@ WRAPPER
     command -v vercel &> /dev/null && success "Vercel CLI installed" || warn "Vercel CLI installation failed"
 fi
 
-# Supabase CLI
-if command -v supabase &> /dev/null; then
+# Supabase CLI (skip for Convex projects)
+if [[ "$USE_CONVEX" == "true" ]]; then
+    info "Skipping Supabase CLI (Convex backend)"
+elif command -v supabase &> /dev/null; then
     success "Supabase CLI is installed"
 else
     info "Installing Supabase CLI..."
@@ -371,7 +379,7 @@ if [[ -n "${VERCEL_TOKEN:-}" ]]; then
     info "Vercel CLI will use VERCEL_TOKEN from environment"
 fi
 
-if [[ -n "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
+if [[ "$USE_CONVEX" != "true" ]] && [[ -n "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
     info "Supabase CLI will use SUPABASE_ACCESS_TOKEN from environment"
 fi
 

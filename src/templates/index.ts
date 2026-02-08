@@ -58,6 +58,9 @@ export * from "./vscode/index.js";
 // Claude templates
 export * from "./claude/index.js";
 
+// Convex templates
+export * from "./convex/index.js";
+
 // Setup script templates
 export * from "./setup/index.js";
 

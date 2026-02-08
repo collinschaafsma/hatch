@@ -36,6 +36,7 @@ const packageRoot = path.resolve(__dirname, "../..");
 
 interface CreateCommandOptions {
 	workos: boolean;
+	convex: boolean;
 	vscode: boolean;
 	// Headless mode options
 	headless: boolean;
@@ -58,6 +59,7 @@ export const createCommand = new Command()
 	.description("Create a new Hatch project")
 	.argument("[project-name]", "Name of the project")
 	.option("--workos", "Use WorkOS instead of Better Auth", false)
+	.option("--convex", "Use Convex instead of Supabase for the backend", false)
 	.option("--no-vscode", "Skip generating VS Code configuration files")
 	// Headless mode options
 	.option("--headless", "Run in non-interactive headless mode", false)
@@ -100,9 +102,18 @@ export const createCommand = new Command()
 					process.exit(1);
 				}
 
+				// Validate: --convex and --workos are mutually exclusive
+				if (options.convex && options.workos) {
+					log.error(
+						"--convex and --workos are mutually exclusive. Convex uses Better Auth only.",
+					);
+					process.exit(1);
+				}
+
 				// Get project options (skip prompts in headless mode)
 				let inputName: string;
 				let useWorkOS: boolean;
+				const useConvex = options.convex;
 
 				if (options.headless) {
 					inputName = projectName as string;
@@ -148,7 +159,9 @@ export const createCommand = new Command()
 					log.info(
 						`Auth provider: ${useWorkOS ? "WorkOS" : "Better Auth (Email OTP)"}`,
 					);
-					log.info("Database: Supabase (cloud)");
+					log.info(
+						`Backend: ${useConvex ? "Convex (serverless)" : "Supabase (cloud)"}`,
+					);
 					log.info(`VS Code config: ${includeVSCode ? "included" : "skipped"}`);
 					if (options.headless) {
 						log.info("Mode: headless");
@@ -187,27 +200,94 @@ export const createCommand = new Command()
 					);
 					await writeFile(
 						path.join(projectPath, "CLAUDE.md"),
-						templates.generateClaudeMd(name, useWorkOS),
+						templates.generateClaudeMd(name, useWorkOS, useConvex),
 					);
 					await writeFile(
 						path.join(projectPath, "README.md"),
-						templates.generateReadme(name),
+						templates.generateReadme(name, useConvex),
 					);
 				});
 
-				// Generate Supabase configuration
-				await withSpinner("Setting up Supabase configuration", async () => {
-					await ensureDir(path.join(projectPath, "supabase"));
+				// Generate backend configuration
+				if (useConvex) {
+					await withSpinner("Setting up Convex configuration", async () => {
+						const convexDir = path.join(projectPath, "apps", "web", "convex");
+						await ensureDir(convexDir);
+						await ensureDir(path.join(convexDir, "_generated"));
+						await ensureDir(path.join(convexDir, "betterAuth"));
 
-					await writeFile(
-						path.join(projectPath, "supabase", "config.toml"),
-						templates.generateSupabaseConfig(),
-					);
-					await writeFile(
-						path.join(projectPath, "supabase", "seed.sql"),
-						templates.generateSupabaseSeedSql(useWorkOS),
-					);
-				});
+						// App-level Convex files
+						await writeFile(
+							path.join(convexDir, "schema.ts"),
+							templates.generateConvexSchema(),
+						);
+						await writeFile(
+							path.join(convexDir, "functions.ts"),
+							templates.generateConvexFunctions(),
+						);
+						await writeFile(
+							path.join(convexDir, "seed.ts"),
+							templates.generateConvexSeed(),
+						);
+						await writeFile(
+							path.join(convexDir, "convex.config.ts"),
+							templates.generateConvexConvexConfig(),
+						);
+						await writeFile(
+							path.join(convexDir, "auth.config.ts"),
+							templates.generateConvexAuthConfigTs(),
+						);
+						await writeFile(
+							path.join(convexDir, "http.ts"),
+							templates.generateConvexHttp(),
+						);
+
+						// Better Auth component files
+						await writeFile(
+							path.join(convexDir, "betterAuth", "convex.config.ts"),
+							templates.generateConvexBetterAuthComponentConfig(),
+						);
+						await writeFile(
+							path.join(convexDir, "betterAuth", "auth.ts"),
+							templates.generateConvexBetterAuthModule(),
+						);
+						await writeFile(
+							path.join(convexDir, "betterAuth", "schema.ts"),
+							templates.generateConvexBetterAuthSchema(),
+						);
+						await writeFile(
+							path.join(convexDir, "betterAuth", "adapter.ts"),
+							templates.generateConvexBetterAuthAdapter(),
+						);
+
+						// Stubs for _generated/ (replaced by `npx convex dev`)
+						await writeFile(
+							path.join(convexDir, "_generated", "server.ts"),
+							templates.generateConvexServerStub(),
+						);
+						await writeFile(
+							path.join(convexDir, "_generated", "dataModel.ts"),
+							templates.generateConvexDataModelStub(),
+						);
+						await writeFile(
+							path.join(convexDir, "_generated", "api.ts"),
+							templates.generateConvexApiStub(),
+						);
+					});
+				} else {
+					await withSpinner("Setting up Supabase configuration", async () => {
+						await ensureDir(path.join(projectPath, "supabase"));
+
+						await writeFile(
+							path.join(projectPath, "supabase", "config.toml"),
+							templates.generateSupabaseConfig(),
+						);
+						await writeFile(
+							path.join(projectPath, "supabase", "seed.sql"),
+							templates.generateSupabaseSeedSql(useWorkOS),
+						);
+					});
+				}
 
 				// Generate VS Code configuration
 				if (includeVSCode) {
@@ -229,39 +309,41 @@ export const createCommand = new Command()
 					await ensureDir(path.join(projectPath, "scripts"));
 					await ensureDir(path.join(projectPath, ".claude"));
 
-					// Supabase scripts
-					const supabaseSetupPath = path.join(
-						projectPath,
-						"scripts",
-						"supabase-setup",
-					);
-					const supabaseBranchPath = path.join(
-						projectPath,
-						"scripts",
-						"supabase-branch",
-					);
-					const supabaseEnvPath = path.join(
-						projectPath,
-						"scripts",
-						"supabase-env",
-					);
+					if (!useConvex) {
+						// Supabase scripts
+						const supabaseSetupPath = path.join(
+							projectPath,
+							"scripts",
+							"supabase-setup",
+						);
+						const supabaseBranchPath = path.join(
+							projectPath,
+							"scripts",
+							"supabase-branch",
+						);
+						const supabaseEnvPath = path.join(
+							projectPath,
+							"scripts",
+							"supabase-env",
+						);
 
-					await writeFile(
-						supabaseSetupPath,
-						templates.generateSupabaseSetupScript(),
-					);
-					await writeFile(
-						supabaseBranchPath,
-						templates.generateSupabaseBranchScript(),
-					);
-					await writeFile(
-						supabaseEnvPath,
-						templates.generateSupabaseEnvScript(),
-					);
+						await writeFile(
+							supabaseSetupPath,
+							templates.generateSupabaseSetupScript(),
+						);
+						await writeFile(
+							supabaseBranchPath,
+							templates.generateSupabaseBranchScript(),
+						);
+						await writeFile(
+							supabaseEnvPath,
+							templates.generateSupabaseEnvScript(),
+						);
 
-					await setExecutable(supabaseSetupPath);
-					await setExecutable(supabaseBranchPath);
-					await setExecutable(supabaseEnvPath);
+						await setExecutable(supabaseSetupPath);
+						await setExecutable(supabaseBranchPath);
+						await setExecutable(supabaseEnvPath);
+					}
 
 					// Setup script (generated for all projects)
 					const setupScriptPath = path.join(projectPath, "scripts", "setup");
@@ -395,7 +477,7 @@ export const createCommand = new Command()
 					// Generate web app files
 					await writeFile(
 						path.join(webPath, "package.json"),
-						templates.generateWebPackageJson(useWorkOS),
+						templates.generateWebPackageJson(useWorkOS, useConvex),
 					);
 					await writeFile(
 						path.join(webPath, "next.config.ts"),
@@ -415,11 +497,11 @@ export const createCommand = new Command()
 					);
 					await writeFile(
 						path.join(webPath, ".env.local.example"),
-						templates.generateEnvExample(useWorkOS, name),
+						templates.generateEnvExample(useWorkOS, name, useConvex),
 					);
 					await writeFile(
 						path.join(webPath, "vercel.json"),
-						templates.generateVercelJson(),
+						templates.generateVercelJson(useConvex),
 					);
 					await writeFile(
 						path.join(webPath, ".gitignore"),
@@ -490,21 +572,23 @@ export const createCommand = new Command()
 					);
 				});
 
-				// Generate database files
-				await withSpinner("Setting up database", async () => {
-					await writeFile(
-						path.join(webPath, "db", "index.ts"),
-						templates.generateDbIndex(),
-					);
-					await writeFile(
-						path.join(webPath, "db", "schema.ts"),
-						templates.generateDbSchema(useWorkOS),
-					);
-					await writeFile(
-						path.join(webPath, "drizzle.config.ts"),
-						templates.generateDrizzleConfig(),
-					);
-				});
+				// Generate database files (Supabase only - Convex uses convex/ directory)
+				if (!useConvex) {
+					await withSpinner("Setting up database", async () => {
+						await writeFile(
+							path.join(webPath, "db", "index.ts"),
+							templates.generateDbIndex(),
+						);
+						await writeFile(
+							path.join(webPath, "db", "schema.ts"),
+							templates.generateDbSchema(useWorkOS),
+						);
+						await writeFile(
+							path.join(webPath, "drizzle.config.ts"),
+							templates.generateDrizzleConfig(),
+						);
+					});
+				}
 
 				// Generate auth files
 				await withSpinner("Setting up authentication", async () => {
@@ -522,8 +606,43 @@ export const createCommand = new Command()
 							path.join(webPath, "proxy.ts"),
 							templates.generateWorkOSProxy(),
 						);
+					} else if (useConvex) {
+						// Better Auth with Convex component
+						await writeFile(
+							path.join(webPath, "lib", "auth.ts"),
+							templates.generateConvexAuthConfig(),
+						);
+						await writeFile(
+							path.join(webPath, "lib", "auth-client.ts"),
+							templates.generateConvexAuthClient(),
+						);
+						await writeFile(
+							path.join(webPath, "app", "api", "auth", "[...all]", "route.ts"),
+							templates.generateConvexAuthRouteHandler(),
+						);
+						await writeFile(
+							path.join(webPath, "app", "(auth)", "login", "page.tsx"),
+							templates.generateLoginPage(),
+						);
+						await writeFile(
+							path.join(webPath, "app", "(auth)", "verify-otp", "page.tsx"),
+							templates.generateVerifyOTPPage(),
+						);
+						await writeFile(
+							path.join(webPath, "proxy.ts"),
+							templates.generateBetterAuthProxy(),
+						);
+						await writeFile(
+							path.join(
+								webPath,
+								"components",
+								"providers",
+								"convex-provider.tsx",
+							),
+							templates.generateConvexProvider(),
+						);
 					} else {
-						// Better Auth
+						// Better Auth with Drizzle/Supabase
 						await writeFile(
 							path.join(webPath, "lib", "auth.ts"),
 							templates.generateBetterAuthConfig(),
@@ -669,7 +788,9 @@ export const createCommand = new Command()
 					// Test utilities
 					await writeFile(
 						path.join(webPath, "__tests__", "utils", "test-db.ts"),
-						templates.generateTestDbUtils(name, useWorkOS),
+						useConvex
+							? templates.generateConvexTestDbUtils()
+							: templates.generateTestDbUtils(name, useWorkOS),
 					);
 					await writeFile(
 						path.join(webPath, "__tests__", "utils", "mocks.ts"),
@@ -710,12 +831,14 @@ export const createCommand = new Command()
 						),
 						templates.generateAiTriggerTest(),
 					);
-					await writeFile(
-						path.join(webPath, "__tests__", "integration", "db.test.ts"),
-						useWorkOS
-							? templates.generateWorkOSDbTest(name)
-							: templates.generateDbTest(name),
-					);
+					if (!useConvex) {
+						await writeFile(
+							path.join(webPath, "__tests__", "integration", "db.test.ts"),
+							useWorkOS
+								? templates.generateWorkOSDbTest(name)
+								: templates.generateDbTest(name),
+						);
+					}
 				});
 
 				// Generate services layer
@@ -870,6 +993,7 @@ export const createCommand = new Command()
 						supabaseToken: options.supabaseToken,
 						supabaseOrg: options.supabaseOrg,
 						supabaseRegion: options.supabaseRegion,
+						backendProvider: useConvex ? "convex" : "supabase",
 						conflictStrategy: options.conflictStrategy,
 						json: options.json,
 						quiet: options.quiet,

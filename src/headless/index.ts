@@ -13,6 +13,7 @@ import {
 	resolveConfig,
 	validateHeadlessOptions,
 } from "./config.js";
+import { setupConvex } from "./convex.js";
 import { setupGitHub } from "./github.js";
 import {
 	createFailureResult,
@@ -29,7 +30,7 @@ import {
 	runMigrations,
 	setupSupabase,
 } from "./supabase.js";
-import { setupVercel } from "./vercel.js";
+import { setupVercel, setupVercelForConvex } from "./vercel.js";
 
 export { resolveConfig, validateHeadlessOptions } from "./config.js";
 export { outputResult } from "./output.js";
@@ -88,45 +89,67 @@ export async function runHeadlessSetup(
 		}
 		const githubResult = await setupGitHub(projectName, projectPath, config);
 
-		// Setup Supabase
+		const isConvex = config.backendProvider === "convex";
+
+		// Setup backend (Supabase or Convex)
 		let supabaseResult: Awaited<ReturnType<typeof setupSupabase>> | undefined;
-		if (!config.quiet) {
-			log.blank();
-			log.info("Setting up Supabase...");
-		}
-		supabaseResult = await setupSupabase(projectName, projectPath, config);
+		let convexResult: Awaited<ReturnType<typeof setupConvex>> | undefined;
 
-		// Run migrations BEFORE creating branches
-		// Branches inherit schema from main, so migrations must exist first
-		if (!config.quiet) {
-			log.blank();
-			log.info("Running database migrations...");
-		}
-		await runMigrations(
-			projectPath,
-			supabaseResult.projectRef,
-			supabaseResult.dbPassword,
-			supabaseResult.region,
-			config,
-		);
+		if (isConvex) {
+			// Setup Convex
+			if (!config.quiet) {
+				log.blank();
+				log.info("Setting up Convex...");
+			}
+			if (!config.convex) {
+				throw new Error(
+					"Convex config is required when backendProvider is convex",
+				);
+			}
+			convexResult = await setupConvex(
+				projectName,
+				projectPath,
+				config,
+				config.quiet,
+			);
+		} else {
+			// Setup Supabase
+			if (!config.quiet) {
+				log.blank();
+				log.info("Setting up Supabase...");
+			}
+			supabaseResult = await setupSupabase(projectName, projectPath, config);
 
-		// Wait for migrations to be fully committed before creating branches
-		// Supabase needs time to process schema changes before branching
-		if (!config.quiet) {
-			log.info("Waiting for schema to be ready for branching...");
-		}
-		await new Promise((resolve) => setTimeout(resolve, 10000));
+			// Run migrations BEFORE creating branches
+			if (!config.quiet) {
+				log.blank();
+				log.info("Running database migrations...");
+			}
+			await runMigrations(
+				projectPath,
+				supabaseResult.projectRef,
+				supabaseResult.dbPassword,
+				supabaseResult.region,
+				config,
+			);
 
-		// Create branches AFTER migrations are run
-		if (!config.quiet) {
-			log.blank();
-			log.info("Creating Supabase branches...");
+			// Wait for migrations to be fully committed before creating branches
+			if (!config.quiet) {
+				log.info("Waiting for schema to be ready for branching...");
+			}
+			await new Promise((resolve) => setTimeout(resolve, 10000));
+
+			// Create branches AFTER migrations are run
+			if (!config.quiet) {
+				log.blank();
+				log.info("Creating Supabase branches...");
+			}
+			await createSupabaseBranches(
+				projectPath,
+				supabaseResult.projectRef,
+				config,
+			);
 		}
-		await createSupabaseBranches(
-			projectPath,
-			supabaseResult.projectRef,
-			config,
-		);
 
 		// Setup Vercel
 		if (!config.quiet) {
@@ -140,7 +163,15 @@ export async function runHeadlessSetup(
 			: projectName;
 
 		let vercelResult: Awaited<ReturnType<typeof setupVercel>> | undefined;
-		if (supabaseResult) {
+		if (isConvex && convexResult) {
+			vercelResult = await setupVercelForConvex(
+				vercelProjectName,
+				projectPath,
+				config,
+				convexResult,
+				customEnvVars,
+			);
+		} else if (supabaseResult) {
 			vercelResult = await setupVercel(
 				vercelProjectName,
 				projectPath,
@@ -277,6 +308,14 @@ export async function runHeadlessSetup(
 						projectName: supabaseResult.projectName,
 					}
 				: undefined,
+			convex: convexResult
+				? {
+						deploymentUrl: convexResult.deploymentUrl,
+						projectSlug: convexResult.projectSlug,
+						deployKey: convexResult.deployKey,
+						deploymentName: convexResult.deploymentName,
+					}
+				: undefined,
 			vercel: vercelResult
 				? {
 						url: vercelResult.url,
@@ -292,6 +331,14 @@ export async function runHeadlessSetup(
 								projectRef: supabaseResult.projectRef,
 								region: supabaseResult.region,
 								projectName: supabaseResult.projectName,
+							}
+						: undefined,
+					convex: convexResult
+						? {
+								deploymentUrl: convexResult.deploymentUrl,
+								projectSlug: convexResult.projectSlug,
+								deployKey: convexResult.deployKey,
+								deploymentName: convexResult.deploymentName,
 							}
 						: undefined,
 					vercel: vercelResult

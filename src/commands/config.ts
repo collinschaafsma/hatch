@@ -845,6 +845,48 @@ export const configCommand = new Command()
 					);
 				}
 
+				// Convex access token (optional)
+				const addConvex = await confirm({
+					message:
+						"Do you want to configure Convex? (for --convex backend projects)",
+					default: false,
+				});
+
+				if (addConvex) {
+					log.info(
+						"Generate an access token at: https://dashboard.convex.dev/settings",
+					);
+					const convexAccessToken = await password({
+						message: "Convex access token:",
+						mask: "*",
+					});
+
+					if (convexAccessToken) {
+						// Validate token via API
+						try {
+							const { getConvexTokenDetails } = await import(
+								"../headless/convex.js"
+							);
+							await withSpinner("Validating Convex access token", async () => {
+								await getConvexTokenDetails(convexAccessToken);
+							});
+							config.convex = { accessToken: convexAccessToken };
+							log.success("Convex access token configured and validated");
+						} catch (error) {
+							log.warn(
+								`Convex token validation failed: ${error instanceof Error ? error.message : error}`,
+							);
+							const useAnyway = await confirm({
+								message: "Save this token anyway?",
+								default: false,
+							});
+							if (useAnyway) {
+								config.convex = { accessToken: convexAccessToken };
+							}
+						}
+					}
+				}
+
 				// Read Claude Code credentials (macOS only)
 				if (process.platform === "darwin") {
 					let claudeCredentials: ClaudeConfig | undefined;
@@ -975,6 +1017,9 @@ export const configCommand = new Command()
 					log.step(
 						`Supabase: org=${config.supabase.org}, region=${config.supabase.region}`,
 					);
+				}
+				if (config.convex?.accessToken) {
+					log.step("Convex: access token configured");
 				}
 				if (config.claude?.accessToken) {
 					log.step("Claude Code: credentials configured");

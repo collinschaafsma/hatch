@@ -1,6 +1,7 @@
 export function generateEnvExample(
 	useWorkOS: boolean,
 	projectName: string,
+	useConvex = false,
 ): string {
 	const authEnv = useWorkOS
 		? `# WorkOS
@@ -15,13 +16,20 @@ BETTER_AUTH_URL=http://localhost:3000
 # Resend (for email OTP)
 RESEND_API_KEY=`;
 
-	return `# Database (Supabase)
+	const backendEnv = useConvex
+		? `# Convex
+CONVEX_DEPLOYMENT=  # Set by 'npx convex dev'
+NEXT_PUBLIC_CONVEX_URL=  # Set by 'npx convex dev'
+NEXT_PUBLIC_CONVEX_SITE_URL=  # Set by 'npx convex dev' (e.g. https://adjective-animal-123.convex.site)`
+		: `# Database (Supabase)
 # Production: Set in Vercel environment variables from Supabase dashboard
 # Development: Run 'pnpm supabase:env dev' to populate these
 DATABASE_URL=
 
 # Test Database (Supabase branch)
-TEST_DATABASE_URL=
+TEST_DATABASE_URL=`;
+
+	return `${backendEnv}
 
 ${authEnv}
 

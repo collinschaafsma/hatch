@@ -4,6 +4,7 @@ import { confirm } from "@inquirer/prompts";
 import { Command } from "commander";
 import { execa } from "execa";
 import fs from "fs-extra";
+import { deleteConvexProject } from "../headless/convex.js";
 import { exeDevRm } from "../utils/exe-dev.js";
 import { log } from "../utils/logger.js";
 import { getProject } from "../utils/project-store.js";
@@ -18,7 +19,7 @@ interface CleanOptions {
 
 export const cleanCommand = new Command()
 	.name("clean")
-	.description("Clean up a feature VM and its Supabase branches")
+	.description("Clean up a feature VM and its backend branches")
 	.argument("<feature-name>", "Feature name to clean up")
 	.requiredOption("--project <name>", "Project name")
 	.option("-f, --force", "Skip confirmation prompt")
@@ -54,13 +55,25 @@ export const cleanCommand = new Command()
 				options.config || path.join(os.homedir(), ".hatch.json");
 			let supabaseToken = "";
 			let githubToken = "";
+			let convexAccessToken = "";
 			if (await fs.pathExists(configPath)) {
 				const config = await fs.readJson(configPath);
 				supabaseToken = config.supabase?.token || "";
 				githubToken = config.github?.token || "";
+				convexAccessToken = config.convex?.accessToken || "";
 			}
 
-			const { name: vmName, supabaseBranches, githubBranch } = vmRecord;
+			const {
+				name: vmName,
+				supabaseBranches,
+				githubBranch,
+				convexFeatureProject,
+				convexPreviewName,
+			} = vmRecord;
+			const useConvex =
+				vmRecord.backendProvider === "convex" ||
+				!!convexFeatureProject ||
+				!!convexPreviewName;
 
 			// Show what will be deleted
 			log.info(`Feature: ${featureName}`);
@@ -69,7 +82,11 @@ export const cleanCommand = new Command()
 			if (githubBranch) {
 				log.step(`Git branch: ${githubBranch}`);
 			}
-			if (supabaseBranches.length > 0) {
+			if (useConvex && convexFeatureProject) {
+				log.step(`Convex project: ${convexFeatureProject.projectSlug}`);
+			} else if (useConvex && convexPreviewName) {
+				log.step(`Convex preview (legacy): ${convexPreviewName}`);
+			} else if (supabaseBranches.length > 0) {
 				log.step(`Supabase branches: ${supabaseBranches.join(", ")}`);
 			}
 			log.blank();
@@ -77,8 +94,9 @@ export const cleanCommand = new Command()
 			// Confirm deletion
 			if (!options.force) {
 				const confirmed = await confirm({
-					message:
-						"Are you sure you want to delete this feature VM and its Supabase branches?",
+					message: useConvex
+						? "Are you sure you want to delete this feature VM and its Convex project?"
+						: "Are you sure you want to delete this feature VM and its Supabase branches?",
 					default: false,
 				});
 
@@ -90,8 +108,35 @@ export const cleanCommand = new Command()
 
 			log.blank();
 
-			// Step 1: Delete Supabase branches (using local CLI with API)
-			if (supabaseBranches.length > 0) {
+			// Step 1: Delete backend branches/projects
+			if (useConvex && convexFeatureProject) {
+				// Delete Convex feature project via API
+				const convexSpinner = createSpinner(
+					"Deleting Convex feature project",
+				).start();
+				try {
+					if (!convexAccessToken) {
+						throw new Error("Convex access token not configured");
+					}
+					await deleteConvexProject(
+						convexFeatureProject.projectId,
+						convexAccessToken,
+					);
+					convexSpinner.succeed(
+						`Deleted Convex project: ${convexFeatureProject.projectSlug}`,
+					);
+				} catch (error) {
+					convexSpinner.warn(
+						`Failed to delete Convex project: ${error instanceof Error ? error.message : error}. Delete manually from the Convex dashboard.`,
+					);
+				}
+			} else if (useConvex && convexPreviewName) {
+				// Legacy: old preview-based VMRecord
+				log.warn(
+					`VM has legacy Convex preview "${convexPreviewName}". Delete it manually from the Convex dashboard.`,
+				);
+			} else if (supabaseBranches.length > 0) {
+				// Delete Supabase branches
 				const supabaseSpinner = createSpinner(
 					"Deleting Supabase branches",
 				).start();
@@ -101,8 +146,6 @@ export const cleanCommand = new Command()
 
 				for (const branch of supabaseBranches) {
 					try {
-						// Use Supabase Management API directly to delete branches
-						// First disable persistence, then delete
 						await execa(
 							"supabase",
 							[
@@ -111,15 +154,13 @@ export const cleanCommand = new Command()
 								branch,
 								"--persistent=false",
 								"--project-ref",
-								project.supabase.projectRef,
+								project.supabase?.projectRef,
 							],
 							{
 								env: { ...process.env, SUPABASE_ACCESS_TOKEN: supabaseToken },
 							},
 						);
-						// Brief pause to let the update propagate
 						await new Promise((resolve) => setTimeout(resolve, 2000));
-						// Then delete the branch
 						await execa(
 							"supabase",
 							[
@@ -127,7 +168,7 @@ export const cleanCommand = new Command()
 								"delete",
 								branch,
 								"--project-ref",
-								project.supabase.projectRef,
+								project.supabase?.projectRef,
 							],
 							{
 								env: { ...process.env, SUPABASE_ACCESS_TOKEN: supabaseToken },
@@ -135,7 +176,6 @@ export const cleanCommand = new Command()
 						);
 						deletedBranches.push(branch);
 					} catch (error) {
-						// Log the error for debugging but continue with other branches
 						console.error(`Failed to delete branch ${branch}:`, error);
 						failedBranches.push(branch);
 					}
@@ -201,7 +241,11 @@ export const cleanCommand = new Command()
 			if (githubBranch) {
 				log.step(`Git branch: ${githubBranch}`);
 			}
-			if (supabaseBranches.length > 0) {
+			if (useConvex && convexFeatureProject) {
+				log.step(`Convex project: ${convexFeatureProject.projectSlug}`);
+			} else if (useConvex && convexPreviewName) {
+				log.step(`Convex preview (legacy): ${convexPreviewName}`);
+			} else if (supabaseBranches.length > 0) {
 				log.step(`Supabase branches: ${supabaseBranches.join(", ")}`);
 			}
 			log.blank();

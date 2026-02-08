@@ -22,9 +22,14 @@ export async function checkPrerequisites(
 
 	// Check required CLIs are installed
 	const { missing } = await checkRequiredClis();
-	if (missing.length > 0) {
+	// Filter out supabase if using Convex backend
+	const relevantMissing =
+		config.backendProvider === "convex"
+			? missing.filter((cli) => cli !== "supabase")
+			: missing;
+	if (relevantMissing.length > 0) {
 		errors.push(
-			`Missing required CLIs: ${missing.join(", ")}. Use --bootstrap to install them.`,
+			`Missing required CLIs: ${relevantMissing.join(", ")}. Use --bootstrap to install them.`,
 		);
 	}
 
@@ -36,10 +41,12 @@ export async function checkPrerequisites(
 
 	// Skip Vercel auth check - whoami is unreliable, commands use --token directly
 
-	// Check Supabase authentication
-	const supabaseStatus = await supabaseAuthStatus(config.supabase.token);
-	if (!supabaseStatus.isAuthenticated) {
-		errors.push(`Supabase CLI not authenticated: ${supabaseStatus.error}`);
+	// Check Supabase authentication (skip for Convex backend)
+	if (config.backendProvider !== "convex" && config.supabase) {
+		const supabaseStatus = await supabaseAuthStatus(config.supabase.token);
+		if (!supabaseStatus.isAuthenticated) {
+			errors.push(`Supabase CLI not authenticated: ${supabaseStatus.error}`);
+		}
 	}
 
 	return {

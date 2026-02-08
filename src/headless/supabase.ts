@@ -106,6 +106,9 @@ export async function setupSupabase(
 	projectPath: string,
 	config: ResolvedHeadlessConfig,
 ): Promise<SupabaseSetupResult> {
+	if (!config.supabase) {
+		throw new Error("Supabase config is required for setupSupabase");
+	}
 	const token = config.supabase.token;
 	const orgId = config.supabase.org;
 	const region = config.supabase.region;
@@ -233,6 +236,9 @@ export async function createSupabaseBranches(
 	projectRef: string,
 	config: ResolvedHeadlessConfig,
 ): Promise<SupabaseBranchResult> {
+	if (!config.supabase) {
+		throw new Error("Supabase config is required for createSupabaseBranches");
+	}
 	const token = config.supabase.token;
 	const branches: SupabaseBranchResult = {};
 

@@ -1,12 +1,16 @@
+export type BackendProvider = "supabase" | "convex";
+
 export interface CreateOptions {
 	projectName: string;
 	useWorkOS: boolean;
+	useConvex: boolean;
 	headless?: HeadlessOptions;
 }
 
 export interface TemplateContext {
 	projectName: string;
 	useWorkOS: boolean;
+	useConvex: boolean;
 }
 
 // Headless mode types
@@ -24,6 +28,9 @@ export interface HeadlessOptions {
 	supabaseToken?: string;
 	supabaseOrg?: string;
 	supabaseRegion?: string;
+
+	// Convex
+	backendProvider?: BackendProvider;
 
 	// Behavior
 	conflictStrategy?: "suffix" | "fail";
@@ -75,6 +82,9 @@ export interface HatchConfig {
 		region?: string;
 		token?: string;
 	};
+	convex?: {
+		accessToken?: string;
+	};
 	claude?: ClaudeConfig;
 	envVars?: EnvVar[];
 }
@@ -101,6 +111,12 @@ export interface HeadlessResult {
 		region: string;
 		projectName: string;
 	};
+	convex?: {
+		deploymentUrl: string;
+		projectSlug: string;
+		deployKey: string;
+		deploymentName: string;
+	};
 	nextSteps?: string[];
 }
 
@@ -115,11 +131,15 @@ export interface ResolvedHeadlessConfig {
 		token: string;
 		team: string;
 	};
-	supabase: {
+	supabase?: {
 		token: string;
 		org: string;
 		region: string;
 	};
+	convex?: {
+		accessToken: string;
+	};
+	backendProvider: BackendProvider;
 	conflictStrategy: "suffix" | "fail";
 	json: boolean;
 	quiet: boolean;
@@ -130,6 +150,7 @@ export interface ResolvedHeadlessConfig {
 export interface ProjectRecord {
 	name: string; // e.g., "my-app"
 	createdAt: string; // ISO timestamp
+	backendProvider: BackendProvider;
 	github: {
 		url: string; // e.g., "https://github.com/org/my-app"
 		owner: string;
@@ -139,9 +160,15 @@ export interface ProjectRecord {
 		url: string; // e.g., "https://my-app.vercel.app"
 		projectId: string;
 	};
-	supabase: {
+	supabase?: {
 		projectRef: string;
 		region: string;
+	};
+	convex?: {
+		deploymentUrl: string;
+		projectSlug: string;
+		deployKey: string;
+		deploymentName: string;
 	};
 }
 
@@ -160,6 +187,16 @@ export interface VMRecord {
 	createdAt: string; // ISO timestamp
 	supabaseBranches: string[]; // e.g., ["add-auth", "add-auth-test"]
 	githubBranch: string; // e.g., "add-auth"
+	// Backend-specific fields
+	backendProvider?: BackendProvider;
+	convexPreviewName?: string; // Deprecated: old preview-based flow
+	convexFeatureProject?: {
+		projectId: string;
+		projectSlug: string; // e.g. "my-app-add-auth"
+		deploymentName: string; // e.g. "cool-penguin-123"
+		deploymentUrl: string;
+		deployKey: string;
+	};
 	// Spike-specific fields (optional for feature VMs)
 	agentSessionId?: string; // For session resume
 	spikeStatus?: "running" | "completed" | "failed";
