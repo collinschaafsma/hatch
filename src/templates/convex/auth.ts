@@ -299,20 +299,23 @@ export function generateConvexAuthClient(): string {
 import { emailOTPClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
-// Get the app URL, checking multiple sources for different environments
+// Get the app URL for auth API requests
+// In the browser, always use the current origin to avoid CORS mismatches
+// (Vercel previews have multiple URLs but auth is always same-origin)
 function getBaseURL(): string {
-	// Explicit app URL (set in .env.local for feature VMs)
+	if (typeof window !== "undefined") {
+		return window.location.origin;
+	}
+	// SSR fallbacks (auth API calls only happen client-side, but the module initializes during SSR)
 	if (process.env.NEXT_PUBLIC_APP_URL) {
 		return process.env.NEXT_PUBLIC_APP_URL;
 	}
-	// Vercel: use production URL on production, deployment URL on preview
 	if (process.env.NEXT_PUBLIC_VERCEL_ENV === "production" && process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL) {
 		return \`https://\${process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL}\`;
 	}
 	if (process.env.NEXT_PUBLIC_VERCEL_URL) {
 		return \`https://\${process.env.NEXT_PUBLIC_VERCEL_URL}\`;
 	}
-	// Local development
 	return "http://localhost:3000";
 }
 
