@@ -662,23 +662,6 @@ export const spikeCommand = new Command()
 				throw error;
 			}
 
-			// Step 9: Configure Next.js for exe.dev preview
-			const nextConfigSpinner = options.json
-				? null
-				: createSpinner("Configuring Next.js for exe.dev preview").start();
-			try {
-				const exeDevOrigin = `${vmName}.exe.xyz`;
-				await sshExec(
-					sshHost,
-					`cd ${projectPath}/apps/web && echo 'ALLOWED_DEV_ORIGINS=${exeDevOrigin}' >> .env.local`,
-				);
-				nextConfigSpinner?.succeed("Next.js configured for exe.dev preview");
-			} catch {
-				nextConfigSpinner?.warn(
-					"Could not configure allowedDevOrigins. You may see cross-origin warnings.",
-				);
-			}
-
 			// Backend-specific setup: Convex feature projects OR Supabase branches
 			let mainBranch = "";
 			let testBranch = "";
@@ -754,7 +737,7 @@ export const spikeCommand = new Command()
 				);
 				await sshExec(
 					sshHost,
-					`${envPrefix} cd ${projectPath}/apps/web && vercel env pull .env.local --environment=development --token "${vercelToken}" 2>&1 || true`,
+					`${envPrefix} cd ${projectPath}/apps/web && vercel env pull .env.local --yes --environment=development --token "${vercelToken}" 2>&1 || true`,
 				);
 				const { stdout: envCheckConvex } = await sshExec(
 					sshHost,
@@ -767,6 +750,13 @@ export const spikeCommand = new Command()
 						"Could not pull env from Vercel. You may need to create .env.local manually.",
 					);
 				}
+
+				// Append ALLOWED_DEV_ORIGINS after env pull so it doesn't get overwritten
+				const exeDevOrigin = `${vmName}.exe.xyz`;
+				await sshExec(
+					sshHost,
+					`cd ${projectPath}/apps/web && echo 'ALLOWED_DEV_ORIGINS=${exeDevOrigin}' >> .env.local`,
+				);
 
 				// Update .env.local with feature project URL and app URLs
 				const convexEnvSpinner = options.json
@@ -850,7 +840,7 @@ export const spikeCommand = new Command()
 				);
 				await sshExec(
 					sshHost,
-					`${envPrefix} cd ${projectPath}/apps/web && vercel env pull .env.local --environment=development --token "${vercelToken}" 2>&1 || true`,
+					`${envPrefix} cd ${projectPath}/apps/web && vercel env pull .env.local --yes --environment=development --token "${vercelToken}" 2>&1 || true`,
 				);
 				const { stdout: envCheck } = await sshExec(
 					sshHost,
@@ -863,6 +853,13 @@ export const spikeCommand = new Command()
 						"Could not pull env from Vercel. You may need to create .env.local manually.",
 					);
 				}
+
+				// Append ALLOWED_DEV_ORIGINS after env pull so it doesn't get overwritten
+				const exeDevOrigin = `${vmName}.exe.xyz`;
+				await sshExec(
+					sshHost,
+					`cd ${projectPath}/apps/web && echo 'ALLOWED_DEV_ORIGINS=${exeDevOrigin}' >> .env.local`,
+				);
 
 				// Wait for branches to provision and get credentials
 				const credSpinner = options.json
