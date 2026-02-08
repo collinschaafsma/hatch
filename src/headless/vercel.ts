@@ -262,6 +262,109 @@ export async function setupVercel(
 /**
  * Set up Vercel project with Convex-specific environment variables
  */
+/**
+ * Set per-branch scoped environment variables on a Vercel project.
+ * Uses upsert to make it idempotent (safe to re-run).
+ */
+export async function setVercelBranchEnvVars(
+	projectId: string,
+	gitBranch: string,
+	envVars: Array<{ key: string; value: string }>,
+	token: string,
+): Promise<void> {
+	const response = await fetch(
+		`https://api.vercel.com/v10/projects/${projectId}/env?upsert=true`,
+		{
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${token}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(
+				envVars.map((v) => ({
+					key: v.key,
+					value: v.value,
+					type: "plain",
+					target: ["preview"],
+					gitBranch,
+				})),
+			),
+		},
+	);
+
+	if (!response.ok) {
+		const error = await response.text();
+		throw new Error(`Failed to set per-branch Vercel env vars: ${error}`);
+	}
+}
+
+/**
+ * List env vars scoped to a specific git branch on a Vercel project.
+ */
+async function listVercelBranchEnvVars(
+	projectId: string,
+	gitBranch: string,
+	token: string,
+): Promise<Array<{ id: string; key: string }>> {
+	const response = await fetch(
+		`https://api.vercel.com/v9/projects/${projectId}/env?gitBranch=${encodeURIComponent(gitBranch)}`,
+		{
+			headers: {
+				Authorization: `Bearer ${token}`,
+			},
+		},
+	);
+
+	if (!response.ok) {
+		const error = await response.text();
+		throw new Error(`Failed to list Vercel env vars: ${error}`);
+	}
+
+	const data = (await response.json()) as {
+		envs: Array<{ id: string; key: string; gitBranch?: string }>;
+	};
+	return data.envs
+		.filter((e) => e.gitBranch === gitBranch)
+		.map((e) => ({ id: e.id, key: e.key }));
+}
+
+/**
+ * Delete all env vars scoped to a specific git branch on a Vercel project.
+ * Best-effort: logs failures but doesn't throw.
+ */
+export async function deleteVercelBranchEnvVars(
+	projectId: string,
+	gitBranch: string,
+	token: string,
+): Promise<number> {
+	const envVars = await listVercelBranchEnvVars(projectId, gitBranch, token);
+	let deleted = 0;
+
+	for (const env of envVars) {
+		try {
+			const response = await fetch(
+				`https://api.vercel.com/v9/projects/${projectId}/env/${env.id}`,
+				{
+					method: "DELETE",
+					headers: {
+						Authorization: `Bearer ${token}`,
+					},
+				},
+			);
+			if (response.ok) {
+				deleted++;
+			}
+		} catch {
+			// Best-effort: continue with other vars
+		}
+	}
+
+	return deleted;
+}
+
+/**
+ * Set up Vercel project with Convex-specific environment variables
+ */
 export async function setupVercelForConvex(
 	projectName: string,
 	projectPath: string,

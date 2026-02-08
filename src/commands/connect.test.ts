@@ -207,9 +207,7 @@ describe("connect command", () => {
 			await connectCommand.parseAsync(["node", "test"]);
 
 			expect(mockLog.step).toHaveBeenCalledWith(
-				expect.stringContaining(
-					"vscode://vscode-remote/ssh-remote+test-vm.exe.xyz",
-				),
+				expect.stringContaining("code --remote ssh-remote+test-vm.exe.xyz"),
 			);
 		});
 

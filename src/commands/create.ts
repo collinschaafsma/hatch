@@ -967,7 +967,7 @@ export const createCommand = new Command()
 					);
 					await writeFile(
 						path.join(projectPath, ".github", "workflows", "test.yml"),
-						templates.generateTestWorkflow(name),
+						templates.generateTestWorkflow(name, useConvex),
 					);
 				});
 

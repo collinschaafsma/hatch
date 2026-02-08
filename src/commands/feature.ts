@@ -7,6 +7,7 @@ import {
 	createConvexFeatureProject,
 	deleteConvexProject,
 } from "../headless/convex.js";
+import { setVercelBranchEnvVars } from "../headless/vercel.js";
 import type { EnvVar, VMRecord } from "../types/index.js";
 import {
 	checkExeDevAccess,
@@ -501,6 +502,45 @@ export const featureCommand = new Command()
 				throw error;
 			}
 
+			// Set per-branch Vercel env vars so preview deployments use this feature's Convex backend
+			if (useConvex && convexFeatureProject) {
+				const vercelBranchSpinner = createSpinner(
+					"Setting per-branch Vercel environment variables",
+				).start();
+				try {
+					const siteUrlForVercel = convexFeatureProject.deploymentUrl.replace(
+						".convex.cloud",
+						".convex.site",
+					);
+					await setVercelBranchEnvVars(
+						project.vercel.projectId,
+						featureName,
+						[
+							{
+								key: "CONVEX_DEPLOY_KEY",
+								value: convexFeatureProject.deployKey,
+							},
+							{
+								key: "NEXT_PUBLIC_CONVEX_URL",
+								value: convexFeatureProject.deploymentUrl,
+							},
+							{
+								key: "NEXT_PUBLIC_CONVEX_SITE_URL",
+								value: siteUrlForVercel,
+							},
+						],
+						vercelToken,
+					);
+					vercelBranchSpinner.succeed(
+						"Per-branch Vercel environment variables set",
+					);
+				} catch (error) {
+					vercelBranchSpinner.warn(
+						`Could not set per-branch Vercel env vars: ${error instanceof Error ? error.message : error}`,
+					);
+				}
+			}
+
 			// Step 15: Save VM to local tracking
 			const vmRecord: VMRecord = {
 				name: vmName,
@@ -534,7 +574,7 @@ export const featureCommand = new Command()
 			log.info("Connect:");
 			log.step(`SSH:     ssh ${sshHost}`);
 			log.step(
-				`VS Code: vscode://vscode-remote/ssh-remote+${sshHost}/home/exedev/${project.github.repo}`,
+				`VS Code: code --remote ssh-remote+${sshHost} /home/exedev/${project.github.repo}`,
 			);
 			log.step(
 				`Web:     https://${vmName}.exe.xyz (once app runs on port 3000)`,

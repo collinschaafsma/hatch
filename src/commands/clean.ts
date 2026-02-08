@@ -5,6 +5,7 @@ import { Command } from "commander";
 import { execa } from "execa";
 import fs from "fs-extra";
 import { deleteConvexProject } from "../headless/convex.js";
+import { deleteVercelBranchEnvVars } from "../headless/vercel.js";
 import { exeDevRm } from "../utils/exe-dev.js";
 import { log } from "../utils/logger.js";
 import { getProject } from "../utils/project-store.js";
@@ -56,11 +57,13 @@ export const cleanCommand = new Command()
 			let supabaseToken = "";
 			let githubToken = "";
 			let convexAccessToken = "";
+			let vercelToken = "";
 			if (await fs.pathExists(configPath)) {
 				const config = await fs.readJson(configPath);
 				supabaseToken = config.supabase?.token || "";
 				githubToken = config.github?.token || "";
 				convexAccessToken = config.convex?.accessToken || "";
+				vercelToken = config.vercel?.token || "";
 			}
 
 			const {
@@ -129,6 +132,26 @@ export const cleanCommand = new Command()
 					convexSpinner.warn(
 						`Failed to delete Convex project: ${error instanceof Error ? error.message : error}. Delete manually from the Convex dashboard.`,
 					);
+				}
+				// Clean up per-branch Vercel env vars for Convex features
+				if (vercelToken && githubBranch) {
+					const vercelEnvSpinner = createSpinner(
+						"Removing per-branch Vercel environment variables",
+					).start();
+					try {
+						const deleted = await deleteVercelBranchEnvVars(
+							project.vercel.projectId,
+							githubBranch,
+							vercelToken,
+						);
+						vercelEnvSpinner.succeed(
+							`Removed ${deleted} per-branch Vercel environment variable${deleted !== 1 ? "s" : ""}`,
+						);
+					} catch {
+						vercelEnvSpinner.warn(
+							"Could not remove per-branch Vercel env vars. They may need to be removed manually.",
+						);
+					}
 				}
 			} else if (useConvex && convexPreviewName) {
 				// Legacy: old preview-based VMRecord

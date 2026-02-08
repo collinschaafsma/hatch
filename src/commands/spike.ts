@@ -7,6 +7,7 @@ import {
 	createConvexFeatureProject,
 	deleteConvexProject,
 } from "../headless/convex.js";
+import { setVercelBranchEnvVars } from "../headless/vercel.js";
 import type { EnvVar, SpikeResult, VMRecord } from "../types/index.js";
 import {
 	checkExeDevAccess,
@@ -967,6 +968,62 @@ export const spikeCommand = new Command()
 				`cd ${projectPath} && grep -q '^agent-runner.ts$' .gitignore 2>/dev/null || echo 'agent-runner.ts' >> .gitignore`,
 			);
 			agentScriptSpinner?.succeed("Agent runner script copied");
+
+			// Push branch to origin so Vercel can see it for per-branch env vars
+			const pushSpinner = options.json
+				? null
+				: createSpinner("Pushing branch to origin").start();
+			try {
+				await sshExec(
+					sshHost,
+					`cd ${projectPath} && git push -u origin ${featureName}`,
+				);
+				pushSpinner?.succeed("Branch pushed to origin");
+			} catch (error) {
+				pushSpinner?.fail("Failed to push branch");
+				throw error;
+			}
+
+			// Set per-branch Vercel env vars so preview deployments use this feature's Convex backend
+			if (useConvex && convexFeatureProject) {
+				const vercelBranchSpinner = options.json
+					? null
+					: createSpinner(
+							"Setting per-branch Vercel environment variables",
+						).start();
+				try {
+					const siteUrlForVercel = convexFeatureProject.deploymentUrl.replace(
+						".convex.cloud",
+						".convex.site",
+					);
+					await setVercelBranchEnvVars(
+						project.vercel.projectId,
+						featureName,
+						[
+							{
+								key: "CONVEX_DEPLOY_KEY",
+								value: convexFeatureProject.deployKey,
+							},
+							{
+								key: "NEXT_PUBLIC_CONVEX_URL",
+								value: convexFeatureProject.deploymentUrl,
+							},
+							{
+								key: "NEXT_PUBLIC_CONVEX_SITE_URL",
+								value: siteUrlForVercel,
+							},
+						],
+						vercelToken,
+					);
+					vercelBranchSpinner?.succeed(
+						"Per-branch Vercel environment variables set",
+					);
+				} catch (error) {
+					vercelBranchSpinner?.warn(
+						`Could not set per-branch Vercel env vars: ${error instanceof Error ? error.message : error}`,
+					);
+				}
+			}
 
 			// Step 16: Save VM to local tracking (before starting agent)
 			const vmRecord: VMRecord = {

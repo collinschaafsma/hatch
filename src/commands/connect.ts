@@ -88,7 +88,7 @@ export const connectCommand = new Command()
 			log.info("Connect:");
 			log.step(`SSH:     ssh ${sshHost}`);
 			log.step(
-				`VS Code: vscode://vscode-remote/ssh-remote+${sshHost}/home/exedev/${project?.github.repo || projectName}`,
+				`VS Code: code --remote ssh-remote+${sshHost} /home/exedev/${project?.github.repo || projectName}`,
 			);
 			log.step(`Web:     https://${name}.exe.xyz (once app runs on port 3000)`);
 			log.blank();
