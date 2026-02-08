@@ -1,5 +1,5 @@
 import { execa } from "execa";
-import type { ResolvedHeadlessConfig } from "../types/index.js";
+import type { BackendProvider, ResolvedHeadlessConfig } from "../types/index.js";
 import { log } from "../utils/logger.js";
 import { withSpinner } from "../utils/spinner.js";
 import {
@@ -35,8 +35,17 @@ async function installCliViaNpm(
 /**
  * Install missing CLI tools
  */
-export async function installMissingClis(quiet: boolean): Promise<void> {
-	const { missing } = await checkRequiredClis();
+export async function installMissingClis(
+	quiet: boolean,
+	backendProvider?: BackendProvider,
+): Promise<void> {
+	const { missing: allMissing } = await checkRequiredClis();
+
+	// Skip supabase for Convex backend
+	const missing =
+		backendProvider === "convex"
+			? allMissing.filter((cli) => cli !== "supabase")
+			: allMissing;
 
 	if (missing.length === 0) {
 		if (!quiet) {
@@ -150,7 +159,7 @@ export async function runBootstrap(
 	}
 
 	// Install missing CLIs
-	await installMissingClis(quiet);
+	await installMissingClis(quiet, config.backendProvider);
 
 	// Authenticate CLIs
 	await authenticateClis(config, quiet);
