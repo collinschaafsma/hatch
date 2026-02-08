@@ -7,7 +7,7 @@ import {
 	createConvexFeatureProject,
 	deleteConvexProject,
 } from "../headless/convex.js";
-import type { SpikeResult, VMRecord } from "../types/index.js";
+import type { EnvVar, SpikeResult, VMRecord } from "../types/index.js";
 import {
 	checkExeDevAccess,
 	exeDevNew,
@@ -563,6 +563,7 @@ export const spikeCommand = new Command()
 			const supabaseToken = config.supabase?.token || "";
 			const vercelToken = config.vercel?.token || "";
 			const convexAccessToken = config.convex?.accessToken || "";
+			const customEnvVars: EnvVar[] | undefined = config.envVars;
 			const useConvex = project.backendProvider === "convex";
 
 			// Step 3: Create new VM
@@ -708,6 +709,7 @@ export const spikeCommand = new Command()
 					convexAccessToken,
 					appUrl,
 					!!options.json,
+					customEnvVars,
 				);
 				convexFeatureProjectId = convexFeatureProject.projectId;
 

@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { execa } from "execa";
-import type { ResolvedHeadlessConfig } from "../types/index.js";
+import type { EnvVar, ResolvedHeadlessConfig } from "../types/index.js";
 import { log } from "../utils/logger.js";
 import { withSpinner } from "../utils/spinner.js";
 
@@ -168,6 +168,7 @@ export async function setupConvex(
 	projectPath: string,
 	config: ResolvedHeadlessConfig,
 	quiet: boolean,
+	customEnvVars?: EnvVar[],
 ): Promise<ConvexSetupResult> {
 	if (!config.convex) {
 		throw new Error("Convex config is required");
@@ -282,6 +283,24 @@ export async function setupConvex(
 		);
 	}
 
+	// Step 7: Push custom env vars (e.g. RESEND_API_KEY, EMAIL_FROM)
+	if (customEnvVars?.length) {
+		if (!quiet) {
+			await withSpinner(
+				"Setting custom Convex environment variables",
+				async () => {
+					for (const envVar of customEnvVars) {
+						await setConvexEnvVar(envVar.key, envVar.value, deployKey, webPath);
+					}
+				},
+			);
+		} else {
+			for (const envVar of customEnvVars) {
+				await setConvexEnvVar(envVar.key, envVar.value, deployKey, webPath);
+			}
+		}
+	}
+
 	return {
 		deploymentUrl,
 		projectSlug: resolvedName,
@@ -358,6 +377,7 @@ export async function createConvexFeatureProject(
 	accessToken: string,
 	appUrl: string,
 	quiet: boolean,
+	customEnvVars?: EnvVar[],
 ): Promise<{
 	projectId: string;
 	projectSlug: string;
@@ -415,20 +435,18 @@ export async function createConvexFeatureProject(
 
 	// Step 4: Set env vars via Deployment Admin API
 	const authSecret = crypto.randomBytes(32).toString("hex");
+	const envVarsToSet = [
+		{ name: "BETTER_AUTH_SECRET", value: authSecret },
+		{ name: "SITE_URL", value: appUrl },
+		{ name: "BETTER_AUTH_URL", value: appUrl },
+		...(customEnvVars?.map((v) => ({ name: v.key, value: v.value })) ?? []),
+	];
 	if (!quiet) {
 		await withSpinner("Setting Convex environment variables", async () => {
-			await setConvexEnvVarViaAPI(deploymentName, accessToken, [
-				{ name: "BETTER_AUTH_SECRET", value: authSecret },
-				{ name: "SITE_URL", value: appUrl },
-				{ name: "BETTER_AUTH_URL", value: appUrl },
-			]);
+			await setConvexEnvVarViaAPI(deploymentName, accessToken, envVarsToSet);
 		});
 	} else {
-		await setConvexEnvVarViaAPI(deploymentName, accessToken, [
-			{ name: "BETTER_AUTH_SECRET", value: authSecret },
-			{ name: "SITE_URL", value: appUrl },
-			{ name: "BETTER_AUTH_URL", value: appUrl },
-		]);
+		await setConvexEnvVarViaAPI(deploymentName, accessToken, envVarsToSet);
 	}
 
 	return {

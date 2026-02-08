@@ -1,5 +1,8 @@
 import { execa } from "execa";
-import type { BackendProvider, ResolvedHeadlessConfig } from "../types/index.js";
+import type {
+	BackendProvider,
+	ResolvedHeadlessConfig,
+} from "../types/index.js";
 import { log } from "../utils/logger.js";
 import { withSpinner } from "../utils/spinner.js";
 import {

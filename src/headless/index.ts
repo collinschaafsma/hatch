@@ -111,6 +111,7 @@ export async function runHeadlessSetup(
 				projectPath,
 				config,
 				config.quiet,
+				customEnvVars,
 			);
 		} else {
 			// Setup Supabase
