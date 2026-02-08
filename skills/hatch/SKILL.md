@@ -1,13 +1,13 @@
 ---
 name: hatch
-description: Provision exe.dev cloud VMs for development. Use when user wants to create projects, feature branches, spike prototypes, manage VMs, or deploy to Vercel/Supabase. Triggers on "new project", "feature branch", "spike", "VM", "exe.dev", "cloud development".
+description: Provision exe.dev cloud VMs for development. Use when user wants to create projects, feature branches, spike prototypes, manage VMs, or deploy to Vercel/Supabase/Convex. Triggers on "new project", "feature branch", "spike", "VM", "exe.dev", "cloud development".
 compatibility: Designed for Claude Code. Requires pnpm installed locally.
 metadata: {"openclaw": {"requires": {"bins": ["pnpm"]}, "emoji": "🐣"}, "author": "hatch", "version": "1.0"}
 ---
 
 # Hatch - Cloud Development CLI
 
-Hatch provisions exe.dev VMs with GitHub, Vercel, and Supabase integration.
+Hatch provisions exe.dev VMs with GitHub, Vercel, and backend (Supabase or Convex) integration.
 
 Hatch is installed at `~/.hatch-cli`. All commands must be run from that directory using `pnpm dev`.
 
@@ -21,16 +21,19 @@ Use first to find project names. Returns JSON with projects array and vms array.
 
 ### Create new project
 ```bash
-cd ~/.hatch-cli && pnpm dev new <project-name>
+cd ~/.hatch-cli && pnpm dev new <project-name>            # Supabase backend (default)
+cd ~/.hatch-cli && pnpm dev new <project-name> --convex   # Convex backend
 ```
-Creates a new project with GitHub repo, Vercel deployment, and Supabase database.
+Creates a new project with GitHub repo, Vercel deployment, and backend (Supabase or Convex).
 Takes 5-10 minutes. Returns Vercel URL when complete.
+
+`--convex` and `--workos` are mutually exclusive. Convex projects use Better Auth running inside Convex.
 
 ### Create feature VM (interactive development)
 ```bash
 cd ~/.hatch-cli && pnpm dev feature <name> --project <project>
 ```
-Creates isolated VM with git/database branches. Returns SSH host and preview URL.
+Creates isolated VM with git branch and backend isolation (Supabase branches or separate Convex project). Returns SSH host and preview URL.
 User will SSH in and drive development with Claude Code.
 
 ### Autonomous spike (fire and forget)
@@ -48,13 +51,13 @@ Creates VM, runs Claude Agent SDK autonomously, creates PR when done.
 ```bash
 cd ~/.hatch-cli && pnpm dev clean <name> --project <project>
 ```
-Deletes VM and branches after PR is merged.
+Deletes VM and backend resources (Supabase branches or Convex feature project) after PR is merged.
 
 ### Add existing project
 ```bash
 cd ~/.hatch-cli && pnpm dev add <project-name>
 ```
-Adds an existing GitHub/Vercel/Supabase project to Hatch tracking.
+Adds an existing GitHub/Vercel/Supabase/Convex project to Hatch tracking.
 
 ### Show VM connection info
 ```bash
@@ -82,7 +85,7 @@ Pulls latest code, reinstalls dependencies, rebuilds, and updates OpenClaw skill
 ```bash
 cd ~/.hatch-cli && pnpm dev destroy <project-name>
 ```
-Permanently deletes Supabase project, Vercel project, and local tracking.
+Permanently deletes backend project (Supabase or Convex), Vercel project, and local tracking.
 Requires typing project name to confirm. GitHub repo is preserved.
 Only use after all feature VMs are cleaned.
 
@@ -203,7 +206,8 @@ Report costs to the user when a spike completes.
 
 ### Create new project
 ```bash
-cd ~/.hatch-cli && pnpm dev new my-app
+cd ~/.hatch-cli && pnpm dev new my-app            # Supabase (default)
+cd ~/.hatch-cli && pnpm dev new my-app --convex   # Convex
 ```
 Share Vercel URL when complete.
 
