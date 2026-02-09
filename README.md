@@ -342,6 +342,10 @@ Each feature gets a fully isolated backend:
 | Development | Dev deployment | Local development (`npx convex dev`) |
 | Feature | `{slug}-{feature}` project | Isolated per-feature (created/deleted via API) |
 
+### Why Separate Convex Projects for Features
+
+Convex has native [preview deployments](https://docs.convex.dev/production/hosting/preview-deployments) for branch-level isolation, but they require a preview deploy key that can only be generated manually from the Convex Dashboard—there's no Management API support for creating them programmatically. Since Hatch requires full automation (no manual steps), we create a separate Convex project per feature branch instead. When Convex adds API support for preview deploy keys, we can migrate to native preview deployments.
+
 ## CLI Reference
 
 ### Configuration
