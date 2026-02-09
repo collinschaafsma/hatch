@@ -44,7 +44,7 @@ Hatch takes the opposite approach. Every project starts with a production-ready 
 
 ## Requirements
 
-**macOS** is required (credential extraction uses Keychain).
+**macOS** is required (Supabase and Claude credential extraction use Keychain).
 
 **Accounts:**
 - [exe.dev](https://exe.dev) - Cloud VMs for development
@@ -75,7 +75,7 @@ pnpm install
 pnpm dev config
 ```
 
-This creates `~/.hatch.json` with tokens extracted from your logged-in CLIs.
+This creates `~/.hatch.json` with tokens from your logged-in CLIs (GitHub, Supabase, Claude) and prompts you to paste your Vercel dashboard token.
 
 ### 2. Create a Project
 
@@ -203,7 +203,7 @@ Hatch generates a complete full-stack monorepo with:
 Running `hatch config` creates `~/.hatch.json` containing:
 
 - **GitHub token** - From `gh` CLI config
-- **Vercel token** - From `vercel` CLI config
+- **Vercel token** - From Vercel dashboard token (https://vercel.com/account/settings/tokens)
 - **Supabase token** - From `supabase` CLI config *(Supabase backend)*
 - **Convex access token** - From Convex CLI config *(Convex backend)*
 - **Claude Code credentials** - OAuth tokens from macOS Keychain
@@ -358,8 +358,6 @@ Each feature gets a fully isolated backend:
 | `hatch config-push <ssh-host> -c <path>` | Push custom config file to a remote server |
 
 The config command prompts to add custom environment variables that will be automatically set in Vercel during project setup.
-
-**Stale Token Detection:** When running `hatch new`, `hatch feature`, or `hatch spike`, Hatch automatically checks if your CLI tokens have changed since you last ran `hatch config`. If stale tokens are detected, you'll be prompted to refresh them before proceeding.
 
 ### Project Management
 

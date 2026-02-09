@@ -64,42 +64,6 @@ async function readGitHubToken(): Promise<string | null> {
 }
 
 /**
- * Read Vercel token from vercel CLI config
- */
-async function readVercelToken(): Promise<string | null> {
-	const configPaths = [
-		// macOS
-		path.join(
-			os.homedir(),
-			"Library",
-			"Application Support",
-			"com.vercel.cli",
-			"auth.json",
-		),
-		// Linux
-		path.join(os.homedir(), ".local", "share", "com.vercel.cli", "auth.json"),
-		// Alternative location
-		path.join(os.homedir(), ".vercel", "auth.json"),
-	];
-
-	for (const configPath of configPaths) {
-		if (await fs.pathExists(configPath)) {
-			try {
-				const config = await fs.readJson(configPath);
-				if (config?.token) {
-					return config.token;
-				}
-			} catch {
-				// Continue to next path
-			}
-		}
-	}
-
-	// Also check environment variable
-	return process.env.VERCEL_TOKEN || null;
-}
-
-/**
  * Read Supabase token from CLI config or keychain
  */
 async function readSupabaseToken(): Promise<string | null> {
@@ -636,7 +600,6 @@ export const configCommand = new Command()
 
 					// Read fresh tokens
 					const githubToken = await readGitHubToken();
-					const vercelToken = await readVercelToken();
 					const supabaseToken = await readSupabaseToken();
 					const claudeCredentials = await getClaudeCredentials();
 
@@ -651,15 +614,7 @@ export const configCommand = new Command()
 						log.warn("Could not read GitHub token");
 					}
 
-					if (vercelToken) {
-						existingConfig.vercel = {
-							...existingConfig.vercel,
-							token: vercelToken,
-						};
-						log.success("Vercel token refreshed");
-					} else {
-						log.warn("Could not read Vercel token");
-					}
+					log.info("Vercel: using existing token (update via 'hatch config')");
 
 					if (supabaseToken) {
 						existingConfig.supabase = {
@@ -761,20 +716,23 @@ export const configCommand = new Command()
 					);
 				}
 
-				// Read Vercel token
-				let vercelToken: string | null = null;
-				await withSpinner("Reading Vercel CLI config", async () => {
-					vercelToken = await readVercelToken();
+				// Vercel token (manual entry from dashboard)
+				log.info(
+					"Create a Vercel token at: https://vercel.com/account/settings/tokens",
+				);
+				const vercelToken = await password({
+					message: "Vercel token:",
+					mask: "*",
 				});
 
 				if (vercelToken) {
-					log.success("Found Vercel token");
-					config.vercel = { token: vercelToken };
-
-					// Get teams
+					// Validate by fetching teams
 					const teams = await getVercelTeams(vercelToken);
 
 					if (teams.length > 0) {
+						log.success("Vercel token validated");
+						config.vercel = { token: vercelToken };
+
 						const teamChoices = teams.map((team) => ({
 							value: team.id,
 							name: `${team.name} (${team.slug})`,
@@ -788,12 +746,19 @@ export const configCommand = new Command()
 						config.vercel.team = selectedTeam;
 					} else {
 						log.warn(
-							"No Vercel teams found. You may need to create one first.",
+							"Could not fetch Vercel teams. Token may be invalid or you may need to create a team first.",
 						);
+						const useAnyway = await confirm({
+							message: "Save this token anyway?",
+							default: false,
+						});
+						if (useAnyway) {
+							config.vercel = { token: vercelToken };
+						}
 					}
 				} else {
 					log.warn(
-						"Vercel token not found. Run 'vercel login' to authenticate.",
+						"No Vercel token provided. You can add one later with 'hatch config'.",
 					);
 				}
 
@@ -1037,12 +1002,14 @@ export const configCommand = new Command()
 
 				if (missingTokens.length > 0) {
 					log.warn(`Missing tokens for: ${missingTokens.join(", ")}`);
-					log.info(
-						"Authenticate with these CLIs first, then run this command again:",
-					);
-					if (!config.github?.token) log.step("gh auth login");
-					if (!config.vercel?.token) log.step("vercel login");
-					if (!config.supabase?.token) log.step("supabase login");
+					log.info("To add missing tokens, run this command again:");
+					if (!config.github?.token) log.step("GitHub: run 'gh auth login'");
+					if (!config.vercel?.token)
+						log.step(
+							"Vercel: create token at https://vercel.com/account/settings/tokens",
+						);
+					if (!config.supabase?.token)
+						log.step("Supabase: run 'supabase login'");
 					log.blank();
 				}
 			} catch (error) {

@@ -20,7 +20,6 @@ import { log } from "../utils/logger.js";
 import { getProject } from "../utils/project-store.js";
 import { createSpinner } from "../utils/spinner.js";
 import { scpToRemote, sshExec } from "../utils/ssh.js";
-import { checkAndPromptTokenRefresh } from "../utils/token-check.js";
 import {
 	isClaudeTokenExpired,
 	refreshClaudeTokenOnly,
@@ -522,15 +521,6 @@ export const spikeCommand = new Command()
 					log.blank();
 				}
 				process.exit(1);
-			}
-
-			// Check for stale tokens (only in interactive mode)
-			if (!options.json) {
-				const shouldContinue = await checkAndPromptTokenRefresh(configPath);
-				if (!shouldContinue) {
-					log.info("Operation cancelled.");
-					process.exit(0);
-				}
 			}
 
 			// Load config to get tokens
