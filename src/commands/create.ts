@@ -429,6 +429,20 @@ export const createCommand = new Command()
 						},
 					];
 
+					if (useConvex) {
+						skillsByRepo.push({
+							repo: "https://github.com/get-convex/convex-agent-plugins",
+							skills: [
+								"convex-quickstart",
+								"schema-builder",
+								"function-creator",
+								"auth-setup",
+								"migration-helper",
+								"components-guide",
+							],
+						});
+					}
+
 					for (const { repo, skills } of skillsByRepo) {
 						try {
 							await npxCommand(

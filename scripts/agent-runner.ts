@@ -102,6 +102,20 @@ function loadPrUrl(): string | undefined {
 	return undefined;
 }
 
+const CONVEX_INSTRUCTIONS = `
+## Convex Development
+
+After modifying any Convex schema or function files (anything in the convex/ directory), you MUST run:
+
+\`\`\`bash
+cd apps/web && npx convex dev --once
+\`\`\`
+
+This pushes your schema/function changes to the running Convex backend and regenerates the \`convex/_generated/\` types. You must do this BEFORE running typechecking, as the generated types will be stale otherwise.
+
+Do NOT skip this step — uncommitted Convex changes will not be reflected in the backend until you run this command.
+`;
+
 async function main(): Promise<void> {
 	const { values } = parseArgs({
 		options: {
@@ -110,6 +124,7 @@ async function main(): Promise<void> {
 			feature: { type: "string" },
 			project: { type: "string" },
 			resume: { type: "string" },
+			convex: { type: "boolean", default: false },
 		},
 	});
 
@@ -118,6 +133,7 @@ async function main(): Promise<void> {
 	const feature = values.feature;
 	const project = values.project || "";
 	const resumeSessionId = values.resume;
+	const useConvex = values.convex || false;
 
 	if (!prompt || !projectPath || !feature) {
 		console.error(
@@ -194,6 +210,10 @@ When you are done implementing your changes:
 7. Write the PR URL to ~/pr-url.txt (just the URL, nothing else)
 
 Important: The branch is already created (${feature}). Make your changes, verify quality, then commit, push, and create the PR.`;
+	}
+
+	if (useConvex) {
+		fullPrompt += `\n${CONVEX_INSTRUCTIONS}`;
 	}
 
 	let totalInputTokens = 0;

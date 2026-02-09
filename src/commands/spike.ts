@@ -216,7 +216,7 @@ async function handleContinuation(
 		const useConvex = project.backendProvider === "convex";
 		const convexDeployKey = vm.convexFeatureProject?.deployKey || "";
 		const envPrefix = useConvex
-			? `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.claude/local/bin:$PATH" && export CONVEX_DEPLOY_KEY="${convexDeployKey}" &&`
+			? `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.claude/local/bin:$PATH" && export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="${convexDeployKey}" &&`
 			: `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.claude/local/bin:$PATH" && export SUPABASE_ACCESS_TOKEN="${supabaseToken}" &&`;
 
 		// Step 6: Update VM record to running
@@ -242,7 +242,8 @@ async function handleContinuation(
 			.replace(/\$/g, "\\$")
 			.replace(/`/g, "\\`");
 
-		const agentCommand = `${envPrefix} cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${vm.feature} --project ${vm.project} > /dev/null 2>&1 < /dev/null &)`;
+		const convexFlag = useConvex ? " --convex" : "";
+		const agentCommand = `${envPrefix} cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${vm.feature} --project ${vm.project}${convexFlag} > /dev/null 2>&1 < /dev/null &)`;
 
 		await sshExec(vm.sshHost, agentCommand);
 		agentSpinner?.succeed(
@@ -780,6 +781,41 @@ export const spikeCommand = new Command()
 						"Could not configure Convex env vars automatically. You may need to update .env.local manually.",
 					);
 				}
+
+				// Write .claude/settings.local.json with Convex MCP server config
+				const mcpSpinner = options.json
+					? null
+					: createSpinner("Configuring Convex MCP server").start();
+				try {
+					const deploymentName = convexFeatureProject.deploymentUrl
+						.replace("https://", "")
+						.replace(".convex.cloud", "");
+					const mcpConfig = JSON.stringify(
+						{
+							mcpServers: {
+								"convex-mcp": {
+									command: "npx",
+									args: ["-y", "@convex-dev/mcp-server"],
+									env: {
+										CONVEX_DEPLOYMENT: deploymentName,
+										CONVEX_DEPLOY_KEY: convexFeatureProject.deployKey,
+									},
+								},
+							},
+						},
+						null,
+						2,
+					);
+					await sshExec(
+						sshHost,
+						`mkdir -p ${projectPath}/.claude && cat > ${projectPath}/.claude/settings.local.json << 'MCPEOF'\n${mcpConfig}\nMCPEOF`,
+					);
+					mcpSpinner?.succeed("Convex MCP server configured");
+				} catch {
+					mcpSpinner?.warn(
+						"Could not configure Convex MCP server. You can set it up manually.",
+					);
+				}
 			} else {
 				// Supabase path: Link project and create branches
 				const linkSpinner = options.json
@@ -1047,9 +1083,10 @@ export const spikeCommand = new Command()
 			// Use nohup to run agent in background (use pnpm tsx since we installed it)
 			// Wrap in subshell and redirect stdin to fully detach from SSH
 			const convexDeployKeyExport = convexFeatureProject
-				? `export CONVEX_DEPLOY_KEY="${convexFeatureProject.deployKey}" &&`
+				? `export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="${convexFeatureProject.deployKey}" &&`
 				: "";
-			const agentCommand = `${envPrefix} ${convexDeployKeyExport} cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${featureName} --project ${project.name} > /dev/null 2>&1 < /dev/null &)`;
+			const convexFlag = useConvex ? " --convex" : "";
+			const agentCommand = `${envPrefix} ${convexDeployKeyExport} cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${featureName} --project ${project.name}${convexFlag} > /dev/null 2>&1 < /dev/null &)`;
 
 			await sshExec(sshHost, agentCommand);
 			agentSpinner?.succeed("Claude agent started in background");

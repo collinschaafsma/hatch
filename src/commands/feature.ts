@@ -335,6 +335,41 @@ export const featureCommand = new Command()
 						"Could not configure Convex env vars automatically. You may need to update .env.local manually.",
 					);
 				}
+
+				// Write .claude/settings.local.json with Convex MCP server config
+				const mcpSpinner = createSpinner(
+					"Configuring Convex MCP server",
+				).start();
+				try {
+					const deploymentName = convexFeatureProject.deploymentUrl
+						.replace("https://", "")
+						.replace(".convex.cloud", "");
+					const mcpConfig = JSON.stringify(
+						{
+							mcpServers: {
+								"convex-mcp": {
+									command: "npx",
+									args: ["-y", "@convex-dev/mcp-server"],
+									env: {
+										CONVEX_DEPLOYMENT: deploymentName,
+										CONVEX_DEPLOY_KEY: convexFeatureProject.deployKey,
+									},
+								},
+							},
+						},
+						null,
+						2,
+					);
+					await sshExec(
+						sshHost,
+						`mkdir -p ${projectPath}/.claude && cat > ${projectPath}/.claude/settings.local.json << 'MCPEOF'\n${mcpConfig}\nMCPEOF`,
+					);
+					mcpSpinner.succeed("Convex MCP server configured");
+				} catch {
+					mcpSpinner.warn(
+						"Could not configure Convex MCP server. You can set it up manually.",
+					);
+				}
 			} else {
 				// Supabase path: Link project and create branches
 				const linkSpinner = createSpinner("Linking Supabase project").start();
