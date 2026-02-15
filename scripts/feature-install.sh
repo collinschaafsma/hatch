@@ -197,13 +197,10 @@ if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
     # Tokens
     GITHUB_TOKEN=$(jq -r '.github.token // empty' "$CONFIG_PATH" 2>/dev/null || true)
     VERCEL_TOKEN=$(jq -r '.vercel.token // empty' "$CONFIG_PATH" 2>/dev/null || true)
-    SUPABASE_ACCESS_TOKEN=$(jq -r '.supabase.token // empty' "$CONFIG_PATH" 2>/dev/null || true)
 
-    # Orgs/teams/regions
+    # Orgs/teams
     HATCH_GITHUB_ORG=$(jq -r '.github.org // empty' "$CONFIG_PATH" 2>/dev/null || true)
     HATCH_VERCEL_TEAM=$(jq -r '.vercel.team // empty' "$CONFIG_PATH" 2>/dev/null || true)
-    HATCH_SUPABASE_ORG=$(jq -r '.supabase.org // empty' "$CONFIG_PATH" 2>/dev/null || true)
-    HATCH_SUPABASE_REGION=$(jq -r '.supabase.region // empty' "$CONFIG_PATH" 2>/dev/null || true)
 
     # Git user config (for commits to match GitHub account)
     HATCH_GITHUB_EMAIL=$(jq -r '.github.email // empty' "$CONFIG_PATH" 2>/dev/null || true)
@@ -212,11 +209,8 @@ if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
     # Export for CLI tools
     [[ -n "$GITHUB_TOKEN" ]] && export GITHUB_TOKEN
     [[ -n "$VERCEL_TOKEN" ]] && export VERCEL_TOKEN
-    [[ -n "$SUPABASE_ACCESS_TOKEN" ]] && export SUPABASE_ACCESS_TOKEN
     [[ -n "$HATCH_GITHUB_ORG" ]] && export HATCH_GITHUB_ORG
     [[ -n "$HATCH_VERCEL_TEAM" ]] && export HATCH_VERCEL_TEAM
-    [[ -n "$HATCH_SUPABASE_ORG" ]] && export HATCH_SUPABASE_ORG
-    [[ -n "$HATCH_SUPABASE_REGION" ]] && export HATCH_SUPABASE_REGION
 
     success "Config values loaded"
 else
@@ -303,17 +297,6 @@ else
 fi
 
 # ============================================================================
-# Step 6.5: Auto-detect backend from project files
-# ============================================================================
-USE_CONVEX=false
-if grep -q '"convex"' "$PROJECT_PATH/apps/web/package.json" 2>/dev/null; then
-    USE_CONVEX=true
-    info "Detected backend: Convex"
-else
-    info "Detected backend: Supabase"
-fi
-
-# ============================================================================
 # Step 7: Install CLI tools
 # ============================================================================
 info "Checking CLI tools..."
@@ -357,23 +340,6 @@ exec node ~/.local/lib/node_modules/vercel/dist/vc.js "$@"
 WRAPPER
     chmod +x ~/.local/bin/vercel
     command -v vercel &> /dev/null && success "Vercel CLI installed" || warn "Vercel CLI installation failed"
-fi
-
-# Supabase CLI (skip for Convex projects)
-if [[ "$USE_CONVEX" == "true" ]]; then
-    info "Skipping Supabase CLI (Convex backend)"
-elif command -v supabase &> /dev/null; then
-    success "Supabase CLI is installed"
-else
-    info "Installing Supabase CLI..."
-    mkdir -p ~/.local/lib ~/.local/bin
-    npm install --prefix ~/.local/lib supabase
-    cat > ~/.local/bin/supabase << 'WRAPPER'
-#!/bin/bash
-exec ~/.local/lib/node_modules/supabase/bin/supabase "$@"
-WRAPPER
-    chmod +x ~/.local/bin/supabase
-    command -v supabase &> /dev/null && success "Supabase CLI installed" || warn "Supabase CLI installation failed"
 fi
 
 # Claude Code - always install/update natively
@@ -467,13 +433,9 @@ fi
 # ============================================================================
 # Step 8: Authenticate remaining CLIs
 # ============================================================================
-# Vercel and Supabase use env vars automatically
+# Vercel uses env vars automatically
 if [[ -n "${VERCEL_TOKEN:-}" ]]; then
     info "Vercel CLI will use VERCEL_TOKEN from environment"
-fi
-
-if [[ "$USE_CONVEX" != "true" ]] && [[ -n "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
-    info "Supabase CLI will use SUPABASE_ACCESS_TOKEN from environment"
 fi
 
 # ============================================================================
@@ -482,16 +444,6 @@ fi
 info "Installing project dependencies..."
 pnpm install
 success "Dependencies installed"
-
-# ============================================================================
-# Step 10: Link Supabase project (if applicable)
-# ============================================================================
-if [[ "$USE_CONVEX" != "true" ]] && { [[ -d "$PROJECT_PATH/supabase" ]] || [[ -f "$PROJECT_PATH/supabase/config.toml" ]]; }; then
-    info "Linking Supabase project..."
-    if command -v supabase &> /dev/null; then
-        success "Supabase CLI ready (run 'supabase link' manually if needed)"
-    fi
-fi
 
 echo "" >&2
 success "Feature VM setup complete!"

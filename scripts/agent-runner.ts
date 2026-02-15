@@ -124,7 +124,6 @@ async function main(): Promise<void> {
 			feature: { type: "string" },
 			project: { type: "string" },
 			resume: { type: "string" },
-			convex: { type: "boolean", default: false },
 		},
 	});
 
@@ -133,7 +132,6 @@ async function main(): Promise<void> {
 	const feature = values.feature;
 	const project = values.project || "";
 	const resumeSessionId = values.resume;
-	const useConvex = values.convex || false;
 
 	if (!prompt || !projectPath || !feature) {
 		console.error(
@@ -212,9 +210,7 @@ When you are done implementing your changes:
 Important: The branch is already created (${feature}). Make your changes, verify quality, then commit, push, and create the PR.`;
 	}
 
-	if (useConvex) {
-		fullPrompt += `\n${CONVEX_INSTRUCTIONS}`;
-	}
+	fullPrompt += `\n${CONVEX_INSTRUCTIONS}`;
 
 	let totalInputTokens = 0;
 	let totalOutputTokens = 0;

@@ -20,12 +20,6 @@ interface GitHubRepo {
 	name: string;
 }
 
-interface SupabaseProject {
-	id: string;
-	name: string;
-	region: string;
-}
-
 interface VercelProject {
 	id: string;
 	name: string;
@@ -60,7 +54,7 @@ export const addCommand = new Command()
 			// Load config to get org names
 			const configPath =
 				options.config || path.join(os.homedir(), ".hatch.json");
-			let config: HatchConfig = {};
+			let config: HatchConfig = { convex: {} };
 			if (await fs.pathExists(configPath)) {
 				config = await fs.readJson(configPath);
 			}
@@ -113,51 +107,49 @@ export const addCommand = new Command()
 				process.exit(1);
 			}
 
-			// Step 2: Look up Supabase project
-			const supabaseSpinner = createSpinner(
-				"Looking up Supabase project",
-			).start();
-			let supabase: ProjectRecord["supabase"] | undefined;
+			// Step 2: Look up Convex project
+			const convexSpinner = createSpinner("Looking up Convex project").start();
+			let convex: ProjectRecord["convex"] | undefined;
 
 			try {
-				const { stdout } = await execa("supabase", [
-					"projects",
-					"list",
-					"-o",
-					"json",
-				]);
-				const projects = JSON.parse(stdout) as SupabaseProject[];
-				const found = projects.find((p) => p.name === projectName);
-				if (found) {
-					supabase = {
-						projectRef: found.id,
-						region: found.region,
-					};
-					supabaseSpinner.succeed(
-						`Found Supabase project: ${found.id} (${found.region})`,
+				const convexAccessToken = config.convex?.accessToken;
+				if (convexAccessToken) {
+					const { getConvexTokenDetails } = await import(
+						"../headless/convex.js"
 					);
+					const tokenDetails = await getConvexTokenDetails(convexAccessToken);
+					// Look for a project matching the name
+					// For now, ask the user for the project slug
+					convexSpinner.warn("Convex project auto-detection not yet supported");
 				} else {
-					supabaseSpinner.warn("Supabase project not found by name");
+					convexSpinner.warn("Convex access token not configured");
 				}
 			} catch {
-				supabaseSpinner.warn("Could not query Supabase projects");
+				convexSpinner.warn("Could not query Convex projects");
 			}
 
-			if (!supabase) {
-				const ref = await input({
-					message: "Supabase project ref (or press Enter to skip):",
+			if (!convex) {
+				const slug = await input({
+					message: "Convex project slug (or press Enter to skip):",
 				});
-				if (ref) {
-					const region = await input({
-						message: "Supabase region (e.g., us-east-1):",
-						default: "us-east-1",
+				if (slug) {
+					const deploymentUrl = await input({
+						message: "Convex deployment URL:",
+						default: `https://${slug}.convex.cloud`,
 					});
-					supabase = { projectRef: ref, region };
+					const deployKey = await input({
+						message: "Convex deploy key (or press Enter to skip):",
+					});
+					convex = {
+						projectSlug: slug,
+						deploymentUrl,
+						...(deployKey ? { deployKey } : {}),
+					};
 				}
 			}
 
-			if (!supabase) {
-				log.error("Supabase project is required.");
+			if (!convex) {
+				log.error("Convex project is required.");
 				process.exit(1);
 			}
 
@@ -247,7 +239,7 @@ export const addCommand = new Command()
 				createdAt: new Date().toISOString(),
 				github,
 				vercel,
-				supabase,
+				convex,
 			};
 
 			await saveProject(projectRecord);
@@ -260,7 +252,7 @@ export const addCommand = new Command()
 			log.step(`Name:     ${projectName}`);
 			log.step(`GitHub:   ${github.url}`);
 			log.step(`Vercel:   ${vercel.url}`);
-			log.step(`Supabase: ${supabase.projectRef} (${supabase.region})`);
+			log.step(`Convex:   ${convex.projectSlug}`);
 			log.blank();
 			log.info("Next steps:");
 			log.step(

@@ -19,11 +19,6 @@ interface VercelTeam {
 	name: string;
 }
 
-interface SupabaseOrg {
-	id: string;
-	name: string;
-}
-
 /**
  * Read GitHub token using gh CLI (handles keychain storage)
  */
@@ -57,60 +52,6 @@ async function readGitHubToken(): Promise<string | null> {
 			}
 		} catch {
 			// Ignore parse errors
-		}
-	}
-
-	return null;
-}
-
-/**
- * Read Supabase token from CLI config or keychain
- */
-async function readSupabaseToken(): Promise<string | null> {
-	// Check environment variable first
-	if (process.env.SUPABASE_ACCESS_TOKEN) {
-		return process.env.SUPABASE_ACCESS_TOKEN;
-	}
-
-	const { execa } = await import("execa");
-
-	// Try macOS keychain (where supabase CLI stores it)
-	if (process.platform === "darwin") {
-		try {
-			const result = await execa("security", [
-				"find-generic-password",
-				"-s",
-				"Supabase CLI",
-				"-w",
-			]);
-			const keychainValue = result.stdout.trim();
-			// Supabase stores it as "go-keyring-base64:<base64>" or just the token
-			if (keychainValue.startsWith("go-keyring-base64:")) {
-				const base64Token = keychainValue.replace("go-keyring-base64:", "");
-				return Buffer.from(base64Token, "base64").toString("utf-8");
-			}
-			if (keychainValue) {
-				return keychainValue;
-			}
-		} catch {
-			// Not in keychain
-		}
-	}
-
-	// Fallback: try reading from config file
-	const configPaths = [
-		path.join(os.homedir(), ".supabase", "access-token"),
-		path.join(os.homedir(), ".config", "supabase", "access-token"),
-	];
-
-	for (const configPath of configPaths) {
-		if (await fs.pathExists(configPath)) {
-			try {
-				const token = await fs.readFile(configPath, "utf-8");
-				return token.trim();
-			} catch {
-				// Continue to next path
-			}
 		}
 	}
 
@@ -180,27 +121,6 @@ async function getVercelTeams(token: string): Promise<VercelTeam[]> {
 		}
 
 		return teams;
-	} catch {
-		return [];
-	}
-}
-
-/**
- * Get Supabase organizations using the CLI
- */
-async function getSupabaseOrgs(token: string): Promise<SupabaseOrg[]> {
-	const { execa } = await import("execa");
-
-	try {
-		const result = await execa(
-			"supabase",
-			["orgs", "list", "--output", "json"],
-			{
-				env: { ...process.env, SUPABASE_ACCESS_TOKEN: token },
-			},
-		);
-
-		return JSON.parse(result.stdout) || [];
 	} catch {
 		return [];
 	}
@@ -327,30 +247,13 @@ async function getGitHubOrgs(
 	}
 }
 
-const SUPABASE_REGIONS = [
-	{ value: "us-east-1", label: "US East (N. Virginia)" },
-	{ value: "us-west-1", label: "US West (N. California)" },
-	{ value: "us-west-2", label: "US West (Oregon)" },
-	{ value: "ca-central-1", label: "Canada (Central)" },
-	{ value: "eu-west-1", label: "Europe (Ireland)" },
-	{ value: "eu-west-2", label: "Europe (London)" },
-	{ value: "eu-west-3", label: "Europe (Paris)" },
-	{ value: "eu-central-1", label: "Europe (Frankfurt)" },
-	{ value: "ap-south-1", label: "Asia Pacific (Mumbai)" },
-	{ value: "ap-southeast-1", label: "Asia Pacific (Singapore)" },
-	{ value: "ap-southeast-2", label: "Asia Pacific (Sydney)" },
-	{ value: "ap-northeast-1", label: "Asia Pacific (Tokyo)" },
-	{ value: "ap-northeast-2", label: "Asia Pacific (Seoul)" },
-	{ value: "sa-east-1", label: "South America (São Paulo)" },
-];
-
 /**
  * Validate tokens in config file by making API calls
  */
 async function validateTokens(configPath: string): Promise<{
 	github: { valid: boolean; error?: string };
 	vercel: { valid: boolean; error?: string };
-	supabase: { valid: boolean; error?: string };
+	convex: { valid: boolean; error?: string };
 	claude: { valid: boolean; error?: string };
 }> {
 	const { execa } = await import("execa");
@@ -359,7 +262,7 @@ async function validateTokens(configPath: string): Promise<{
 	const results = {
 		github: { valid: false, error: undefined as string | undefined },
 		vercel: { valid: false, error: undefined as string | undefined },
-		supabase: { valid: false, error: undefined as string | undefined },
+		convex: { valid: false, error: undefined as string | undefined },
 		claude: { valid: false, error: undefined as string | undefined },
 	};
 
@@ -397,19 +300,18 @@ async function validateTokens(configPath: string): Promise<{
 		results.vercel.error = "Token not configured";
 	}
 
-	// Validate Supabase token
-	if (config.supabase?.token) {
+	// Validate Convex access token
+	if (config.convex?.accessToken) {
 		try {
-			await execa("supabase", ["orgs", "list", "--output", "json"], {
-				env: { ...process.env, SUPABASE_ACCESS_TOKEN: config.supabase.token },
-			});
-			results.supabase.valid = true;
+			const { getConvexTokenDetails } = await import("../headless/convex.js");
+			await getConvexTokenDetails(config.convex.accessToken);
+			results.convex.valid = true;
 		} catch (error) {
-			results.supabase.error =
+			results.convex.error =
 				error instanceof Error ? error.message : "Unknown error";
 		}
 	} else {
-		results.supabase.error = "Token not configured";
+		results.convex.error = "Token not configured";
 	}
 
 	// Validate Claude credentials
@@ -494,10 +396,10 @@ const checkCommand = new Command()
 					allValid = false;
 				}
 
-				if (results.supabase.valid) {
-					log.success("Supabase: valid");
+				if (results.convex.valid) {
+					log.success("Convex: valid");
 				} else {
-					log.error(`Supabase: ${results.supabase.error}`);
+					log.error(`Convex: ${results.convex.error}`);
 					allValid = false;
 				}
 
@@ -600,7 +502,6 @@ export const configCommand = new Command()
 
 					// Read fresh tokens
 					const githubToken = await readGitHubToken();
-					const supabaseToken = await readSupabaseToken();
 					const claudeCredentials = await getClaudeCredentials();
 
 					// Update tokens while preserving other settings
@@ -615,16 +516,7 @@ export const configCommand = new Command()
 					}
 
 					log.info("Vercel: using existing token (update via 'hatch config')");
-
-					if (supabaseToken) {
-						existingConfig.supabase = {
-							...existingConfig.supabase,
-							token: supabaseToken,
-						};
-						log.success("Supabase token refreshed");
-					} else {
-						log.warn("Could not read Supabase token");
-					}
+					log.info("Convex: using existing token (update via 'hatch config')");
 
 					if (claudeCredentials) {
 						existingConfig.claude = claudeCredentials;
@@ -646,7 +538,7 @@ export const configCommand = new Command()
 				log.info("Generating hatch.json configuration...");
 				log.blank();
 
-				const config: HatchConfig = {};
+				const config: HatchConfig = { convex: {} };
 
 				// Read GitHub token
 				let githubToken: string | null = null;
@@ -762,94 +654,42 @@ export const configCommand = new Command()
 					);
 				}
 
-				// Read Supabase token
-				let supabaseToken: string | null = null;
-				await withSpinner("Reading Supabase CLI config", async () => {
-					supabaseToken = await readSupabaseToken();
+				// Convex access token (required)
+				log.info(
+					"Generate an access token at: https://dashboard.convex.dev/settings",
+				);
+				const convexAccessToken = await password({
+					message: "Convex access token:",
+					mask: "*",
 				});
 
-				if (supabaseToken) {
-					log.success("Found Supabase token");
-					config.supabase = { token: supabaseToken };
-
-					// Get organizations
-					const orgs = await getSupabaseOrgs(supabaseToken);
-
-					if (orgs.length > 0) {
-						const orgChoices = orgs.map((org) => ({
-							value: org.id,
-							name: org.name,
-						}));
-
-						const selectedOrg = await select({
-							message: "Select Supabase organization:",
-							choices: orgChoices,
-						});
-
-						config.supabase.org = selectedOrg;
-					} else {
-						log.warn(
-							"No Supabase organizations found. You may need to create one first.",
+				if (convexAccessToken) {
+					// Validate token via API
+					try {
+						const { getConvexTokenDetails } = await import(
+							"../headless/convex.js"
 						);
-					}
-
-					// Select region
-					const selectedRegion = await select({
-						message: "Select default Supabase region:",
-						choices: SUPABASE_REGIONS.map((r) => ({
-							value: r.value,
-							name: `${r.label} (${r.value})`,
-						})),
-						default: "us-east-1",
-					});
-
-					config.supabase.region = selectedRegion;
-				} else {
-					log.warn(
-						"Supabase token not found. Run 'supabase login' to authenticate.",
-					);
-				}
-
-				// Convex access token (optional)
-				const addConvex = await confirm({
-					message:
-						"Do you want to configure Convex? (for --convex backend projects)",
-					default: false,
-				});
-
-				if (addConvex) {
-					log.info(
-						"Generate an access token at: https://dashboard.convex.dev/settings",
-					);
-					const convexAccessToken = await password({
-						message: "Convex access token:",
-						mask: "*",
-					});
-
-					if (convexAccessToken) {
-						// Validate token via API
-						try {
-							const { getConvexTokenDetails } = await import(
-								"../headless/convex.js"
-							);
-							await withSpinner("Validating Convex access token", async () => {
-								await getConvexTokenDetails(convexAccessToken);
-							});
+						await withSpinner("Validating Convex access token", async () => {
+							await getConvexTokenDetails(convexAccessToken);
+						});
+						config.convex = { accessToken: convexAccessToken };
+						log.success("Convex access token configured and validated");
+					} catch (error) {
+						log.warn(
+							`Convex token validation failed: ${error instanceof Error ? error.message : error}`,
+						);
+						const useAnyway = await confirm({
+							message: "Save this token anyway?",
+							default: false,
+						});
+						if (useAnyway) {
 							config.convex = { accessToken: convexAccessToken };
-							log.success("Convex access token configured and validated");
-						} catch (error) {
-							log.warn(
-								`Convex token validation failed: ${error instanceof Error ? error.message : error}`,
-							);
-							const useAnyway = await confirm({
-								message: "Save this token anyway?",
-								default: false,
-							});
-							if (useAnyway) {
-								config.convex = { accessToken: convexAccessToken };
-							}
 						}
 					}
+				} else {
+					log.warn(
+						"No Convex token provided. You will need one to create projects.",
+					);
 				}
 
 				// Read Claude Code credentials (macOS only)
@@ -978,11 +818,6 @@ export const configCommand = new Command()
 				if (config.vercel?.team) {
 					log.step(`Vercel: team=${config.vercel.team}`);
 				}
-				if (config.supabase?.org) {
-					log.step(
-						`Supabase: org=${config.supabase.org}, region=${config.supabase.region}`,
-					);
-				}
 				if (config.convex?.accessToken) {
 					log.step("Convex: access token configured");
 				}
@@ -998,7 +833,7 @@ export const configCommand = new Command()
 				const missingTokens: string[] = [];
 				if (!config.github?.token) missingTokens.push("GitHub");
 				if (!config.vercel?.token) missingTokens.push("Vercel");
-				if (!config.supabase?.token) missingTokens.push("Supabase");
+				if (!config.convex?.accessToken) missingTokens.push("Convex");
 
 				if (missingTokens.length > 0) {
 					log.warn(`Missing tokens for: ${missingTokens.join(", ")}`);
@@ -1008,8 +843,10 @@ export const configCommand = new Command()
 						log.step(
 							"Vercel: create token at https://vercel.com/account/settings/tokens",
 						);
-					if (!config.supabase?.token)
-						log.step("Supabase: run 'supabase login'");
+					if (!config.convex?.accessToken)
+						log.step(
+							"Convex: create token at https://dashboard.convex.dev/settings",
+						);
 					log.blank();
 				}
 			} catch (error) {

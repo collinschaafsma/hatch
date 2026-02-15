@@ -1,9 +1,5 @@
 import type { ResolvedHeadlessConfig } from "../types/index.js";
-import {
-	checkRequiredClis,
-	ghAuthStatus,
-	supabaseAuthStatus,
-} from "./cli-wrappers.js";
+import { checkRequiredClis, ghAuthStatus } from "./cli-wrappers.js";
 
 export interface PrerequisiteCheckResult {
 	passed: boolean;
@@ -22,14 +18,9 @@ export async function checkPrerequisites(
 
 	// Check required CLIs are installed
 	const { missing } = await checkRequiredClis();
-	// Filter out supabase if using Convex backend
-	const relevantMissing =
-		config.backendProvider === "convex"
-			? missing.filter((cli) => cli !== "supabase")
-			: missing;
-	if (relevantMissing.length > 0) {
+	if (missing.length > 0) {
 		errors.push(
-			`Missing required CLIs: ${relevantMissing.join(", ")}. Use --bootstrap to install them.`,
+			`Missing required CLIs: ${missing.join(", ")}. Use --bootstrap to install them.`,
 		);
 	}
 
@@ -40,14 +31,6 @@ export async function checkPrerequisites(
 	}
 
 	// Skip Vercel auth check - whoami is unreliable, commands use --token directly
-
-	// Check Supabase authentication (skip for Convex backend)
-	if (config.backendProvider !== "convex" && config.supabase) {
-		const supabaseStatus = await supabaseAuthStatus(config.supabase.token);
-		if (!supabaseStatus.isAuthenticated) {
-			errors.push(`Supabase CLI not authenticated: ${supabaseStatus.error}`);
-		}
-	}
 
 	return {
 		passed: errors.length === 0,

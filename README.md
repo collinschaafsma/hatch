@@ -4,9 +4,9 @@ A CLI tool that scaffolds production-ready Turborepo monorepos with Next.js, aut
 
 **Cloud-first development.** Hatch provisions exe.dev VMs with everything pre-configured—CLIs authenticated, database connected, and Claude Code ready to go. VMs are ephemeral workspaces; projects are the durable artifact.
 
-**Complete automation.** One command creates your GitHub repo, database, and Vercel deployment. Each feature gets its own VM and isolated backend for true isolation.
+**Complete automation.** One command creates your GitHub repo, Convex backend, and Vercel deployment. Each feature gets its own VM and isolated Convex project for true isolation.
 
-A modern stack (Next.js 16, React 19, Tailwind 4, shadcn/ui) with auth, AI, workflows, and testing already wired up. Choose your backend: **Supabase** (PostgreSQL + Drizzle ORM) or **Convex** (real-time database + serverless functions). Skip the boilerplate and start building.
+A modern stack (Next.js 16, React 19, Tailwind 4, shadcn/ui) with auth, AI, workflows, and testing already wired up. Powered by **Convex** (real-time database + serverless functions) with **Better Auth** for authentication. Skip the boilerplate and start building.
 
 ## Why Hatch
 
@@ -16,11 +16,9 @@ Hatch takes the opposite approach. Every project starts with a production-ready 
 
 **Current dependencies, every time.** Next.js 16, React 19, Tailwind 4, Turborepo 2.7+. No outdated starter templates. Every `hatch new` pulls the latest stable versions so you're never starting behind.
 
-**Real authentication.** Email OTP via Better Auth and Resend, or enterprise SSO via WorkOS. Not a mock login screen—actual auth flows with session management and database-backed user records.
+**Real authentication.** Email OTP via Better Auth and Resend. Not a mock login screen—actual auth flows with session management and database-backed user records. Better Auth runs inside Convex as a component via `@convex-dev/better-auth`.
 
-**Real database.** Choose your backend:
-- **Supabase** (default) — PostgreSQL with Drizzle ORM, type-safe schema, and migrations. Feature branches get isolated database branches.
-- **Convex** (`--convex`) — Real-time database with serverless functions. Feature branches get their own Convex project for full isolation. Better Auth runs inside Convex via `@convex-dev/better-auth`.
+**Real database.** Convex provides a real-time database with serverless functions. Feature branches get their own Convex project for full isolation.
 
 **AI and workflows built in.** Vercel AI SDK with Vercel AI Gateway, plus durable workflows with SSE streaming. Not bolted on after the fact—wired into the monorepo from the start.
 
@@ -34,7 +32,7 @@ Hatch takes the opposite approach. Every project starts with a production-ready 
 
 **Loaded with Claude Code skills.** Every generated project ships with curated skills for React performance, AI SDK patterns, auth best practices, component design, and more. Claude Code is productive in your codebase from the first session.
 
-**Isolated dev environments.** Each feature gets its own VM, git branch, and database branch. Run multiple features in parallel with zero conflicts. When you're done, `hatch clean` tears it all down.
+**Isolated dev environments.** Each feature gets its own VM, git branch, and isolated Convex project. Run multiple features in parallel with zero conflicts. When you're done, `hatch clean` tears it all down.
 
 **Built for teams.** The generated monorepo follows conventions that professional engineering teams expect: typed schemas, a services layer, proper project structure, CI checks, and preview deployments per PR. A new engineer can clone the repo and understand where things go.
 
@@ -44,12 +42,11 @@ Hatch takes the opposite approach. Every project starts with a production-ready 
 
 ## Requirements
 
-**macOS** is required (Supabase and Claude credential extraction use Keychain).
+**macOS** is required (Claude credential extraction uses Keychain).
 
 **Accounts:**
 - [exe.dev](https://exe.dev) - Cloud VMs for development
-- [Supabase Pro](https://supabase.com) - Database with branching (Pro plan required) — *Supabase backend*
-- [Convex](https://www.convex.dev/) - Real-time database + serverless functions — *Convex backend*
+- [Convex](https://www.convex.dev/) - Real-time database + serverless functions
 - [Vercel](https://vercel.com) - Deployment platform
 - [GitHub](https://github.com) - Repository hosting
 - [Claude Code](https://claude.ai/code) - AI coding assistant (subscription required)
@@ -57,7 +54,6 @@ Hatch takes the opposite approach. Every project starts with a production-ready 
 **CLI tools (installed and logged in):**
 - `gh` - GitHub CLI
 - `vercel` - Vercel CLI
-- `supabase` - Supabase CLI *(Supabase backend only)*
 - `claude` - Claude Code
 
 **SSH key** registered with exe.dev for VM access.
@@ -75,16 +71,15 @@ pnpm install
 pnpm dev config
 ```
 
-This creates `~/.hatch.json` with tokens from your logged-in CLIs (GitHub, Supabase, Claude) and prompts you to paste your Vercel dashboard token.
+This creates `~/.hatch.json` with tokens from your logged-in CLIs (GitHub, Convex, Claude) and prompts you to paste your Vercel dashboard token.
 
 ### 2. Create a Project
 
 ```bash
-pnpm dev new my-app           # Supabase backend (default)
-pnpm dev new my-app --convex  # Convex backend
+pnpm dev new my-app
 ```
 
-This provisions a temporary exe.dev VM, sets up a complete project (GitHub, Vercel, and your chosen backend), then deletes the VM. The project details are saved locally.
+This provisions a temporary exe.dev VM, sets up a complete project (GitHub, Vercel, and Convex), then deletes the VM. The project details are saved locally.
 
 ### 3. Start Feature Work
 
@@ -142,7 +137,7 @@ When done with a feature, delete the VM and backend resources:
 pnpm dev clean add-auth --project my-app
 ```
 
-The project (GitHub, Vercel, and main backend) is preserved—only the VM and feature-specific resources are deleted (Supabase branches or Convex feature project).
+The project (GitHub, Vercel, and main Convex backend) is preserved—only the VM and feature-specific Convex project are deleted.
 
 ## Workflow Concepts
 
@@ -150,8 +145,8 @@ The project (GitHub, Vercel, and main backend) is preserved—only the VM and fe
 
 | Concept | Lifecycle | Contains |
 |---------|-----------|----------|
-| **Project** | Permanent | GitHub repo, Vercel project, backend (Supabase or Convex) |
-| **Feature VM** | Ephemeral | VM, git branch, isolated backend (Supabase branches or Convex project) |
+| **Project** | Permanent | GitHub repo, Vercel project, Convex backend |
+| **Feature VM** | Ephemeral | VM, git branch, isolated Convex project |
 
 Projects are created once and persist. Feature VMs are spun up for each piece of work and deleted when done.
 
@@ -177,7 +172,7 @@ VM: peaceful-duckling → branch: add-auth → https://peaceful-duckling.exe.xyz
 VM: fortune-sprite   → branch: payments → https://fortune-sprite.exe.xyz
 ```
 
-Each VM has its own git branch, database branches, and public web URL. No conflicts, no shared state.
+Each VM has its own git branch, isolated Convex project, and public web URL. No conflicts, no shared state.
 
 ## What You Get
 
@@ -185,9 +180,8 @@ Hatch generates a complete full-stack monorepo with:
 
 - **[Turborepo](https://turbo.build/repo)** - High-performance build system
 - **[Next.js 16](https://nextjs.org/)** - React 19 with App Router and Turbopack
-- **[Drizzle ORM](https://orm.drizzle.team/)** - Type-safe database access with PostgreSQL *(Supabase backend)*
-- **[Convex](https://www.convex.dev/)** - Real-time database with serverless functions *(Convex backend)*
-- **[Better Auth](https://www.better-auth.com/)** - Email OTP authentication (or [WorkOS](https://workos.com/) for enterprise SSO)
+- **[Convex](https://www.convex.dev/)** - Real-time database with serverless functions
+- **[Better Auth](https://www.better-auth.com/)** - Email OTP authentication via `@convex-dev/better-auth`
 - **[Vercel AI SDK](https://sdk.vercel.ai/)** - AI/LLM integration with OpenAI
 - **[Vercel Workflows](https://useworkflow.dev/)** - Durable workflow execution
 - **[Tailwind CSS 4](https://tailwindcss.com/)** + **[shadcn/ui](https://ui.shadcn.com/)** - Modern styling
@@ -204,8 +198,7 @@ Running `hatch config` creates `~/.hatch.json` containing:
 
 - **GitHub token** - From `gh` CLI config
 - **Vercel token** - From Vercel dashboard token (https://vercel.com/account/settings/tokens)
-- **Supabase token** - From `supabase` CLI config *(Supabase backend)*
-- **Convex access token** - From Convex CLI config *(Convex backend)*
+- **Convex access token** - From Convex CLI config
 - **Claude Code credentials** - OAuth tokens from macOS Keychain
 
 This file is copied to VMs during setup so all CLIs authenticate automatically.
@@ -242,7 +235,7 @@ The variables are stored in `hatch.json`:
 {
   "github": { ... },
   "vercel": { ... },
-  "supabase": { ... },
+  "convex": { ... },
   "envVars": [
     {
       "key": "AI_GATEWAY_API_KEY",
@@ -264,7 +257,7 @@ During `hatch new` or feature VM setup, these variables are automatically added 
 5. **Deletes VM** - The VM is ephemeral, removed after setup
 6. **Saves project** - Stores project info in `~/.hatch/projects.json`
 
-With `--convex`, the install script creates a Convex project, deploys the schema, and sets up Better Auth inside Convex. With Supabase (default), it creates a Supabase project with database branching.
+The install script creates a Convex project, deploys the schema, and sets up Better Auth inside Convex.
 
 ### What `hatch feature` Does
 
@@ -272,7 +265,7 @@ With `--convex`, the install script creates a Convex project, deploys the schema
 2. **Creates new VM** - Provisions exe.dev VM for this feature
 3. **Configures web preview** - Forwards port 3000 to `https://{vm-name}.exe.xyz`
 4. **Sets up environment** - Installs CLIs, authenticates, clones repo
-5. **Creates isolated backend** - Supabase: database branches. Convex: separate project via API + deploy
+5. **Creates isolated backend** - Separate Convex project via API + deploy
 6. **Configures app URLs** - Sets `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` for the VM
 7. **Saves VM info** - Stores in `~/.hatch/vms.json` for easy access
 
@@ -320,21 +313,11 @@ Have a project already set up? Add it to Hatch to use feature VMs:
 pnpm dev add my-existing-app
 ```
 
-This looks up your GitHub, Vercel, and backend resources by project name and saves them for tracking. Then use `hatch feature` to create isolated development environments.
+This looks up your GitHub, Vercel, and Convex resources by project name and saves them for tracking. Then use `hatch feature` to create isolated development environments.
 
 ### Backend Isolation
 
-Each feature gets a fully isolated backend:
-
-**Supabase** — Database branching provides isolated environments:
-
-| Environment | Database | Purpose |
-|-------------|----------|---------|
-| Production | Main Supabase project | Live application |
-| Feature | `feature-name` branch | Isolated per-feature |
-| Tests | `feature-name-test` branch | Test isolation |
-
-**Convex** — Separate projects provide full isolation:
+Each feature gets a fully isolated Convex backend. Separate projects provide full isolation:
 
 | Environment | Backend | Purpose |
 |-------------|---------|---------|
@@ -367,8 +350,7 @@ The config command prompts to add custom environment variables that will be auto
 
 | Command | Description |
 |---------|-------------|
-| `hatch new <project>` | Create new project (ephemeral VM setup, default: Supabase) |
-| `hatch new <project> --convex` | Create new project with Convex backend |
+| `hatch new <project>` | Create new project (ephemeral VM setup) |
 | `hatch add <project>` | Add existing project to track for feature VMs |
 | `hatch list --projects` | List all projects |
 
@@ -403,47 +385,11 @@ The config command prompts to add custom environment variables that will be auto
 
 | Flag | Description |
 |------|-------------|
-| `--convex` | Use Convex instead of Supabase (for `new`) |
-| `--workos` | Use WorkOS instead of Better Auth (for `new`, Supabase only) |
 | `--project <name>` | Specify project name |
 | `--force` | Skip confirmation for clean command |
 | `--json` | Output as JSON |
 
-> **Note:** `--convex` and `--workos` are mutually exclusive. Convex projects use Better Auth running inside Convex.
-
 ## Generated Project Structure
-
-**Supabase backend (default):**
-
-```
-my-app/
-├── apps/
-│   └── web/                  # Next.js application
-│       ├── app/              # App Router pages
-│       │   ├── (auth)/       # Login, verify-otp, callback
-│       │   ├── (marketing)/  # Landing page
-│       │   ├── (app)/        # Protected dashboard
-│       │   └── api/          # API routes (auth, chat, workflow)
-│       ├── components/       # React components
-│       ├── hooks/            # Custom React hooks
-│       ├── db/               # Drizzle schema and client
-│       ├── lib/              # Auth, safe-action, logger, utils
-│       ├── services/         # Business logic layer
-│       ├── workflows/        # Vercel Workflow
-│       └── __tests__/        # Vitest tests and factories
-├── packages/
-│   └── ui/                   # Shared shadcn/ui components
-├── scripts/                  # Supabase setup scripts
-├── supabase/                 # Supabase config
-├── .claude/                  # Claude Code configuration
-│   ├── settings.local.json   # Local Claude settings
-│   └── skills/               # Custom Claude skills
-├── .github/workflows/        # CI/CD + Claude integration
-├── CLAUDE.md                 # Claude Code context
-└── README.md                 # Generated project documentation
-```
-
-**Convex backend (`--convex`):**
 
 ```
 my-app/
@@ -466,27 +412,14 @@ my-app/
 └── README.md                 # Generated project documentation
 ```
 
-## Authentication Options
+## Authentication
 
-### Better Auth (Default)
-
-Email OTP authentication via Resend:
+Better Auth provides email OTP authentication via Resend:
 - Passwordless login flow
 - Session management
 - User/session database tables
 
-With Convex, Better Auth runs inside Convex as a component via `@convex-dev/better-auth`. Next.js proxies auth requests to Convex's HTTP actions endpoint.
-
-### WorkOS
-
-Enterprise SSO for B2B applications (Supabase backend only):
-- SAML/OIDC integration
-- Organization management
-- User provisioning
-
-```bash
-pnpm dev new my-app --workos
-```
+Better Auth runs inside Convex as a component via `@convex-dev/better-auth`. Next.js proxies auth requests to Convex's HTTP actions endpoint.
 
 ## GitHub Actions
 
@@ -495,7 +428,7 @@ The generated project includes:
 | Workflow | Description |
 |----------|-------------|
 | `checks.yml` | Lint and typecheck on PRs |
-| `test.yml` | Run tests (with PostgreSQL for Supabase, standalone for Convex) |
+| `test.yml` | Run tests |
 
 ## Claude Code Skills
 

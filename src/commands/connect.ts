@@ -67,7 +67,7 @@ export const connectCommand = new Command()
 				project: projectName,
 				feature,
 				createdAt,
-				supabaseBranches,
+				convexFeatureProject,
 				githubBranch,
 			} = vmRecord;
 
@@ -80,8 +80,8 @@ export const connectCommand = new Command()
 			log.step(`Created:    ${new Date(createdAt).toLocaleString()}`);
 			log.step(`Git branch: ${githubBranch}`);
 
-			if (supabaseBranches.length > 0) {
-				log.step(`Supabase:   ${supabaseBranches.join(", ")}`);
+			if (convexFeatureProject) {
+				log.step(`Convex:     ${convexFeatureProject.projectSlug}`);
 			}
 
 			log.blank();

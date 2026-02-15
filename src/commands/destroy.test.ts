@@ -36,6 +36,10 @@ vi.mock("../utils/vm-store.js", () => ({
 	listVMsByProject: vi.fn(),
 }));
 
+vi.mock("../headless/convex.js", () => ({
+	deleteConvexProjectBySlug: vi.fn(),
+}));
+
 vi.mock("../utils/logger.js", () => ({
 	log: {
 		info: vi.fn(),
@@ -59,6 +63,7 @@ vi.mock("../utils/spinner.js", () => ({
 import { input } from "@inquirer/prompts";
 import { execa } from "execa";
 import fs from "fs-extra";
+import { deleteConvexProjectBySlug } from "../headless/convex.js";
 import { log } from "../utils/logger.js";
 import { deleteProject, getProject } from "../utils/project-store.js";
 import { listVMsByProject } from "../utils/vm-store.js";
@@ -69,6 +74,7 @@ const mockExeca = vi.mocked(execa);
 const mockFs = vi.mocked(fs);
 const mockGetProject = vi.mocked(getProject);
 const mockDeleteProject = vi.mocked(deleteProject);
+const mockDeleteConvexProjectBySlug = vi.mocked(deleteConvexProjectBySlug);
 const mockListVMsByProject = vi.mocked(listVMsByProject);
 const mockLog = vi.mocked(log);
 
@@ -82,7 +88,7 @@ describe("destroy command", () => {
 		});
 		mockFs.pathExists.mockResolvedValue(true as never);
 		mockFs.readJson.mockResolvedValue({
-			supabase: { token: "sb_token" },
+			convex: { accessToken: "convex_token" },
 			vercel: { team: "my-team" },
 		} as never);
 	});
@@ -169,7 +175,12 @@ describe("destroy command", () => {
 			mockGetProject.mockResolvedValue(
 				createMockProjectRecord({
 					name: "my-project",
-					supabase: { projectRef: "sb_ref", region: "us-east-1" },
+					convex: {
+						projectSlug: "my-project",
+						deploymentUrl: "https://my-project.convex.cloud",
+						deployKey: "dk_123",
+						deploymentName: "cool-penguin-123",
+					},
 					vercel: { projectId: "prj_123", url: "https://x.vercel.app" },
 					github: {
 						url: "https://github.com/owner/repo",
@@ -181,7 +192,8 @@ describe("destroy command", () => {
 			mockListVMsByProject.mockResolvedValue([]);
 		});
 
-		it("should delete Supabase project with --force", async () => {
+		it("should delete Convex project with --force", async () => {
+			mockDeleteConvexProjectBySlug.mockResolvedValue(undefined as never);
 			mockExeca.mockResolvedValue({ stdout: "", stderr: "" } as never);
 			mockDeleteProject.mockResolvedValue(undefined);
 
@@ -192,14 +204,14 @@ describe("destroy command", () => {
 				"--force",
 			]);
 
-			expect(mockExeca).toHaveBeenCalledWith(
-				"supabase",
-				["projects", "delete", "sb_ref", "--yes"],
-				expect.any(Object),
+			expect(mockDeleteConvexProjectBySlug).toHaveBeenCalledWith(
+				"my-project",
+				"convex_token",
 			);
 		});
 
 		it("should delete Vercel project with --force", async () => {
+			mockDeleteConvexProjectBySlug.mockResolvedValue(undefined as never);
 			mockExeca.mockResolvedValue({ stdout: "", stderr: "" } as never);
 			mockDeleteProject.mockResolvedValue(undefined);
 
@@ -219,8 +231,10 @@ describe("destroy command", () => {
 
 		it("should include team scope for Vercel deletion with --force", async () => {
 			mockFs.readJson.mockResolvedValue({
+				convex: { accessToken: "convex_token" },
 				vercel: { team: "my-team" },
 			} as never);
+			mockDeleteConvexProjectBySlug.mockResolvedValue(undefined as never);
 			mockExeca.mockResolvedValue({ stdout: "", stderr: "" } as never);
 			mockDeleteProject.mockResolvedValue(undefined);
 
@@ -239,6 +253,7 @@ describe("destroy command", () => {
 		});
 
 		it("should remove from local store with --force", async () => {
+			mockDeleteConvexProjectBySlug.mockResolvedValue(undefined as never);
 			mockExeca.mockResolvedValue({ stdout: "", stderr: "" } as never);
 			mockDeleteProject.mockResolvedValue(undefined);
 
@@ -253,6 +268,7 @@ describe("destroy command", () => {
 		});
 
 		it("should show GitHub preservation reminder with --force", async () => {
+			mockDeleteConvexProjectBySlug.mockResolvedValue(undefined as never);
 			mockExeca.mockResolvedValue({ stdout: "", stderr: "" } as never);
 			mockDeleteProject.mockResolvedValue(undefined);
 
@@ -272,6 +288,7 @@ describe("destroy command", () => {
 		});
 
 		it("should report full success when all deletions succeed with --force", async () => {
+			mockDeleteConvexProjectBySlug.mockResolvedValue(undefined as never);
 			mockExeca.mockResolvedValue({ stdout: "", stderr: "" } as never);
 			mockDeleteProject.mockResolvedValue(undefined);
 
@@ -294,13 +311,11 @@ describe("destroy command", () => {
 			mockListVMsByProject.mockResolvedValue([]);
 		});
 
-		it("should show manual cleanup for Supabase failure", async () => {
-			mockExeca.mockImplementation((async (cmd: string, args?: string[]) => {
-				if (cmd === "supabase" && args?.includes("projects")) {
-					throw new Error("API error");
-				}
-				return { stdout: "", stderr: "" } as never;
-			}) as never);
+		it("should show manual cleanup for Convex failure", async () => {
+			mockDeleteConvexProjectBySlug.mockRejectedValue(
+				new Error("API error") as never,
+			);
+			mockExeca.mockResolvedValue({ stdout: "", stderr: "" } as never);
 			mockDeleteProject.mockResolvedValue(undefined);
 
 			await destroyCommand.parseAsync([
@@ -313,10 +328,11 @@ describe("destroy command", () => {
 			expect(mockLog.warn).toHaveBeenCalledWith(
 				expect.stringContaining("partially destroyed"),
 			);
-			expect(mockLog.error).toHaveBeenCalledWith("Supabase project:");
+			expect(mockLog.error).toHaveBeenCalledWith("Convex project:");
 		});
 
 		it("should show manual cleanup for Vercel failure", async () => {
+			mockDeleteConvexProjectBySlug.mockResolvedValue(undefined as never);
 			mockExeca.mockImplementation((async (cmd: string) => {
 				if (cmd === "vercel") {
 					throw new Error("Not authorized");
@@ -336,6 +352,7 @@ describe("destroy command", () => {
 		});
 
 		it("should show manual cleanup for local store failure", async () => {
+			mockDeleteConvexProjectBySlug.mockResolvedValue(undefined as never);
 			mockExeca.mockResolvedValue({ stdout: "", stderr: "" } as never);
 			mockDeleteProject.mockRejectedValue(new Error("Write error"));
 

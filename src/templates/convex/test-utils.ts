@@ -18,8 +18,7 @@ export function createMockConvexClient() {
 }
 
 /**
- * No-op for API compatibility with Supabase test utils.
- * Convex preview deployments are managed externally.
+ * Returns a mock Convex client for testing.
  */
 export async function getTestDb() {
 	return createMockConvexClient();

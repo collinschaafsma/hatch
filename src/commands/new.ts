@@ -16,8 +16,6 @@ import { scpToRemote, sshExec } from "../utils/ssh.js";
 
 interface NewOptions {
 	config?: string;
-	workos?: boolean;
-	convex?: boolean;
 }
 
 export const newCommand = new Command()
@@ -29,8 +27,6 @@ export const newCommand = new Command()
 		"Path to hatch.json config file",
 		path.join(os.homedir(), ".hatch.json"),
 	)
-	.option("--workos", "Use WorkOS instead of Better Auth")
-	.option("--convex", "Use Convex instead of Supabase for the backend")
 	.action(async (projectName: string, options: NewOptions) => {
 		let vmName: string | undefined;
 		let sshHost: string | undefined;
@@ -97,12 +93,8 @@ export const newCommand = new Command()
 				"Running hatch install script on VM (this may take several minutes)",
 			).start();
 
-			const extraArgParts: string[] = [];
-			if (options.workos) extraArgParts.push("--workos");
-			if (options.convex) extraArgParts.push("--convex");
-			const extraArgs = extraArgParts.join(" ");
 			// Add --json flag to get structured output from headless create
-			const installCommand = `curl -fsSL https://raw.githubusercontent.com/collinschaafsma/hatch/main/scripts/install.sh | bash -s -- ${projectName} --config ~/.hatch.json --json ${extraArgs}`;
+			const installCommand = `curl -fsSL https://raw.githubusercontent.com/collinschaafsma/hatch/main/scripts/install.sh | bash -s -- ${projectName} --config ~/.hatch.json --json`;
 
 			let headlessResult: HeadlessResult | undefined;
 
@@ -163,18 +155,15 @@ export const newCommand = new Command()
 			}
 
 			// Step 7: Save project to local store (if we have the details)
-			const hasBackendResult =
-				headlessResult?.supabase || headlessResult?.convex;
 			if (
 				headlessResult?.success &&
 				headlessResult.github &&
 				headlessResult.vercel &&
-				hasBackendResult
+				headlessResult.convex
 			) {
 				const projectRecord: ProjectRecord = {
 					name: projectName,
 					createdAt: new Date().toISOString(),
-					backendProvider: headlessResult.convex ? "convex" : "supabase",
 					github: {
 						url: headlessResult.github.url,
 						owner: headlessResult.github.owner,
@@ -184,24 +173,12 @@ export const newCommand = new Command()
 						url: headlessResult.vercel.url,
 						projectId: headlessResult.vercel.projectId,
 					},
-					...(headlessResult.supabase
-						? {
-								supabase: {
-									projectRef: headlessResult.supabase.projectRef,
-									region: headlessResult.supabase.region,
-								},
-							}
-						: {}),
-					...(headlessResult.convex
-						? {
-								convex: {
-									deploymentUrl: headlessResult.convex.deploymentUrl,
-									projectSlug: headlessResult.convex.projectSlug,
-									deployKey: headlessResult.convex.deployKey,
-									deploymentName: headlessResult.convex.deploymentName,
-								},
-							}
-						: {}),
+					convex: {
+						deploymentUrl: headlessResult.convex.deploymentUrl,
+						projectSlug: headlessResult.convex.projectSlug,
+						deployKey: headlessResult.convex.deployKey,
+						deploymentName: headlessResult.convex.deploymentName,
+					},
 				};
 				await saveProject(projectRecord);
 			} else {
@@ -224,9 +201,9 @@ export const newCommand = new Command()
 				if (headlessResult.vercel) {
 					log.step(`Vercel:  ${headlessResult.vercel.url}`);
 				}
-				if (headlessResult.supabase) {
+				if (headlessResult.convex) {
 					log.step(
-						`Supabase: ${headlessResult.supabase.projectRef} (${headlessResult.supabase.region})`,
+						`Convex:  ${headlessResult.convex.projectSlug} (${headlessResult.convex.deploymentUrl})`,
 					);
 				}
 			} else {

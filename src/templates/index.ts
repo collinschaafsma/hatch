@@ -10,9 +10,6 @@ export * from "./db/index.js";
 // Better Auth templates
 export * from "./auth/better-auth/index.js";
 
-// WorkOS templates
-export * from "./auth/workos/index.js";
-
 // AI templates
 export * from "./ai/index.js";
 
@@ -36,9 +33,6 @@ export * from "./app/index.js";
 
 // UI package templates
 export * from "./ui/index.js";
-
-// Supabase templates
-export * from "./supabase/index.js";
 
 // Test templates
 export * from "./test/index.js";

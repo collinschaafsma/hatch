@@ -40,6 +40,14 @@ vi.mock("../utils/exe-dev.js", () => ({
 	exeDevRm: vi.fn(),
 }));
 
+vi.mock("../headless/convex.js", () => ({
+	deleteConvexProject: vi.fn(),
+}));
+
+vi.mock("../headless/vercel.js", () => ({
+	deleteVercelBranchEnvVars: vi.fn(),
+}));
+
 vi.mock("../utils/logger.js", () => ({
 	log: {
 		info: vi.fn(),
@@ -63,6 +71,8 @@ vi.mock("../utils/spinner.js", () => ({
 import { confirm } from "@inquirer/prompts";
 import { execa } from "execa";
 import fs from "fs-extra";
+import { deleteConvexProject } from "../headless/convex.js";
+import { deleteVercelBranchEnvVars } from "../headless/vercel.js";
 import { exeDevRm } from "../utils/exe-dev.js";
 import { log } from "../utils/logger.js";
 import { getProject } from "../utils/project-store.js";
@@ -72,6 +82,8 @@ import { cleanCommand } from "./clean.js";
 const mockConfirm = vi.mocked(confirm);
 const mockExeca = vi.mocked(execa);
 const mockFs = vi.mocked(fs);
+const mockDeleteConvexProject = vi.mocked(deleteConvexProject);
+const mockDeleteVercelBranchEnvVars = vi.mocked(deleteVercelBranchEnvVars);
 const mockGetProject = vi.mocked(getProject);
 const mockGetVMByFeature = vi.mocked(getVMByFeature);
 const mockRemoveVM = vi.mocked(removeVM);
@@ -88,7 +100,7 @@ describe("clean command", () => {
 		});
 		mockFs.pathExists.mockResolvedValue(true as never);
 		mockFs.readJson.mockResolvedValue({
-			supabase: { token: "sb_token" },
+			convex: { accessToken: "convex_token" },
 			github: { token: "gh_token" },
 		} as never);
 	});
@@ -143,7 +155,7 @@ describe("clean command", () => {
 		it("should skip confirmation with --force flag", async () => {
 			const project = createMockProjectRecord();
 			const vm = createMockVMRecord({
-				supabaseBranches: [],
+				convexFeatureProject: undefined,
 				githubBranch: "",
 			});
 			mockGetProject.mockResolvedValue(project);
@@ -164,17 +176,22 @@ describe("clean command", () => {
 			expect(mockLog.success).toHaveBeenCalledWith("Feature cleanup complete!");
 		});
 
-		it("should delete Supabase branches with --force", async () => {
-			const project = createMockProjectRecord({
-				supabase: { projectRef: "sb_ref", region: "us-east-1" },
-			});
+		it("should delete Convex feature project with --force", async () => {
+			const project = createMockProjectRecord();
 			const vm = createMockVMRecord({
-				supabaseBranches: ["feat-1", "feat-1-test"],
+				convexFeatureProject: {
+					projectId: "proj_123",
+					projectSlug: "my-project-feat-1",
+					deploymentName: "cool-penguin-123",
+					deploymentUrl: "https://my-project-feat-1.convex.cloud",
+					deployKey: "dk_123",
+				},
 				githubBranch: "",
 			});
 			mockGetProject.mockResolvedValue(project);
 			mockGetVMByFeature.mockResolvedValue(vm);
-			mockExeca.mockResolvedValue({ stdout: "", stderr: "" } as never);
+			mockDeleteConvexProject.mockResolvedValue(undefined as never);
+			mockDeleteVercelBranchEnvVars.mockResolvedValue(0 as never);
 			mockExeDevRm.mockResolvedValue(undefined);
 			mockRemoveVM.mockResolvedValue(undefined);
 
@@ -187,16 +204,9 @@ describe("clean command", () => {
 				"--force",
 			]);
 
-			// Should update then delete each branch
-			expect(mockExeca).toHaveBeenCalledWith(
-				"supabase",
-				expect.arrayContaining(["branches", "update", "feat-1"]),
-				expect.any(Object),
-			);
-			expect(mockExeca).toHaveBeenCalledWith(
-				"supabase",
-				expect.arrayContaining(["branches", "delete", "feat-1"]),
-				expect.any(Object),
+			expect(mockDeleteConvexProject).toHaveBeenCalledWith(
+				"proj_123",
+				"convex_token",
 			);
 		});
 
@@ -209,7 +219,7 @@ describe("clean command", () => {
 				},
 			});
 			const vm = createMockVMRecord({
-				supabaseBranches: [],
+				convexFeatureProject: undefined,
 				githubBranch: "feat-branch",
 			});
 			mockGetProject.mockResolvedValue(project);
@@ -238,7 +248,7 @@ describe("clean command", () => {
 			const project = createMockProjectRecord();
 			const vm = createMockVMRecord({
 				name: "fortune-sprite",
-				supabaseBranches: [],
+				convexFeatureProject: undefined,
 				githubBranch: "",
 			});
 			mockGetProject.mockResolvedValue(project);
@@ -262,7 +272,7 @@ describe("clean command", () => {
 			const project = createMockProjectRecord();
 			const vm = createMockVMRecord({
 				name: "my-vm",
-				supabaseBranches: [],
+				convexFeatureProject: undefined,
 				githubBranch: "",
 			});
 			mockGetProject.mockResolvedValue(project);
@@ -284,15 +294,23 @@ describe("clean command", () => {
 	});
 
 	describe("partial failure handling", () => {
-		it("should continue when Supabase branch deletion fails", async () => {
+		it("should continue when Convex project deletion fails", async () => {
 			const project = createMockProjectRecord();
 			const vm = createMockVMRecord({
-				supabaseBranches: ["failing-branch"],
+				convexFeatureProject: {
+					projectId: "proj_123",
+					projectSlug: "my-project-failing",
+					deploymentName: "cool-penguin-123",
+					deploymentUrl: "https://my-project-failing.convex.cloud",
+					deployKey: "dk_123",
+				},
 				githubBranch: "",
 			});
 			mockGetProject.mockResolvedValue(project);
 			mockGetVMByFeature.mockResolvedValue(vm);
-			mockExeca.mockRejectedValue(new Error("Branch not found"));
+			mockDeleteConvexProject.mockRejectedValue(
+				new Error("Project not found") as never,
+			);
 			mockExeDevRm.mockResolvedValue(undefined);
 			mockRemoveVM.mockResolvedValue(undefined);
 
@@ -305,7 +323,7 @@ describe("clean command", () => {
 				"--force",
 			]);
 
-			// Should still complete despite branch deletion failure
+			// Should still complete despite Convex deletion failure
 			expect(mockLog.success).toHaveBeenCalledWith("Feature cleanup complete!");
 		});
 
@@ -313,7 +331,7 @@ describe("clean command", () => {
 			const project = createMockProjectRecord();
 			const vm = createMockVMRecord({
 				name: "my-vm",
-				supabaseBranches: [],
+				convexFeatureProject: undefined,
 				githubBranch: "",
 			});
 			mockGetProject.mockResolvedValue(project);

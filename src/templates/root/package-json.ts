@@ -16,9 +16,6 @@ export function generateRootPackageJson(projectName: string): string {
 				"db:migrate": "pnpm --filter web db:migrate",
 				"db:push": "pnpm --filter web db:push",
 				"db:studio": "pnpm --filter web db:studio",
-				"supabase:setup": "./scripts/supabase-setup",
-				"supabase:branch": "./scripts/supabase-branch",
-				"supabase:env": "./scripts/supabase-env",
 				"app:setup": "./scripts/setup",
 			},
 			devDependencies: {

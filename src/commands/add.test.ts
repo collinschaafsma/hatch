@@ -113,8 +113,8 @@ describe("add command", () => {
 		});
 	});
 
-	describe("Supabase lookup", () => {
-		it("should error when Supabase is not provided", async () => {
+	describe("Convex lookup", () => {
+		it("should error when Convex is not provided", async () => {
 			mockGetProject.mockResolvedValue(undefined);
 			mockExeca.mockImplementation((async (cmd: string) => {
 				if (cmd === "gh") {
@@ -127,9 +127,6 @@ describe("add command", () => {
 						stderr: "",
 					} as never;
 				}
-				if (cmd === "supabase") {
-					return { stdout: "[]", stderr: "" } as never;
-				}
 				throw new Error("Not found");
 			}) as never);
 			mockInput.mockResolvedValue("");
@@ -138,9 +135,7 @@ describe("add command", () => {
 				addCommand.parseAsync(["node", "test", "my-project"]),
 			).rejects.toThrow("process.exit called");
 
-			expect(mockLog.error).toHaveBeenCalledWith(
-				"Supabase project is required.",
-			);
+			expect(mockLog.error).toHaveBeenCalledWith("Convex project is required.");
 		});
 	});
 
@@ -158,20 +153,18 @@ describe("add command", () => {
 						stderr: "",
 					} as never;
 				}
-				if (cmd === "supabase") {
-					return {
-						stdout: JSON.stringify([
-							{ id: "sb", name: "my-project", region: "us-east-1" },
-						]),
-						stderr: "",
-					} as never;
-				}
 				if (cmd === "vercel") {
 					return { stdout: "", stderr: "" } as never;
 				}
 				throw new Error("Not found");
 			}) as never);
-			mockInput.mockResolvedValue("");
+			// First input: Convex slug, second: deployment URL, third: deploy key,
+			// then Vercel prompts return empty
+			mockInput
+				.mockResolvedValueOnce("my-slug")
+				.mockResolvedValueOnce("https://my-slug.convex.cloud")
+				.mockResolvedValueOnce("")
+				.mockResolvedValueOnce("");
 
 			await expect(
 				addCommand.parseAsync(["node", "test", "my-project"]),
@@ -193,20 +186,16 @@ describe("add command", () => {
 						stderr: "",
 					} as never;
 				}
-				if (cmd === "supabase") {
-					return {
-						stdout: JSON.stringify([
-							{ id: "sb", name: "my-project", region: "us-east-1" },
-						]),
-						stderr: "",
-					} as never;
-				}
 				if (cmd === "vercel") {
 					return { stdout: "other-project", stderr: "" } as never;
 				}
 				throw new Error("Not found");
 			}) as never);
+			// Convex slug, deployment URL, deploy key, then Vercel project ID, Vercel URL
 			mockInput
+				.mockResolvedValueOnce("my-slug")
+				.mockResolvedValueOnce("https://my-slug.convex.cloud")
+				.mockResolvedValueOnce("")
 				.mockResolvedValueOnce("manual_id")
 				.mockResolvedValueOnce("https://custom.vercel.app");
 			mockSaveProject.mockResolvedValue(undefined);
@@ -238,14 +227,6 @@ describe("add command", () => {
 						stderr: "",
 					} as never;
 				}
-				if (cmd === "supabase") {
-					return {
-						stdout: JSON.stringify([
-							{ id: "sb_ref", name: "my-project", region: "us-west-2" },
-						]),
-						stderr: "",
-					} as never;
-				}
 				if (cmd === "vercel" && args?.includes("ls")) {
 					return { stdout: "my-project", stderr: "" } as never;
 				}
@@ -254,6 +235,11 @@ describe("add command", () => {
 				}
 				throw new Error("Not found");
 			}) as never);
+			// Convex slug, deployment URL, deploy key prompts
+			mockInput
+				.mockResolvedValueOnce("my-convex-project")
+				.mockResolvedValueOnce("https://my-convex-project.convex.cloud")
+				.mockResolvedValueOnce("dk_abc123");
 			mockVercelGetProjectUrl.mockResolvedValue({
 				url: "https://my-project.vercel.app",
 				hasAlias: true,
@@ -275,9 +261,10 @@ describe("add command", () => {
 						projectId: "prj_123",
 						url: "https://my-project.vercel.app",
 					},
-					supabase: {
-						projectRef: "sb_ref",
-						region: "us-west-2",
+					convex: {
+						projectSlug: "my-convex-project",
+						deploymentUrl: "https://my-convex-project.convex.cloud",
+						deployKey: "dk_abc123",
 					},
 				}),
 			);

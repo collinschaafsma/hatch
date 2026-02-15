@@ -22,7 +22,6 @@ error() { echo -e "${RED}error${NC} $1" >&2; exit 1; }
 PROJECT_NAME=""
 CONFIG_PATH=""
 EXTRA_ARGS=""
-USE_CONVEX=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -32,11 +31,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --config=*)
             CONFIG_PATH="${1#*=}"
-            shift
-            ;;
-        --convex)
-            USE_CONVEX=true
-            EXTRA_ARGS="$EXTRA_ARGS --convex"
             shift
             ;;
         -*)
@@ -204,13 +198,10 @@ if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
     # Tokens
     GITHUB_TOKEN=$(jq -r '.github.token // empty' "$CONFIG_PATH" 2>/dev/null || true)
     VERCEL_TOKEN=$(jq -r '.vercel.token // empty' "$CONFIG_PATH" 2>/dev/null || true)
-    SUPABASE_ACCESS_TOKEN=$(jq -r '.supabase.token // empty' "$CONFIG_PATH" 2>/dev/null || true)
 
-    # Orgs/teams/regions
+    # Orgs/teams
     HATCH_GITHUB_ORG=$(jq -r '.github.org // empty' "$CONFIG_PATH" 2>/dev/null || true)
     HATCH_VERCEL_TEAM=$(jq -r '.vercel.team // empty' "$CONFIG_PATH" 2>/dev/null || true)
-    HATCH_SUPABASE_ORG=$(jq -r '.supabase.org // empty' "$CONFIG_PATH" 2>/dev/null || true)
-    HATCH_SUPABASE_REGION=$(jq -r '.supabase.region // empty' "$CONFIG_PATH" 2>/dev/null || true)
 
     # Git user config (for commits to match GitHub account)
     HATCH_GITHUB_EMAIL=$(jq -r '.github.email // empty' "$CONFIG_PATH" 2>/dev/null || true)
@@ -219,11 +210,8 @@ if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
     # Export for CLI tools and hatch
     [[ -n "$GITHUB_TOKEN" ]] && export GITHUB_TOKEN
     [[ -n "$VERCEL_TOKEN" ]] && export VERCEL_TOKEN
-    [[ -n "$SUPABASE_ACCESS_TOKEN" ]] && export SUPABASE_ACCESS_TOKEN
     [[ -n "$HATCH_GITHUB_ORG" ]] && export HATCH_GITHUB_ORG
     [[ -n "$HATCH_VERCEL_TEAM" ]] && export HATCH_VERCEL_TEAM
-    [[ -n "$HATCH_SUPABASE_ORG" ]] && export HATCH_SUPABASE_ORG
-    [[ -n "$HATCH_SUPABASE_REGION" ]] && export HATCH_SUPABASE_REGION
 
     success "Config values loaded (HATCH_VERCEL_TEAM=$HATCH_VERCEL_TEAM)"
 else
@@ -231,7 +219,7 @@ else
 fi
 
 # ============================================================================
-# Step 5: Install CLI tools (gh, vercel, supabase, claude)
+# Step 5: Install CLI tools (gh, vercel, claude)
 # ============================================================================
 info "Checking CLI tools..."
 
@@ -283,25 +271,6 @@ exec node ~/.local/lib/node_modules/vercel/dist/vc.js "$@"
 WRAPPER
     chmod +x ~/.local/bin/vercel
     command -v vercel &> /dev/null && success "Vercel CLI installed" || warn "Vercel CLI installation failed"
-fi
-
-# Supabase CLI (skip for Convex projects)
-if [[ "$USE_CONVEX" == "true" ]]; then
-    info "Skipping Supabase CLI (Convex backend)"
-elif command -v supabase &> /dev/null; then
-    success "Supabase CLI is installed"
-else
-    info "Installing Supabase CLI..."
-    # Install via npm to user directory
-    mkdir -p ~/.local/lib ~/.local/bin
-    npm install --prefix ~/.local/lib supabase
-    # Create wrapper script since npm --prefix doesn't create bin links
-    cat > ~/.local/bin/supabase << 'WRAPPER'
-#!/bin/bash
-exec ~/.local/lib/node_modules/supabase/bin/supabase "$@"
-WRAPPER
-    chmod +x ~/.local/bin/supabase
-    command -v supabase &> /dev/null && success "Supabase CLI installed" || warn "Supabase CLI installation failed"
 fi
 
 # Claude Code
@@ -374,13 +343,9 @@ if [[ -n "${HATCH_GITHUB_NAME:-}" ]]; then
     success "Git user.name set to $HATCH_GITHUB_NAME"
 fi
 
-# Vercel and Supabase use env vars automatically, just verify
+# Vercel uses env vars automatically, just verify
 if [[ -n "${VERCEL_TOKEN:-}" ]]; then
     info "Vercel CLI will use VERCEL_TOKEN from environment"
-fi
-
-if [[ "$USE_CONVEX" != "true" ]] && [[ -n "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
-    info "Supabase CLI will use SUPABASE_ACCESS_TOKEN from environment"
 fi
 
 # ============================================================================

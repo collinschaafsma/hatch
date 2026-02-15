@@ -1,15 +1,11 @@
 import { execa } from "execa";
-import type {
-	BackendProvider,
-	ResolvedHeadlessConfig,
-} from "../types/index.js";
+import type { ResolvedHeadlessConfig } from "../types/index.js";
 import { log } from "../utils/logger.js";
 import { withSpinner } from "../utils/spinner.js";
 import {
 	checkRequiredClis,
 	ghAuthStatus,
 	isCliInstalled,
-	supabaseAuthStatus,
 } from "./cli-wrappers.js";
 
 /**
@@ -38,17 +34,8 @@ async function installCliViaNpm(
 /**
  * Install missing CLI tools
  */
-export async function installMissingClis(
-	quiet: boolean,
-	backendProvider?: BackendProvider,
-): Promise<void> {
-	const { missing: allMissing } = await checkRequiredClis();
-
-	// Skip supabase for Convex backend
-	const missing =
-		backendProvider === "convex"
-			? allMissing.filter((cli) => cli !== "supabase")
-			: allMissing;
+export async function installMissingClis(quiet: boolean): Promise<void> {
+	const { missing } = await checkRequiredClis();
 
 	if (missing.length === 0) {
 		if (!quiet) {
@@ -61,7 +48,6 @@ export async function installMissingClis(
 	const cliPackages: Record<string, string> = {
 		gh: "gh",
 		vercel: "vercel",
-		supabase: "supabase",
 	};
 
 	for (const cli of missing) {
@@ -112,20 +98,6 @@ export async function authenticateClis(
 	if (!quiet) {
 		log.success("Vercel CLI ready (using token directly)");
 	}
-
-	// Supabase - uses SUPABASE_ACCESS_TOKEN env var automatically, just verify
-	// Skip for Convex backend
-	if (config.backendProvider !== "convex" && config.supabase) {
-		const supabaseStatus = await supabaseAuthStatus(config.supabase.token);
-		if (!supabaseStatus.isAuthenticated) {
-			throw new Error(
-				"Supabase authentication failed. Check your SUPABASE_ACCESS_TOKEN.",
-			);
-		}
-		if (!quiet) {
-			log.success("Supabase CLI authenticated");
-		}
-	}
 }
 
 /**
@@ -162,7 +134,7 @@ export async function runBootstrap(
 	}
 
 	// Install missing CLIs
-	await installMissingClis(quiet, config.backendProvider);
+	await installMissingClis(quiet);
 
 	// Authenticate CLIs
 	await authenticateClis(config, quiet);

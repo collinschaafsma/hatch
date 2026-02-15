@@ -3,7 +3,6 @@ import validatePackageName from "validate-npm-package-name";
 
 export interface ProjectOptions {
 	projectName: string;
-	useWorkOS: boolean;
 }
 
 function validateProjectName(name: string): boolean | string {
@@ -17,7 +16,6 @@ function validateProjectName(name: string): boolean | string {
 
 export async function getProjectPrompts(
 	initialName?: string,
-	useWorkOS = false,
 ): Promise<ProjectOptions> {
 	const response = await prompts(
 		[
@@ -39,6 +37,5 @@ export async function getProjectPrompts(
 
 	return {
 		projectName: initialName || response.projectName,
-		useWorkOS,
 	};
 }

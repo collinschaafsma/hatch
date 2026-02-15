@@ -33,11 +33,6 @@ coverage/
 # Setup script state (idempotency tracking)
 .setup-state
 
-# Supabase
-.supabase/
-supabase/.temp/
-supabase/.branches/
-
 # Vercel
 .vercel/
 

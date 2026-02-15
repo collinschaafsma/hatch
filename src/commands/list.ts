@@ -48,9 +48,7 @@ export const listCommand = new Command()
 					log.step(`${project.name}`);
 					log.info(`  GitHub:   ${project.github.url}`);
 					log.info(`  Vercel:   ${project.vercel.url}`);
-					log.info(
-						`  Supabase: ${project.supabase.projectRef} (${project.supabase.region})`,
-					);
+					log.info(`  Convex:   ${project.convex.projectSlug}`);
 					log.info(`  Created:  ${createdDate}`);
 					log.blank();
 				}
@@ -81,7 +79,7 @@ export const listCommand = new Command()
 				log.info(`Project: ${project.name}`);
 				log.step(`GitHub:   ${project.github.url}`);
 				log.step(`Vercel:   ${project.vercel.url}`);
-				log.step(`Supabase: ${project.supabase.projectRef}`);
+				log.step(`Convex:   ${project.convex.projectSlug}`);
 				log.step(`Created:  ${createdDate}`);
 
 				if (projectVMs.length > 0) {
@@ -92,7 +90,11 @@ export const listCommand = new Command()
 						log.info(`    ${vm.feature} (${vm.name})`);
 						log.info(`      SSH:      ssh ${vm.sshHost}`);
 						log.info(`      Branch:   ${vm.githubBranch}`);
-						log.info(`      Supabase: ${vm.supabaseBranches.join(", ")}`);
+						if (vm.convexFeatureProject) {
+							log.info(
+								`      Convex:   ${vm.convexFeatureProject.projectSlug}`,
+							);
+						}
 						log.info(`      Created:  ${vmCreatedDate}`);
 					}
 				} else {

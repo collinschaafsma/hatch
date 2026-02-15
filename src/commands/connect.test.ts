@@ -223,9 +223,15 @@ describe("connect command", () => {
 			);
 		});
 
-		it("should display Supabase branches if present", async () => {
+		it("should display Convex feature project if present", async () => {
 			const vm = createMockVMRecord({
-				supabaseBranches: ["feature-1", "feature-1-test"],
+				convexFeatureProject: {
+					projectId: "proj_123",
+					projectSlug: "test-project-feature-1",
+					deploymentName: "cool-penguin-123",
+					deploymentUrl: "https://test-project-feature-1.convex.cloud",
+					deployKey: "dk_123",
+				},
 			});
 			mockListVMs.mockResolvedValue([vm]);
 			mockGetProject.mockResolvedValue(createMockProjectRecord());
@@ -233,7 +239,7 @@ describe("connect command", () => {
 			await connectCommand.parseAsync(["node", "test"]);
 
 			expect(mockLog.step).toHaveBeenCalledWith(
-				"Supabase:   feature-1, feature-1-test",
+				"Convex:     test-project-feature-1",
 			);
 		});
 

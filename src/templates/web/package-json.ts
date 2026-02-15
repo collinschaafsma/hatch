@@ -1,33 +1,21 @@
-export function generateWebPackageJson(
-	useWorkOS: boolean,
-	useConvex = false,
-): string {
-	// Build dependencies object with auth-specific packages, alphabetically sorted
+export function generateWebPackageJson(): string {
+	// Build dependencies object with Convex + Better Auth packages, alphabetically sorted
 	const dependencies: Record<string, string> = {
 		"@ai-sdk/react": "^3.0.35",
+		"@convex-dev/better-auth": "^0.10.0",
 		"@posthog/ai": "^7.4.2",
 		"@workspace/ui": "workspace:*",
 		ai: "^6.0.33",
-		...(useWorkOS
-			? { "@workos-inc/authkit-nextjs": "^2.13.0" }
-			: { "better-auth": "^1.4.12" }),
-		...(useConvex
-			? {
-					convex: "^1.31.0",
-					"convex-helpers": "^0.1.0",
-					"@convex-dev/better-auth": "^0.10.0",
-				}
-			: {
-					"drizzle-orm": "^0.45.1",
-					pg: "^8.16.3",
-				}),
+		"better-auth": "^1.4.12",
+		convex: "^1.31.0",
+		"convex-helpers": "^0.1.0",
 		next: "^16.1.1",
 		"next-safe-action": "^8.0.11",
 		"posthog-js": "^1.320.0",
 		"posthog-node": "^5.20.0",
 		react: "^19.2.3",
 		"react-dom": "^19.2.3",
-		...(!useWorkOS ? { resend: "^6.7.0" } : {}),
+		resend: "^6.7.0",
 		"server-only": "^0.0.1",
 		swr: "^2.3.3",
 		"tw-animate-css": "^1.4.0",
@@ -40,7 +28,7 @@ export function generateWebPackageJson(
 		Object.entries(dependencies).sort(([a], [b]) => a.localeCompare(b)),
 	);
 
-	// Build scripts based on backend
+	// Build scripts
 	const scripts: Record<string, string> = {
 		dev: "next dev --turbopack",
 		build: "next build",
@@ -51,20 +39,11 @@ export function generateWebPackageJson(
 		"test:watch": "vitest",
 		"test:ui": "vitest --ui",
 		"test:coverage": "vitest run --coverage",
+		"convex:dev": "npx convex dev",
+		"convex:deploy": "npx convex deploy",
 	};
 
-	if (useConvex) {
-		scripts["convex:dev"] = "npx convex dev";
-		scripts["convex:deploy"] = "npx convex deploy";
-	} else {
-		scripts["db:generate"] = "drizzle-kit generate";
-		scripts["db:migrate"] = "drizzle-kit migrate";
-		scripts["db:migrate:deploy"] = "drizzle-kit migrate";
-		scripts["db:push"] = "drizzle-kit push";
-		scripts["db:studio"] = "drizzle-kit studio";
-	}
-
-	// Build devDependencies based on backend
+	// Build devDependencies
 	const devDependencies: Record<string, string> = {
 		"@faker-js/faker": "^10.2.0",
 		"@tailwindcss/postcss": "^4.1.18",
@@ -84,11 +63,6 @@ export function generateWebPackageJson(
 		"vite-tsconfig-paths": "^6.0.4",
 		vitest: "^4.0.17",
 	};
-
-	if (!useConvex) {
-		devDependencies["@types/pg"] = "^8.16.0";
-		devDependencies["drizzle-kit"] = "^0.31.8";
-	}
 
 	return `${JSON.stringify(
 		{

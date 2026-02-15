@@ -107,11 +107,9 @@ export const featureCommand = new Command()
 				config = await fs.readJson(configPath);
 			}
 
-			const supabaseToken = config.supabase?.token || "";
 			const vercelToken = config.vercel?.token || "";
 			const convexAccessToken = config.convex?.accessToken || "";
 			const customEnvVars: EnvVar[] | undefined = config.envVars;
-			const useConvex = project.backendProvider === "convex";
 
 			// Step 3: Create new VM
 			const vmSpinner = createSpinner("Creating exe.dev VM").start();
@@ -191,9 +189,7 @@ export const featureCommand = new Command()
 			const projectPath = `~/${project.github.repo}`;
 
 			// Environment setup for commands that need CLIs installed to ~/.local/bin
-			const envPrefix = useConvex
-				? `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$PATH" &&`
-				: `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$PATH" && export SUPABASE_ACCESS_TOKEN="${supabaseToken}" &&`;
+			const envPrefix = `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$PATH" &&`;
 
 			// Step 8: Create git branch from origin/main
 			const gitSpinner = createSpinner("Creating git branch").start();
@@ -208,312 +204,151 @@ export const featureCommand = new Command()
 				throw error;
 			}
 
-			// Backend-specific setup: Convex feature projects OR Supabase branches
-			let mainBranch = "";
-			let testBranch = "";
-			let convexFeatureProject:
-				| {
-						projectId: string;
-						projectSlug: string;
-						deploymentName: string;
-						deploymentUrl: string;
-						deployKey: string;
-				  }
-				| undefined;
-
-			if (useConvex) {
-				// Convex path: Create separate project via API (local), then deploy on VM
-				if (!convexAccessToken) {
-					throw new Error(
-						"Convex access token not configured. Run 'hatch config' and configure Convex.",
-					);
-				}
-
-				const appUrl = `https://${vmName}.exe.xyz`;
-
-				// Local: Create Convex feature project via Management API
-				convexFeatureProject = await createConvexFeatureProject(
-					project.convex?.projectSlug || project.name,
-					featureName,
-					convexAccessToken,
-					appUrl,
-					false,
-					customEnvVars,
+			// Convex setup: Create separate project via API (local), then deploy on VM
+			if (!convexAccessToken) {
+				throw new Error(
+					"Convex access token not configured. Run 'hatch config' and configure Convex.",
 				);
-				convexFeatureProjectId = convexFeatureProject.projectId;
+			}
 
-				// VM: Deploy code to the feature project using its deploy key
-				const deploySpinner = createSpinner(
-					"Deploying Convex schema to feature project",
-				).start();
-				try {
-					await sshExec(
-						sshHost,
-						`${envPrefix} export CONVEX_DEPLOY_KEY="${convexFeatureProject.deployKey}" && cd ${projectPath}/apps/web && npx convex deploy --yes`,
-					);
-					deploySpinner.succeed("Convex schema deployed to feature project");
-				} catch (error) {
-					deploySpinner.fail("Failed to deploy Convex schema");
-					throw error;
-				}
+			const appUrl = `https://${vmName}.exe.xyz`;
 
-				// VM: Seed the feature deployment
-				const seedSpinner = createSpinner(
-					"Seeding Convex feature deployment",
-				).start();
-				try {
-					await sshExec(
-						sshHost,
-						`${envPrefix} export CONVEX_DEPLOY_KEY="${convexFeatureProject.deployKey}" && cd ${projectPath}/apps/web && npx convex run seed:seedData`,
-					);
-					seedSpinner.succeed("Convex feature deployment seeded");
-				} catch {
-					seedSpinner.warn(
-						"Could not seed feature deployment. You may need to run seed manually.",
-					);
-				}
+			// Local: Create Convex feature project via Management API
+			const convexFeatureProject = await createConvexFeatureProject(
+				project.convex.projectSlug || project.name,
+				featureName,
+				convexAccessToken,
+				appUrl,
+				false,
+				customEnvVars,
+			);
+			convexFeatureProjectId = convexFeatureProject.projectId;
 
-				// Pull Vercel env vars
-				const vercelEnvSpinner = createSpinner(
-					"Pulling environment variables from Vercel",
-				).start();
+			// VM: Deploy code to the feature project using its deploy key
+			const deploySpinner = createSpinner(
+				"Deploying Convex schema to feature project",
+			).start();
+			try {
 				await sshExec(
 					sshHost,
-					`${envPrefix} cd ${projectPath}/apps/web && vercel link --yes --project ${project.vercel.projectId} --token "${vercelToken}" 2>&1 || true`,
+					`${envPrefix} export CONVEX_DEPLOY_KEY="${convexFeatureProject.deployKey}" && cd ${projectPath}/apps/web && npx convex deploy --yes`,
+				);
+				deploySpinner.succeed("Convex schema deployed to feature project");
+			} catch (error) {
+				deploySpinner.fail("Failed to deploy Convex schema");
+				throw error;
+			}
+
+			// VM: Seed the feature deployment
+			const seedSpinner = createSpinner(
+				"Seeding Convex feature deployment",
+			).start();
+			try {
+				await sshExec(
+					sshHost,
+					`${envPrefix} export CONVEX_DEPLOY_KEY="${convexFeatureProject.deployKey}" && cd ${projectPath}/apps/web && npx convex run seed:seedData`,
+				);
+				seedSpinner.succeed("Convex feature deployment seeded");
+			} catch {
+				seedSpinner.warn(
+					"Could not seed feature deployment. You may need to run seed manually.",
+				);
+			}
+
+			// Pull Vercel env vars
+			const vercelEnvSpinner = createSpinner(
+				"Pulling environment variables from Vercel",
+			).start();
+			await sshExec(
+				sshHost,
+				`${envPrefix} cd ${projectPath}/apps/web && vercel link --yes --project ${project.vercel.projectId} --token "${vercelToken}" 2>&1 || true`,
+			);
+			await sshExec(
+				sshHost,
+				`${envPrefix} cd ${projectPath}/apps/web && vercel env pull .env.local --yes --environment=development --token "${vercelToken}" 2>&1 || true`,
+			);
+			const { stdout: envCheck } = await sshExec(
+				sshHost,
+				`test -f $HOME/${project.github.repo}/apps/web/.env.local && echo "exists" || echo "missing"`,
+			);
+			if (envCheck.trim() === "exists") {
+				vercelEnvSpinner.succeed("Environment variables pulled from Vercel");
+			} else {
+				vercelEnvSpinner.warn(
+					"Could not pull env from Vercel. You may need to create .env.local manually.",
+				);
+			}
+
+			// Append ALLOWED_DEV_ORIGINS after env pull so it doesn't get overwritten
+			const exeDevOrigin = `${vmName}.exe.xyz`;
+			await sshExec(
+				sshHost,
+				`cd ${projectPath}/apps/web && echo 'ALLOWED_DEV_ORIGINS=${exeDevOrigin}' >> .env.local`,
+			);
+
+			// Update .env.local with feature project URL and app URLs
+			const convexEnvSpinner = createSpinner(
+				"Configuring Convex environment variables",
+			).start();
+			try {
+				const siteUrl = convexFeatureProject.deploymentUrl.replace(
+					".convex.cloud",
+					".convex.site",
 				);
 				await sshExec(
 					sshHost,
-					`${envPrefix} cd ${projectPath}/apps/web && vercel env pull .env.local --yes --environment=development --token "${vercelToken}" 2>&1 || true`,
+					`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_CONVEX_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_CONVEX_URL=.*|NEXT_PUBLIC_CONVEX_URL=${convexFeatureProject.deploymentUrl}|' .env.local || echo 'NEXT_PUBLIC_CONVEX_URL=${convexFeatureProject.deploymentUrl}' >> .env.local)`,
 				);
-				const { stdout: envCheck } = await sshExec(
-					sshHost,
-					`test -f $HOME/${project.github.repo}/apps/web/.env.local && echo "exists" || echo "missing"`,
-				);
-				if (envCheck.trim() === "exists") {
-					vercelEnvSpinner.succeed("Environment variables pulled from Vercel");
-				} else {
-					vercelEnvSpinner.warn(
-						"Could not pull env from Vercel. You may need to create .env.local manually.",
-					);
-				}
-
-				// Append ALLOWED_DEV_ORIGINS after env pull so it doesn't get overwritten
-				const exeDevOrigin = `${vmName}.exe.xyz`;
 				await sshExec(
 					sshHost,
-					`cd ${projectPath}/apps/web && echo 'ALLOWED_DEV_ORIGINS=${exeDevOrigin}' >> .env.local`,
+					`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_CONVEX_SITE_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_CONVEX_SITE_URL=.*|NEXT_PUBLIC_CONVEX_SITE_URL=${siteUrl}|' .env.local || echo 'NEXT_PUBLIC_CONVEX_SITE_URL=${siteUrl}' >> .env.local)`,
 				);
+				await sshExec(
+					sshHost,
+					`cd ${projectPath}/apps/web && (grep -q '^BETTER_AUTH_URL=' .env.local && sed -i 's|^BETTER_AUTH_URL=.*|BETTER_AUTH_URL=${appUrl}|' .env.local || echo 'BETTER_AUTH_URL=${appUrl}' >> .env.local)`,
+				);
+				await sshExec(
+					sshHost,
+					`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_APP_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_APP_URL=.*|NEXT_PUBLIC_APP_URL=${appUrl}|' .env.local || echo 'NEXT_PUBLIC_APP_URL=${appUrl}' >> .env.local)`,
+				);
+				convexEnvSpinner.succeed("Convex environment configured");
+			} catch {
+				convexEnvSpinner.warn(
+					"Could not configure Convex env vars automatically. You may need to update .env.local manually.",
+				);
+			}
 
-				// Update .env.local with feature project URL and app URLs
-				const convexEnvSpinner = createSpinner(
-					"Configuring Convex environment variables",
-				).start();
-				try {
-					const siteUrl = convexFeatureProject.deploymentUrl.replace(
-						".convex.cloud",
-						".convex.site",
-					);
-					await sshExec(
-						sshHost,
-						`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_CONVEX_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_CONVEX_URL=.*|NEXT_PUBLIC_CONVEX_URL=${convexFeatureProject.deploymentUrl}|' .env.local || echo 'NEXT_PUBLIC_CONVEX_URL=${convexFeatureProject.deploymentUrl}' >> .env.local)`,
-					);
-					await sshExec(
-						sshHost,
-						`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_CONVEX_SITE_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_CONVEX_SITE_URL=.*|NEXT_PUBLIC_CONVEX_SITE_URL=${siteUrl}|' .env.local || echo 'NEXT_PUBLIC_CONVEX_SITE_URL=${siteUrl}' >> .env.local)`,
-					);
-					await sshExec(
-						sshHost,
-						`cd ${projectPath}/apps/web && (grep -q '^BETTER_AUTH_URL=' .env.local && sed -i 's|^BETTER_AUTH_URL=.*|BETTER_AUTH_URL=${appUrl}|' .env.local || echo 'BETTER_AUTH_URL=${appUrl}' >> .env.local)`,
-					);
-					await sshExec(
-						sshHost,
-						`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_APP_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_APP_URL=.*|NEXT_PUBLIC_APP_URL=${appUrl}|' .env.local || echo 'NEXT_PUBLIC_APP_URL=${appUrl}' >> .env.local)`,
-					);
-					convexEnvSpinner.succeed("Convex environment configured");
-				} catch {
-					convexEnvSpinner.warn(
-						"Could not configure Convex env vars automatically. You may need to update .env.local manually.",
-					);
-				}
-
-				// Write .claude/settings.local.json with Convex MCP server config
-				const mcpSpinner = createSpinner(
-					"Configuring Convex MCP server",
-				).start();
-				try {
-					const deploymentName = convexFeatureProject.deploymentUrl
-						.replace("https://", "")
-						.replace(".convex.cloud", "");
-					const mcpConfig = JSON.stringify(
-						{
-							mcpServers: {
-								"convex-mcp": {
-									command: "npx",
-									args: ["-y", "@convex-dev/mcp-server"],
-									env: {
-										CONVEX_DEPLOYMENT: deploymentName,
-										CONVEX_DEPLOY_KEY: convexFeatureProject.deployKey,
-									},
+			// Write .claude/settings.local.json with Convex MCP server config
+			const mcpSpinner = createSpinner("Configuring Convex MCP server").start();
+			try {
+				const deploymentName = convexFeatureProject.deploymentUrl
+					.replace("https://", "")
+					.replace(".convex.cloud", "");
+				const mcpConfig = JSON.stringify(
+					{
+						mcpServers: {
+							"convex-mcp": {
+								command: "npx",
+								args: ["-y", "@convex-dev/mcp-server"],
+								env: {
+									CONVEX_DEPLOYMENT: deploymentName,
+									CONVEX_DEPLOY_KEY: convexFeatureProject.deployKey,
 								},
 							},
 						},
-						null,
-						2,
-					);
-					await sshExec(
-						sshHost,
-						`mkdir -p ${projectPath}/.claude && cat > ${projectPath}/.claude/settings.local.json << 'MCPEOF'\n${mcpConfig}\nMCPEOF`,
-					);
-					mcpSpinner.succeed("Convex MCP server configured");
-				} catch {
-					mcpSpinner.warn(
-						"Could not configure Convex MCP server. You can set it up manually.",
-					);
-				}
-			} else {
-				// Supabase path: Link project and create branches
-				const linkSpinner = createSpinner("Linking Supabase project").start();
-				try {
-					await sshExec(
-						sshHost,
-						`${envPrefix} cd ${projectPath} && supabase link --project-ref ${project.supabase?.projectRef}`,
-					);
-					linkSpinner.succeed(
-						`Supabase project linked: ${project.supabase?.projectRef}`,
-					);
-				} catch (error) {
-					linkSpinner.fail("Failed to link Supabase project");
-					throw error;
-				}
-
-				mainBranch = featureName;
-				testBranch = `${featureName}-test`;
-
-				const supabaseSpinner = createSpinner(
-					"Creating Supabase branches",
-				).start();
-				try {
-					await sshExec(
-						sshHost,
-						`${envPrefix} cd ${projectPath} && supabase branches create ${mainBranch} --persistent`,
-					);
-					await sshExec(
-						sshHost,
-						`${envPrefix} cd ${projectPath} && supabase branches create ${testBranch} --persistent`,
-					);
-					supabaseSpinner.succeed(
-						`Supabase branches created: ${mainBranch}, ${testBranch}`,
-					);
-				} catch (error) {
-					supabaseSpinner.fail("Failed to create Supabase branches");
-					throw error;
-				}
-
-				// Pull Vercel environment variables to create .env.local
-				const vercelEnvSpinner = createSpinner(
-					"Pulling environment variables from Vercel",
-				).start();
-				const { stdout: linkOut, stderr: linkErr } = await sshExec(
-					sshHost,
-					`${envPrefix} cd ${projectPath}/apps/web && vercel link --yes --project ${project.vercel.projectId} --token "${vercelToken}" 2>&1 || true`,
+					},
+					null,
+					2,
 				);
-				console.log(
-					`[DEBUG] vercel link - stdout: "${linkOut}", stderr: "${linkErr}"`,
-				);
-				const { stdout: pullOut, stderr: pullErr } = await sshExec(
-					sshHost,
-					`${envPrefix} cd ${projectPath}/apps/web && vercel env pull .env.local --yes --environment=development --token "${vercelToken}" 2>&1 || true`,
-				);
-				console.log(
-					`[DEBUG] vercel env pull - stdout: "${pullOut}", stderr: "${pullErr}"`,
-				);
-				const { stdout: envCheck, stderr: envCheckErr } = await sshExec(
-					sshHost,
-					`test -f $HOME/${project.github.repo}/apps/web/.env.local && echo "exists" || echo "missing"`,
-				);
-				const checkResult = envCheck.trim();
-				console.log(
-					`[DEBUG] .env.local check - stdout: "${checkResult}", stderr: "${envCheckErr}"`,
-				);
-				if (checkResult === "exists") {
-					vercelEnvSpinner.succeed("Environment variables pulled from Vercel");
-				} else {
-					vercelEnvSpinner.warn(
-						`Could not pull env from Vercel (check returned: "${checkResult}"). You may need to create .env.local manually.`,
-					);
-				}
-
-				// Append ALLOWED_DEV_ORIGINS after env pull so it doesn't get overwritten
-				const exeDevOrigin = `${vmName}.exe.xyz`;
 				await sshExec(
 					sshHost,
-					`cd ${projectPath}/apps/web && echo 'ALLOWED_DEV_ORIGINS=${exeDevOrigin}' >> .env.local`,
+					`mkdir -p ${projectPath}/.claude && cat > ${projectPath}/.claude/settings.local.json << 'MCPEOF'\n${mcpConfig}\nMCPEOF`,
 				);
-
-				// Wait for branches to provision and get credentials
-				const credSpinner = createSpinner(
-					"Waiting for Supabase branches to provision",
-				).start();
-				try {
-					await new Promise((resolve) => setTimeout(resolve, 45000));
-
-					let mainDbUrl: string | undefined;
-					let testDbUrl: string | undefined;
-
-					const { stdout: mainOutput } = await sshExec(
-						sshHost,
-						`${envPrefix} cd ${projectPath} && supabase branches get ${mainBranch} -o env 2>/dev/null || echo ''`,
-					);
-					const mainMatch = mainOutput.match(/POSTGRES_URL="?([^"\n]+)"?/);
-					if (mainMatch?.[1]) {
-						mainDbUrl = mainMatch[1];
-					}
-
-					const { stdout: testOutput } = await sshExec(
-						sshHost,
-						`${envPrefix} cd ${projectPath} && supabase branches get ${testBranch} -o env 2>/dev/null || echo ''`,
-					);
-					const testMatch = testOutput.match(/POSTGRES_URL="?([^"\n]+)"?/);
-					if (testMatch?.[1]) {
-						testDbUrl = testMatch[1];
-					}
-
-					if (mainDbUrl || testDbUrl) {
-						if (mainDbUrl) {
-							await sshExec(
-								sshHost,
-								`cd ${projectPath}/apps/web && (grep -q '^DATABASE_URL=' .env.local && sed -i 's|^DATABASE_URL=.*|DATABASE_URL=${mainDbUrl}|' .env.local || echo 'DATABASE_URL=${mainDbUrl}' >> .env.local)`,
-							);
-						}
-						if (testDbUrl) {
-							await sshExec(
-								sshHost,
-								`cd ${projectPath}/apps/web && (grep -q '^TEST_DATABASE_URL=' .env.local && sed -i 's|^TEST_DATABASE_URL=.*|TEST_DATABASE_URL=${testDbUrl}|' .env.local || echo 'TEST_DATABASE_URL=${testDbUrl}' >> .env.local)`,
-							);
-						}
-						credSpinner.succeed(
-							`Branch credentials configured (DATABASE_URL${testDbUrl ? " + TEST_DATABASE_URL" : ""})`,
-						);
-					} else {
-						credSpinner.warn(
-							"Could not get branch DATABASE_URLs automatically. You may need to update .env.local manually.",
-						);
-					}
-
-					const appUrl = `https://${vmName}.exe.xyz`;
-					await sshExec(
-						sshHost,
-						`cd ${projectPath}/apps/web && (grep -q '^BETTER_AUTH_URL=' .env.local && sed -i 's|^BETTER_AUTH_URL=.*|BETTER_AUTH_URL=${appUrl}|' .env.local || echo 'BETTER_AUTH_URL=${appUrl}' >> .env.local)`,
-					);
-					await sshExec(
-						sshHost,
-						`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_APP_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_APP_URL=.*|NEXT_PUBLIC_APP_URL=${appUrl}|' .env.local || echo 'NEXT_PUBLIC_APP_URL=${appUrl}' >> .env.local)`,
-					);
-				} catch {
-					credSpinner.warn(
-						"Could not configure branch credentials automatically. You may need to update .env.local manually.",
-					);
-				}
+				mcpSpinner.succeed("Convex MCP server configured");
+			} catch {
+				mcpSpinner.warn(
+					"Could not configure Convex MCP server. You can set it up manually.",
+				);
 			}
 
 			// Step 14: Push branch to origin
@@ -530,42 +365,40 @@ export const featureCommand = new Command()
 			}
 
 			// Set per-branch Vercel env vars so preview deployments use this feature's Convex backend
-			if (useConvex && convexFeatureProject) {
-				const vercelBranchSpinner = createSpinner(
-					"Setting per-branch Vercel environment variables",
-				).start();
-				try {
-					const siteUrlForVercel = convexFeatureProject.deploymentUrl.replace(
-						".convex.cloud",
-						".convex.site",
-					);
-					await setVercelBranchEnvVars(
-						project.vercel.projectId,
-						featureName,
-						[
-							{
-								key: "CONVEX_DEPLOY_KEY",
-								value: convexFeatureProject.deployKey,
-							},
-							{
-								key: "NEXT_PUBLIC_CONVEX_URL",
-								value: convexFeatureProject.deploymentUrl,
-							},
-							{
-								key: "NEXT_PUBLIC_CONVEX_SITE_URL",
-								value: siteUrlForVercel,
-							},
-						],
-						vercelToken,
-					);
-					vercelBranchSpinner.succeed(
-						"Per-branch Vercel environment variables set",
-					);
-				} catch (error) {
-					vercelBranchSpinner.warn(
-						`Could not set per-branch Vercel env vars: ${error instanceof Error ? error.message : error}`,
-					);
-				}
+			const vercelBranchSpinner = createSpinner(
+				"Setting per-branch Vercel environment variables",
+			).start();
+			try {
+				const siteUrlForVercel = convexFeatureProject.deploymentUrl.replace(
+					".convex.cloud",
+					".convex.site",
+				);
+				await setVercelBranchEnvVars(
+					project.vercel.projectId,
+					featureName,
+					[
+						{
+							key: "CONVEX_DEPLOY_KEY",
+							value: convexFeatureProject.deployKey,
+						},
+						{
+							key: "NEXT_PUBLIC_CONVEX_URL",
+							value: convexFeatureProject.deploymentUrl,
+						},
+						{
+							key: "NEXT_PUBLIC_CONVEX_SITE_URL",
+							value: siteUrlForVercel,
+						},
+					],
+					vercelToken,
+				);
+				vercelBranchSpinner.succeed(
+					"Per-branch Vercel environment variables set",
+				);
+			} catch (error) {
+				vercelBranchSpinner.warn(
+					`Could not set per-branch Vercel env vars: ${error instanceof Error ? error.message : error}`,
+				);
 			}
 
 			// Step 15: Save VM to local tracking
@@ -575,10 +408,8 @@ export const featureCommand = new Command()
 				project: project.name,
 				feature: featureName,
 				createdAt: new Date().toISOString(),
-				supabaseBranches: useConvex ? [] : [mainBranch, testBranch],
 				githubBranch: featureName,
-				backendProvider: project.backendProvider,
-				...(useConvex && convexFeatureProject ? { convexFeatureProject } : {}),
+				convexFeatureProject,
 			};
 			await addVM(vmRecord);
 
@@ -590,13 +421,8 @@ export const featureCommand = new Command()
 			log.step(`VM:              ${vmName}`);
 			log.step(`Project:         ${project.name}`);
 			log.step(`Git branch:      ${featureName}`);
-			if (useConvex && convexFeatureProject) {
-				log.step(`Convex project:  ${convexFeatureProject.projectSlug}`);
-				log.step(`Convex URL:      ${convexFeatureProject.deploymentUrl}`);
-			} else if (!useConvex) {
-				log.step(`Supabase branch: ${mainBranch}`);
-				log.step(`Test branch:     ${testBranch}`);
-			}
+			log.step(`Convex project:  ${convexFeatureProject.projectSlug}`);
+			log.step(`Convex URL:      ${convexFeatureProject.deploymentUrl}`);
 			log.blank();
 			log.info("Connect:");
 			log.step(`SSH:     ssh ${sshHost}`);

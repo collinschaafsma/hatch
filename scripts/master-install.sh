@@ -160,26 +160,7 @@ WRAPPER
 fi
 
 # ============================================================================
-# Step 6: Check/Install Supabase CLI
-# ============================================================================
-info "Checking Supabase CLI..."
-
-if command -v supabase &> /dev/null; then
-    success "Supabase CLI is installed"
-else
-    info "Installing Supabase CLI..."
-    mkdir -p ~/.local/lib ~/.local/bin
-    npm install --prefix ~/.local/lib supabase
-    cat > ~/.local/bin/supabase << 'WRAPPER'
-#!/bin/bash
-exec ~/.local/lib/node_modules/supabase/bin/supabase "$@"
-WRAPPER
-    chmod +x ~/.local/bin/supabase
-    command -v supabase &> /dev/null && success "Supabase CLI installed" || warn "Supabase CLI installation failed"
-fi
-
-# ============================================================================
-# Step 7: Install Claude Code
+# Step 6: Install Claude Code
 # ============================================================================
 info "Installing/updating Claude Code..."
 

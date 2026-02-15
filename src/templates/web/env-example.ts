@@ -1,37 +1,15 @@
-export function generateEnvExample(
-	useWorkOS: boolean,
-	projectName: string,
-	useConvex = false,
-): string {
-	const authEnv = useWorkOS
-		? `# WorkOS
-WORKOS_CLIENT_ID=
-WORKOS_API_KEY=
-WORKOS_COOKIE_PASSWORD=  # Generate with: openssl rand -base64 32
-NEXT_PUBLIC_WORKOS_REDIRECT_URI=http://localhost:3000/callback`
-		: `# Better Auth
+export function generateEnvExample(projectName: string): string {
+	return `# Convex
+CONVEX_DEPLOYMENT=  # Set by 'npx convex dev'
+NEXT_PUBLIC_CONVEX_URL=  # Set by 'npx convex dev'
+NEXT_PUBLIC_CONVEX_SITE_URL=  # Set by 'npx convex dev' (e.g. https://adjective-animal-123.convex.site)
+
+# Better Auth
 BETTER_AUTH_SECRET=  # Generate with: openssl rand -base64 32
 BETTER_AUTH_URL=http://localhost:3000
 
 # Resend (for email OTP)
-RESEND_API_KEY=`;
-
-	const backendEnv = useConvex
-		? `# Convex
-CONVEX_DEPLOYMENT=  # Set by 'npx convex dev'
-NEXT_PUBLIC_CONVEX_URL=  # Set by 'npx convex dev'
-NEXT_PUBLIC_CONVEX_SITE_URL=  # Set by 'npx convex dev' (e.g. https://adjective-animal-123.convex.site)`
-		: `# Database (Supabase)
-# Production: Set in Vercel environment variables from Supabase dashboard
-# Development: Run 'pnpm supabase:env dev' to populate these
-DATABASE_URL=
-
-# Test Database (Supabase branch)
-TEST_DATABASE_URL=`;
-
-	return `${backendEnv}
-
-${authEnv}
+RESEND_API_KEY=
 
 # Vercel AI Gateway (https://vercel.com/docs/ai-gateway)
 AI_GATEWAY_API_KEY=

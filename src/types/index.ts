@@ -1,16 +1,10 @@
-export type BackendProvider = "supabase" | "convex";
-
 export interface CreateOptions {
 	projectName: string;
-	useWorkOS: boolean;
-	useConvex: boolean;
 	headless?: HeadlessOptions;
 }
 
 export interface TemplateContext {
 	projectName: string;
-	useWorkOS: boolean;
-	useConvex: boolean;
 }
 
 // Headless mode types
@@ -23,14 +17,6 @@ export interface HeadlessOptions {
 	// Vercel
 	vercelToken?: string;
 	vercelTeam?: string;
-
-	// Supabase
-	supabaseToken?: string;
-	supabaseOrg?: string;
-	supabaseRegion?: string;
-
-	// Convex
-	backendProvider?: BackendProvider;
 
 	// Behavior
 	conflictStrategy?: "suffix" | "fail";
@@ -77,12 +63,7 @@ export interface HatchConfig {
 		team?: string;
 		token?: string;
 	};
-	supabase?: {
-		org?: string;
-		region?: string;
-		token?: string;
-	};
-	convex?: {
+	convex: {
 		accessToken?: string;
 	};
 	claude?: ClaudeConfig;
@@ -106,11 +87,6 @@ export interface HeadlessResult {
 		projectId: string;
 		projectName: string;
 	};
-	supabase?: {
-		projectRef: string;
-		region: string;
-		projectName: string;
-	};
 	convex?: {
 		deploymentUrl: string;
 		projectSlug: string;
@@ -131,15 +107,9 @@ export interface ResolvedHeadlessConfig {
 		token: string;
 		team: string;
 	};
-	supabase?: {
-		token: string;
-		org: string;
-		region: string;
-	};
-	convex?: {
+	convex: {
 		accessToken: string;
 	};
-	backendProvider: BackendProvider;
 	conflictStrategy: "suffix" | "fail";
 	json: boolean;
 	quiet: boolean;
@@ -150,7 +120,6 @@ export interface ResolvedHeadlessConfig {
 export interface ProjectRecord {
 	name: string; // e.g., "my-app"
 	createdAt: string; // ISO timestamp
-	backendProvider: BackendProvider;
 	github: {
 		url: string; // e.g., "https://github.com/org/my-app"
 		owner: string;
@@ -160,11 +129,7 @@ export interface ProjectRecord {
 		url: string; // e.g., "https://my-app.vercel.app"
 		projectId: string;
 	};
-	supabase?: {
-		projectRef: string;
-		region: string;
-	};
-	convex?: {
+	convex: {
 		deploymentUrl: string;
 		projectSlug: string;
 		deployKey: string;
@@ -185,12 +150,8 @@ export interface VMRecord {
 	project: string; // Links to ProjectRecord.name
 	feature: string; // Feature name (e.g., "add-auth")
 	createdAt: string; // ISO timestamp
-	supabaseBranches: string[]; // e.g., ["add-auth", "add-auth-test"]
 	githubBranch: string; // e.g., "add-auth"
-	// Backend-specific fields
-	backendProvider?: BackendProvider;
-	convexPreviewName?: string; // Deprecated: old preview-based flow
-	convexFeatureProject?: {
+	convexFeatureProject: {
 		projectId: string;
 		projectSlug: string; // e.g. "my-app-add-auth"
 		deploymentName: string; // e.g. "cool-penguin-123"

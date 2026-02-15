@@ -4,14 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Hatch is a TypeScript CLI tool that provisions exe.dev VMs for cloud-first development. It creates projects with GitHub, Vercel, and Supabase, then manages ephemeral feature VMs for isolated development environments.
+Hatch is a TypeScript CLI tool that provisions exe.dev VMs for cloud-first development. It creates projects with GitHub, Vercel, and Convex, then manages ephemeral feature VMs for isolated development environments.
 
 ## Commands
 
 ```bash
 # Development - run CLI directly
 pnpm dev new <project-name>                    # Create new project
-pnpm dev new <project-name> --workos           # Create with WorkOS auth
 pnpm dev feature <name> --project <project>    # Create feature VM
 pnpm dev list                                  # List projects and VMs
 pnpm dev connect                               # Show VM connection info
@@ -36,7 +35,7 @@ pnpm format                                    # Format with Biome
 
 ### Commands
 - **new.ts** - Create a new project via ephemeral VM
-- **feature.ts** - Create feature VM with git/Supabase branches
+- **feature.ts** - Create feature VM with git branches and Convex preview deployments
 - **add.ts** - Add existing project to tracking
 - **connect.ts** - Show VM connection info
 - **list.ts** - List projects and feature VMs
@@ -59,8 +58,7 @@ pnpm format                                    # Format with Biome
 When `hatch new` runs, the install script on the VM creates:
 - Turborepo 2.7+ with pnpm workspaces
 - Next.js 16 with React 19
-- Drizzle ORM 0.45+ with PostgreSQL
-- Better Auth 1.4+ (email OTP via Resend) OR WorkOS 2.13+
+- Convex backend with Better Auth (email OTP via Resend)
 - Vercel AI SDK 6 with OpenAI
 - Tailwind CSS 4, shadcn/ui components
 - Biome for linting/formatting

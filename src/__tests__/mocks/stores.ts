@@ -15,9 +15,11 @@ export function createMockProjectRecord(
 			url: "https://test-project.vercel.app",
 			projectId: "prj_123456789",
 		},
-		supabase: {
-			projectRef: "abc123def456",
-			region: "us-east-1",
+		convex: {
+			projectSlug: "test-project",
+			deploymentUrl: "https://test-project.convex.cloud",
+			deployKey: "dk_test123",
+			deploymentName: "happy-animal-456",
 		},
 		...overrides,
 	};
@@ -32,8 +34,14 @@ export function createMockVMRecord(
 		project: "test-project",
 		feature: "add-auth",
 		createdAt: new Date().toISOString(),
-		supabaseBranches: ["add-auth", "add-auth-test"],
 		githubBranch: "add-auth",
+		convexFeatureProject: {
+			projectId: "proj_default",
+			projectSlug: "test-project-add-auth",
+			deploymentName: "happy-animal-123",
+			deploymentUrl: "https://test-project-add-auth.convex.cloud",
+			deployKey: "dk_default",
+		},
 		...overrides,
 	};
 }

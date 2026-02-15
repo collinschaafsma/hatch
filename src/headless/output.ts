@@ -4,32 +4,18 @@ import { log } from "../utils/logger.js";
 /**
  * Generate next steps instructions based on the setup results
  */
-export function generateNextSteps(
-	result: HeadlessResult,
-	useWorkOS: boolean,
-): string[] {
+export function generateNextSteps(result: HeadlessResult): string[] {
 	const steps: string[] = [];
 
-	// Backend-specific integration steps
+	// Convex dashboard
 	if (result.convex) {
 		steps.push(
 			`Convex dashboard: ${result.convex.deploymentUrl || "https://dashboard.convex.dev"}`,
 		);
-	} else if (result.supabase && result.vercel) {
-		steps.push(
-			"Set up Supabase-Vercel integration: https://vercel.com/integrations/supabase",
-		);
 	}
 
-	// Auth-specific env vars
-	if (useWorkOS) {
-		steps.push(
-			"Add WORKOS_CLIENT_ID to Vercel env vars (from WorkOS dashboard)",
-		);
-		steps.push("Add WORKOS_API_KEY to Vercel env vars (from WorkOS dashboard)");
-	} else {
-		steps.push("Add RESEND_API_KEY to Vercel env vars (from resend.com)");
-	}
+	// Better Auth env vars
+	steps.push("Add RESEND_API_KEY to Vercel env vars (from resend.com)");
 
 	// AI Gateway
 	steps.push(
@@ -74,14 +60,6 @@ export function outputHuman(result: HeadlessResult): void {
 		log.blank();
 		log.info("GitHub:");
 		log.step(`URL: ${result.github.url}`);
-	}
-
-	if (result.supabase) {
-		log.blank();
-		log.info("Supabase:");
-		log.step(`Project: ${result.supabase.projectName}`);
-		log.step(`Region: ${result.supabase.region}`);
-		log.step(`Ref: ${result.supabase.projectRef}`);
 	}
 
 	if (result.convex) {

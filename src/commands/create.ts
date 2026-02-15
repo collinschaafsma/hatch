@@ -26,7 +26,6 @@ import {
 	writeFile,
 } from "../utils/fs.js";
 import { log } from "../utils/logger.js";
-import { getProjectPrompts } from "../utils/prompts.js";
 import { withSpinner } from "../utils/spinner.js";
 
 // Get the package root directory for copying static assets
@@ -35,8 +34,6 @@ const __dirname = path.dirname(__filename);
 const packageRoot = path.resolve(__dirname, "../..");
 
 interface CreateCommandOptions {
-	workos: boolean;
-	convex: boolean;
 	vscode: boolean;
 	// Headless mode options
 	headless: boolean;
@@ -46,9 +43,6 @@ interface CreateCommandOptions {
 	githubOrg?: string;
 	vercelToken?: string;
 	vercelTeam?: string;
-	supabaseToken?: string;
-	supabaseOrg?: string;
-	supabaseRegion: string;
 	conflictStrategy: "suffix" | "fail";
 	json: boolean;
 	quiet: boolean;
@@ -58,14 +52,12 @@ export const createCommand = new Command()
 	.name("create")
 	.description("Create a new Hatch project")
 	.argument("[project-name]", "Name of the project")
-	.option("--workos", "Use WorkOS instead of Better Auth", false)
-	.option("--convex", "Use Convex instead of Supabase for the backend", false)
 	.option("--no-vscode", "Skip generating VS Code configuration files")
 	// Headless mode options
 	.option("--headless", "Run in non-interactive headless mode", false)
 	.option(
 		"--bootstrap",
-		"Install missing CLIs (gh, vercel, supabase) before running",
+		"Install missing CLIs (gh, vercel) before running",
 		false,
 	)
 	.option(
@@ -76,16 +68,6 @@ export const createCommand = new Command()
 	.option("--github-org <org>", "GitHub organization (env: HATCH_GITHUB_ORG)")
 	.option("--vercel-token <token>", "Vercel access token (env: VERCEL_TOKEN)")
 	.option("--vercel-team <id>", "Vercel team ID (env: HATCH_VERCEL_TEAM)")
-	.option(
-		"--supabase-token <token>",
-		"Supabase access token (env: SUPABASE_ACCESS_TOKEN)",
-	)
-	.option("--supabase-org <id>", "Supabase org ID (env: HATCH_SUPABASE_ORG)")
-	.option(
-		"--supabase-region <region>",
-		"Supabase region (default: us-east-1)",
-		"us-east-1",
-	)
 	.option(
 		"--conflict-strategy <strategy>",
 		"How to handle name conflicts: suffix or fail",
@@ -102,29 +84,20 @@ export const createCommand = new Command()
 					process.exit(1);
 				}
 
-				// Validate: --convex and --workos are mutually exclusive
-				if (options.convex && options.workos) {
-					log.error(
-						"--convex and --workos are mutually exclusive. Convex uses Better Auth only.",
-					);
-					process.exit(1);
-				}
-
-				// Get project options (skip prompts in headless mode)
+				// Get project name (skip prompts in headless mode)
 				let inputName: string;
-				let useWorkOS: boolean;
-				const useConvex = options.convex;
 
 				if (options.headless) {
 					inputName = projectName as string;
-					useWorkOS = options.workos;
 				} else {
-					const projectOptions = await getProjectPrompts(
-						projectName,
-						options.workos,
-					);
-					inputName = projectOptions.projectName;
-					useWorkOS = projectOptions.useWorkOS;
+					if (projectName) {
+						inputName = projectName;
+					} else {
+						// Import prompts only when needed for interactive mode
+						const { getProjectPrompts } = await import("../utils/prompts.js");
+						const projectOptions = await getProjectPrompts(projectName);
+						inputName = projectOptions.projectName;
+					}
 				}
 
 				const includeVSCode = options.vscode;
@@ -156,12 +129,6 @@ export const createCommand = new Command()
 				if (!options.headless || !options.quiet) {
 					log.blank();
 					log.info(`Creating project "${name}"...`);
-					log.info(
-						`Auth provider: ${useWorkOS ? "WorkOS" : "Better Auth (Email OTP)"}`,
-					);
-					log.info(
-						`Backend: ${useConvex ? "Convex (serverless)" : "Supabase (cloud)"}`,
-					);
 					log.info(`VS Code config: ${includeVSCode ? "included" : "skipped"}`);
 					if (options.headless) {
 						log.info("Mode: headless");
@@ -200,94 +167,79 @@ export const createCommand = new Command()
 					);
 					await writeFile(
 						path.join(projectPath, "CLAUDE.md"),
-						templates.generateClaudeMd(name, useWorkOS, useConvex),
+						templates.generateClaudeMd(name),
 					);
 					await writeFile(
 						path.join(projectPath, "README.md"),
-						templates.generateReadme(name, useConvex),
+						templates.generateReadme(name),
 					);
 				});
 
-				// Generate backend configuration
-				if (useConvex) {
-					await withSpinner("Setting up Convex configuration", async () => {
-						const convexDir = path.join(projectPath, "apps", "web", "convex");
-						await ensureDir(convexDir);
-						await ensureDir(path.join(convexDir, "_generated"));
-						await ensureDir(path.join(convexDir, "betterAuth"));
+				// Generate Convex configuration
+				await withSpinner("Setting up Convex configuration", async () => {
+					const convexDir = path.join(projectPath, "apps", "web", "convex");
+					await ensureDir(convexDir);
+					await ensureDir(path.join(convexDir, "_generated"));
+					await ensureDir(path.join(convexDir, "betterAuth"));
 
-						// App-level Convex files
-						await writeFile(
-							path.join(convexDir, "schema.ts"),
-							templates.generateConvexSchema(),
-						);
-						await writeFile(
-							path.join(convexDir, "functions.ts"),
-							templates.generateConvexFunctions(),
-						);
-						await writeFile(
-							path.join(convexDir, "seed.ts"),
-							templates.generateConvexSeed(),
-						);
-						await writeFile(
-							path.join(convexDir, "convex.config.ts"),
-							templates.generateConvexConvexConfig(),
-						);
-						await writeFile(
-							path.join(convexDir, "auth.config.ts"),
-							templates.generateConvexAuthConfigTs(),
-						);
-						await writeFile(
-							path.join(convexDir, "http.ts"),
-							templates.generateConvexHttp(),
-						);
+					// App-level Convex files
+					await writeFile(
+						path.join(convexDir, "schema.ts"),
+						templates.generateConvexSchema(),
+					);
+					await writeFile(
+						path.join(convexDir, "functions.ts"),
+						templates.generateConvexFunctions(),
+					);
+					await writeFile(
+						path.join(convexDir, "seed.ts"),
+						templates.generateConvexSeed(),
+					);
+					await writeFile(
+						path.join(convexDir, "convex.config.ts"),
+						templates.generateConvexConvexConfig(),
+					);
+					await writeFile(
+						path.join(convexDir, "auth.config.ts"),
+						templates.generateConvexAuthConfigTs(),
+					);
+					await writeFile(
+						path.join(convexDir, "http.ts"),
+						templates.generateConvexHttp(),
+					);
 
-						// Better Auth component files
-						await writeFile(
-							path.join(convexDir, "betterAuth", "convex.config.ts"),
-							templates.generateConvexBetterAuthComponentConfig(),
-						);
-						await writeFile(
-							path.join(convexDir, "betterAuth", "auth.ts"),
-							templates.generateConvexBetterAuthModule(),
-						);
-						await writeFile(
-							path.join(convexDir, "betterAuth", "schema.ts"),
-							templates.generateConvexBetterAuthSchema(),
-						);
-						await writeFile(
-							path.join(convexDir, "betterAuth", "adapter.ts"),
-							templates.generateConvexBetterAuthAdapter(),
-						);
+					// Better Auth component files
+					await writeFile(
+						path.join(convexDir, "betterAuth", "convex.config.ts"),
+						templates.generateConvexBetterAuthComponentConfig(),
+					);
+					await writeFile(
+						path.join(convexDir, "betterAuth", "auth.ts"),
+						templates.generateConvexBetterAuthModule(),
+					);
+					await writeFile(
+						path.join(convexDir, "betterAuth", "schema.ts"),
+						templates.generateConvexBetterAuthSchema(),
+					);
+					await writeFile(
+						path.join(convexDir, "betterAuth", "adapter.ts"),
+						templates.generateConvexBetterAuthAdapter(),
+					);
 
-						// Stubs for _generated/ (replaced by `npx convex dev`)
-						await writeFile(
-							path.join(convexDir, "_generated", "server.ts"),
-							templates.generateConvexServerStub(),
-						);
-						await writeFile(
-							path.join(convexDir, "_generated", "dataModel.ts"),
-							templates.generateConvexDataModelStub(),
-						);
-						await writeFile(
-							path.join(convexDir, "_generated", "api.ts"),
-							templates.generateConvexApiStub(),
-						);
-					});
-				} else {
-					await withSpinner("Setting up Supabase configuration", async () => {
-						await ensureDir(path.join(projectPath, "supabase"));
-
-						await writeFile(
-							path.join(projectPath, "supabase", "config.toml"),
-							templates.generateSupabaseConfig(),
-						);
-						await writeFile(
-							path.join(projectPath, "supabase", "seed.sql"),
-							templates.generateSupabaseSeedSql(useWorkOS),
-						);
-					});
-				}
+					// Stubs for _generated/ (replaced by `npx convex dev`)
+					await writeFile(
+						path.join(convexDir, "_generated", "server.ts"),
+						templates.generateConvexServerStub(),
+					);
+					await writeFile(
+						path.join(convexDir, "_generated", "dataModel.ts"),
+						templates.generateConvexDataModelStub(),
+					);
+					await writeFile(
+						path.join(convexDir, "_generated", "api.ts"),
+						templates.generateConvexApiStub(),
+					);
+				});
 
 				// Generate VS Code configuration
 				if (includeVSCode) {
@@ -309,48 +261,9 @@ export const createCommand = new Command()
 					await ensureDir(path.join(projectPath, "scripts"));
 					await ensureDir(path.join(projectPath, ".claude"));
 
-					if (!useConvex) {
-						// Supabase scripts
-						const supabaseSetupPath = path.join(
-							projectPath,
-							"scripts",
-							"supabase-setup",
-						);
-						const supabaseBranchPath = path.join(
-							projectPath,
-							"scripts",
-							"supabase-branch",
-						);
-						const supabaseEnvPath = path.join(
-							projectPath,
-							"scripts",
-							"supabase-env",
-						);
-
-						await writeFile(
-							supabaseSetupPath,
-							templates.generateSupabaseSetupScript(),
-						);
-						await writeFile(
-							supabaseBranchPath,
-							templates.generateSupabaseBranchScript(),
-						);
-						await writeFile(
-							supabaseEnvPath,
-							templates.generateSupabaseEnvScript(),
-						);
-
-						await setExecutable(supabaseSetupPath);
-						await setExecutable(supabaseBranchPath);
-						await setExecutable(supabaseEnvPath);
-					}
-
 					// Setup script (generated for all projects)
 					const setupScriptPath = path.join(projectPath, "scripts", "setup");
-					await writeFile(
-						setupScriptPath,
-						templates.generateSetupScript(name, useWorkOS),
-					);
+					await writeFile(setupScriptPath, templates.generateSetupScript(name));
 					await setExecutable(setupScriptPath);
 
 					// Claude settings and skills
@@ -427,10 +340,7 @@ export const createCommand = new Command()
 							repo: "https://github.com/vercel-labs/agent-browser",
 							skills: ["agent-browser"],
 						},
-					];
-
-					if (useConvex) {
-						skillsByRepo.push({
+						{
 							repo: "https://github.com/get-convex/convex-agent-plugins",
 							skills: [
 								"convex-quickstart",
@@ -440,8 +350,8 @@ export const createCommand = new Command()
 								"migration-helper",
 								"components-guide",
 							],
-						});
-					}
+						},
+					];
 
 					for (const { repo, skills } of skillsByRepo) {
 						try {
@@ -491,7 +401,7 @@ export const createCommand = new Command()
 					// Generate web app files
 					await writeFile(
 						path.join(webPath, "package.json"),
-						templates.generateWebPackageJson(useWorkOS, useConvex),
+						templates.generateWebPackageJson(),
 					);
 					await writeFile(
 						path.join(webPath, "next.config.ts"),
@@ -511,11 +421,11 @@ export const createCommand = new Command()
 					);
 					await writeFile(
 						path.join(webPath, ".env.local.example"),
-						templates.generateEnvExample(useWorkOS, name, useConvex),
+						templates.generateEnvExample(name),
 					);
 					await writeFile(
 						path.join(webPath, "vercel.json"),
-						templates.generateVercelJson(useConvex),
+						templates.generateVercelJson(),
 					);
 					await writeFile(
 						path.join(webPath, ".gitignore"),
@@ -529,7 +439,7 @@ export const createCommand = new Command()
 					// App files
 					await writeFile(
 						path.join(webPath, "app", "layout.tsx"),
-						templates.generateRootLayout(useWorkOS, name),
+						templates.generateRootLayout(name),
 					);
 					await writeFile(
 						path.join(webPath, "app", "globals.css"),
@@ -586,102 +496,41 @@ export const createCommand = new Command()
 					);
 				});
 
-				// Generate database files (Supabase only - Convex uses convex/ directory)
-				if (!useConvex) {
-					await withSpinner("Setting up database", async () => {
-						await writeFile(
-							path.join(webPath, "db", "index.ts"),
-							templates.generateDbIndex(),
-						);
-						await writeFile(
-							path.join(webPath, "db", "schema.ts"),
-							templates.generateDbSchema(useWorkOS),
-						);
-						await writeFile(
-							path.join(webPath, "drizzle.config.ts"),
-							templates.generateDrizzleConfig(),
-						);
-					});
-				}
-
-				// Generate auth files
+				// Generate auth files (Convex + Better Auth)
 				await withSpinner("Setting up authentication", async () => {
-					if (useWorkOS) {
-						// WorkOS auth
-						await writeFile(
-							path.join(webPath, "app", "(auth)", "callback", "route.ts"),
-							templates.generateWorkOSCallback(),
-						);
-						await writeFile(
-							path.join(webPath, "app", "(auth)", "login", "page.tsx"),
-							templates.generateWorkOSLoginPage(),
-						);
-						await writeFile(
-							path.join(webPath, "proxy.ts"),
-							templates.generateWorkOSProxy(),
-						);
-					} else if (useConvex) {
-						// Better Auth with Convex component
-						await writeFile(
-							path.join(webPath, "lib", "auth.ts"),
-							templates.generateConvexAuthConfig(),
-						);
-						await writeFile(
-							path.join(webPath, "lib", "auth-client.ts"),
-							templates.generateConvexAuthClient(),
-						);
-						await writeFile(
-							path.join(webPath, "app", "api", "auth", "[...all]", "route.ts"),
-							templates.generateConvexAuthRouteHandler(),
-						);
-						await writeFile(
-							path.join(webPath, "app", "(auth)", "login", "page.tsx"),
-							templates.generateLoginPage(),
-						);
-						await writeFile(
-							path.join(webPath, "app", "(auth)", "verify-otp", "page.tsx"),
-							templates.generateVerifyOTPPage(),
-						);
-						await writeFile(
-							path.join(webPath, "proxy.ts"),
-							templates.generateBetterAuthProxy(),
-						);
-						await writeFile(
-							path.join(
-								webPath,
-								"components",
-								"providers",
-								"convex-provider.tsx",
-							),
-							templates.generateConvexProvider(),
-						);
-					} else {
-						// Better Auth with Drizzle/Supabase
-						await writeFile(
-							path.join(webPath, "lib", "auth.ts"),
-							templates.generateBetterAuthConfig(),
-						);
-						await writeFile(
-							path.join(webPath, "lib", "auth-client.ts"),
-							templates.generateBetterAuthClient(),
-						);
-						await writeFile(
-							path.join(webPath, "app", "api", "auth", "[...all]", "route.ts"),
-							templates.generateBetterAuthRouteHandler(),
-						);
-						await writeFile(
-							path.join(webPath, "app", "(auth)", "login", "page.tsx"),
-							templates.generateLoginPage(),
-						);
-						await writeFile(
-							path.join(webPath, "app", "(auth)", "verify-otp", "page.tsx"),
-							templates.generateVerifyOTPPage(),
-						);
-						await writeFile(
-							path.join(webPath, "proxy.ts"),
-							templates.generateBetterAuthProxy(),
-						);
-					}
+					await writeFile(
+						path.join(webPath, "lib", "auth.ts"),
+						templates.generateConvexAuthConfig(),
+					);
+					await writeFile(
+						path.join(webPath, "lib", "auth-client.ts"),
+						templates.generateConvexAuthClient(),
+					);
+					await writeFile(
+						path.join(webPath, "app", "api", "auth", "[...all]", "route.ts"),
+						templates.generateConvexAuthRouteHandler(),
+					);
+					await writeFile(
+						path.join(webPath, "app", "(auth)", "login", "page.tsx"),
+						templates.generateLoginPage(),
+					);
+					await writeFile(
+						path.join(webPath, "app", "(auth)", "verify-otp", "page.tsx"),
+						templates.generateVerifyOTPPage(),
+					);
+					await writeFile(
+						path.join(webPath, "proxy.ts"),
+						templates.generateBetterAuthProxy(),
+					);
+					await writeFile(
+						path.join(
+							webPath,
+							"components",
+							"providers",
+							"convex-provider.tsx",
+						),
+						templates.generateConvexProvider(),
+					);
 				});
 
 				// Generate AI and workflow files
@@ -712,7 +561,7 @@ export const createCommand = new Command()
 							"[runId]",
 							"route.ts",
 						),
-						templates.generateWorkflowProgressRoute({ useWorkOS }),
+						templates.generateWorkflowProgressRoute(),
 					);
 					await writeFile(
 						path.join(webPath, "hooks", "use-workflow-progress.ts"),
@@ -740,7 +589,7 @@ export const createCommand = new Command()
 				await withSpinner("Setting up dashboard", async () => {
 					await writeFile(
 						path.join(webPath, "app", "(app)", "dashboard", "page.tsx"),
-						templates.generateDashboardPage(useWorkOS),
+						templates.generateDashboardPage(),
 					);
 					await writeFile(
 						path.join(
@@ -764,19 +613,17 @@ export const createCommand = new Command()
 						),
 						templates.generateDashboardSkeleton(),
 					);
-					if (!useWorkOS) {
-						await writeFile(
-							path.join(
-								webPath,
-								"app",
-								"(app)",
-								"dashboard",
-								"_components",
-								"sign-out-button.tsx",
-							),
-							templates.generateSignOutButton(),
-						);
-					}
+					await writeFile(
+						path.join(
+							webPath,
+							"app",
+							"(app)",
+							"dashboard",
+							"_components",
+							"sign-out-button.tsx",
+						),
+						templates.generateSignOutButton(),
+					);
 				});
 
 				// Generate test setup
@@ -802,9 +649,7 @@ export const createCommand = new Command()
 					// Test utilities
 					await writeFile(
 						path.join(webPath, "__tests__", "utils", "test-db.ts"),
-						useConvex
-							? templates.generateConvexTestDbUtils()
-							: templates.generateTestDbUtils(name, useWorkOS),
+						templates.generateConvexTestDbUtils(),
 					);
 					await writeFile(
 						path.join(webPath, "__tests__", "utils", "mocks.ts"),
@@ -818,17 +663,11 @@ export const createCommand = new Command()
 					// Test factories
 					await writeFile(
 						path.join(webPath, "__tests__", "factories", "user.ts"),
-						templates.generateUserFactory(useWorkOS),
+						templates.generateUserFactory(),
 					);
-					if (useWorkOS) {
-						await writeFile(
-							path.join(webPath, "__tests__", "factories", "organization.ts"),
-							templates.generateOrganizationFactory(),
-						);
-					}
 					await writeFile(
 						path.join(webPath, "__tests__", "factories", "index.ts"),
-						templates.generateFactoriesIndex(useWorkOS),
+						templates.generateFactoriesIndex(),
 					);
 
 					// Example tests
@@ -845,14 +684,6 @@ export const createCommand = new Command()
 						),
 						templates.generateAiTriggerTest(),
 					);
-					if (!useConvex) {
-						await writeFile(
-							path.join(webPath, "__tests__", "integration", "db.test.ts"),
-							useWorkOS
-								? templates.generateWorkOSDbTest(name)
-								: templates.generateDbTest(name),
-						);
-					}
 				});
 
 				// Generate services layer
@@ -861,7 +692,7 @@ export const createCommand = new Command()
 
 					await writeFile(
 						path.join(webPath, "services", "user.ts"),
-						templates.generateUserService(useWorkOS),
+						templates.generateUserService(),
 					);
 					await writeFile(
 						path.join(webPath, "services", "index.ts"),
@@ -876,7 +707,7 @@ export const createCommand = new Command()
 					// Safe action client
 					await writeFile(
 						path.join(webPath, "lib", "safe-action.ts"),
-						templates.generateSafeAction(useWorkOS),
+						templates.generateSafeAction(),
 					);
 
 					// Logger (server and client)
@@ -981,7 +812,7 @@ export const createCommand = new Command()
 					);
 					await writeFile(
 						path.join(projectPath, ".github", "workflows", "test.yml"),
-						templates.generateTestWorkflow(name, useConvex),
+						templates.generateTestWorkflow(name),
 					);
 				});
 
@@ -1004,10 +835,6 @@ export const createCommand = new Command()
 						githubOrg: options.githubOrg,
 						vercelToken: options.vercelToken,
 						vercelTeam: options.vercelTeam,
-						supabaseToken: options.supabaseToken,
-						supabaseOrg: options.supabaseOrg,
-						supabaseRegion: options.supabaseRegion,
-						backendProvider: useConvex ? "convex" : "supabase",
 						conflictStrategy: options.conflictStrategy,
 						json: options.json,
 						quiet: options.quiet,
@@ -1019,7 +846,6 @@ export const createCommand = new Command()
 						name,
 						projectPath,
 						headlessOptions,
-						useWorkOS,
 					);
 
 					outputResult(result, options.json, options.quiet);
@@ -1043,12 +869,7 @@ export const createCommand = new Command()
 				log.blank();
 
 				log.info("Required environment variables:");
-				if (useWorkOS) {
-					log.step("WORKOS_CLIENT_ID      # From WorkOS dashboard");
-					log.step("WORKOS_API_KEY        # From WorkOS dashboard");
-				} else {
-					log.step("RESEND_API_KEY        # From resend.com (for email OTP)");
-				}
+				log.step("RESEND_API_KEY        # From resend.com (for email OTP)");
 				log.step("AI_GATEWAY_API_KEY    # From Vercel AI Gateway");
 				log.blank();
 			} catch (error) {

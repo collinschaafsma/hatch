@@ -84,61 +84,14 @@ export async function resolveConfig(
 		);
 	}
 
-	const backendProvider = options.backendProvider ?? "supabase";
+	// Convex resolution (always required)
+	const convexAccessToken =
+		config?.convex?.accessToken ?? process.env.CONVEX_ACCESS_TOKEN;
 
-	// Supabase resolution (only required when using supabase backend)
-	let supabaseConfig:
-		| { token: string; org: string; region: string }
-		| undefined;
-	if (backendProvider === "supabase") {
-		const supabaseToken =
-			options.supabaseToken ??
-			config?.supabase?.token ??
-			process.env.SUPABASE_ACCESS_TOKEN;
-
-		if (!supabaseToken) {
-			throw new Error(
-				"Supabase token is required. Provide via --supabase-token, hatch.json, or SUPABASE_ACCESS_TOKEN env var.",
-			);
-		}
-
-		const supabaseOrg =
-			options.supabaseOrg ??
-			config?.supabase?.org ??
-			process.env.HATCH_SUPABASE_ORG;
-
-		if (!supabaseOrg) {
-			throw new Error(
-				"Supabase org is required. Provide via --supabase-org, hatch.json, or HATCH_SUPABASE_ORG env var.",
-			);
-		}
-
-		const supabaseRegion =
-			options.supabaseRegion ??
-			config?.supabase?.region ??
-			process.env.HATCH_SUPABASE_REGION ??
-			"us-east-1";
-
-		supabaseConfig = {
-			token: supabaseToken,
-			org: supabaseOrg,
-			region: supabaseRegion,
-		};
-	}
-
-	// Convex resolution (only required when using convex backend)
-	let convexConfig: { accessToken: string } | undefined;
-	if (backendProvider === "convex") {
-		const convexAccessToken =
-			config?.convex?.accessToken ?? process.env.CONVEX_ACCESS_TOKEN;
-
-		if (!convexAccessToken) {
-			throw new Error(
-				"Convex access token is required. Provide via hatch.json convex.accessToken or CONVEX_ACCESS_TOKEN env var.",
-			);
-		}
-
-		convexConfig = { accessToken: convexAccessToken };
+	if (!convexAccessToken) {
+		throw new Error(
+			"Convex access token is required. Provide via hatch.json convex.accessToken or CONVEX_ACCESS_TOKEN env var.",
+		);
 	}
 
 	return {
@@ -152,9 +105,7 @@ export async function resolveConfig(
 			token: vercelToken,
 			team: vercelTeam,
 		},
-		supabase: supabaseConfig,
-		convex: convexConfig,
-		backendProvider,
+		convex: { accessToken: convexAccessToken },
 		conflictStrategy: options.conflictStrategy ?? "suffix",
 		json: options.json ?? false,
 		quiet: options.quiet ?? false,

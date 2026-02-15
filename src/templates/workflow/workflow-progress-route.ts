@@ -1,21 +1,11 @@
-export function generateWorkflowProgressRoute(options: {
-	useWorkOS: boolean;
-}): string {
-	const authCheck = options.useWorkOS
-		? `// Authenticate user
-		const { user } = await withAuth();
-		if (!user) {
-			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-		}`
-		: `// Authenticate user
+export function generateWorkflowProgressRoute(): string {
+	const authCheck = `// Authenticate user
 		const session = await getSession();
 		if (!session?.user) {
 			return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 		}`;
 
-	const authImport = options.useWorkOS
-		? `import { withAuth } from "@workos-inc/authkit-nextjs";`
-		: `import { getSession } from "@/lib/auth";`;
+	const authImport = `import { getSession } from "@/lib/auth";`;
 
 	return `import { NextResponse } from "next/server";
 import { getRun } from "workflow/api";

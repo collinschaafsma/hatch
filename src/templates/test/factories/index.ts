@@ -1,12 +1,6 @@
 export { generateUserFactory } from "./user.js";
-export { generateOrganizationFactory } from "./organization.js";
 
-export function generateFactoriesIndex(useWorkOS = false): string {
-	if (useWorkOS) {
-		return `export * from "./user";
-export * from "./organization";
-`;
-	}
+export function generateFactoriesIndex(): string {
 	return `export * from "./user";
 `;
 }
