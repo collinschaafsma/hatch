@@ -14,6 +14,13 @@ export function generateNextSteps(result: HeadlessResult): string[] {
 		);
 	}
 
+	// Preview deploy key
+	if (result.convex) {
+		steps.push(
+			`Set up Convex preview deployments: generate a preview deploy key at https://dashboard.convex.dev then run: hatch set-preview-deploy-key <key> --project ${result.project?.name || "<project-name>"}`,
+		);
+	}
+
 	// Better Auth env vars
 	steps.push("Add RESEND_API_KEY to Vercel env vars (from resend.com)");
 

@@ -3,12 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import fs from "fs-extra";
-import {
-	createConvexFeatureProject,
-	deleteConvexProject,
-} from "../headless/convex.js";
-import { setVercelBranchEnvVars } from "../headless/vercel.js";
-import type { EnvVar, SpikeResult, VMRecord } from "../types/index.js";
+import { parseConvexDeployUrl } from "../headless/convex.js";
+import type { SpikeResult, VMRecord } from "../types/index.js";
 import {
 	checkExeDevAccess,
 	exeDevNew,
@@ -212,8 +208,7 @@ async function handleContinuation(
 		}
 
 		const projectPath = `~/${project.github.repo}`;
-		const convexDeployKey = vm.convexFeatureProject?.deployKey || "";
-		const envPrefix = `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.claude/local/bin:$PATH" && export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="${convexDeployKey}" &&`;
+		const envPrefix = `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.claude/local/bin:$PATH" && export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="$(grep '^CONVEX_DEPLOY_KEY=' ${projectPath}/apps/web/.env.local | cut -d= -f2-)" &&`;
 
 		// Step 6: Update VM record to running
 		const currentIteration = (vm.spikeIterations || 1) + 1;
@@ -425,7 +420,6 @@ export const spikeCommand = new Command()
 	.action(async (featureName: string, options: SpikeCommandOptions) => {
 		let vmName: string | undefined;
 		let sshHost: string | undefined;
-		let convexFeatureProjectId: string | undefined;
 
 		const outputJson = (result: SpikeResult) => {
 			if (options.json) {
@@ -468,6 +462,27 @@ export const spikeCommand = new Command()
 				if (!options.json) {
 					log.error(`Project not found: ${options.project}`);
 					log.info("Run 'hatch list --json' to see available projects.");
+				}
+				process.exit(1);
+			}
+
+			// Require preview deploy key
+			if (!project.convex.previewDeployKey) {
+				const result: SpikeResult = {
+					status: "failed",
+					vmName: "",
+					sshHost: "",
+					feature: featureName,
+					project: options.project,
+					error: "Convex preview deploy key not configured.",
+				};
+				outputJson(result);
+				if (!options.json) {
+					log.error("Convex preview deploy key not configured.");
+					log.info("Generate one at https://dashboard.convex.dev then run:");
+					log.step(
+						`hatch set-preview-deploy-key <key> --project ${options.project}`,
+					);
 				}
 				process.exit(1);
 			}
@@ -548,8 +563,6 @@ export const spikeCommand = new Command()
 			}
 
 			const vercelToken = config.vercel?.token || "";
-			const convexAccessToken = config.convex?.accessToken || "";
-			const customEnvVars: EnvVar[] | undefined = config.envVars;
 
 			// Step 3: Create new VM
 			const vmSpinner = options.json
@@ -645,68 +658,9 @@ export const spikeCommand = new Command()
 				throw error;
 			}
 
-			// Convex setup: Create feature project via API (local), then deploy on VM
-			if (!convexAccessToken) {
-				throw new Error(
-					"Convex access token not configured. Run 'hatch config' and configure Convex.",
-				);
-			}
-
 			const appUrl = `https://${vmName}.exe.xyz`;
 
-			let convexFeatureProject:
-				| {
-						projectId: string;
-						projectSlug: string;
-						deploymentName: string;
-						deploymentUrl: string;
-						deployKey: string;
-				  }
-				| undefined;
-
-			// Local: Create Convex feature project via Management API
-			convexFeatureProject = await createConvexFeatureProject(
-				project.convex.projectSlug || project.name,
-				featureName,
-				convexAccessToken,
-				appUrl,
-				!!options.json,
-				customEnvVars,
-			);
-			convexFeatureProjectId = convexFeatureProject.projectId;
-
-			// VM: Deploy code to the feature project using its deploy key
-			const deploySpinner = options.json
-				? null
-				: createSpinner("Deploying Convex schema to feature project").start();
-			try {
-				await sshExec(
-					sshHost,
-					`${envPrefix} export CONVEX_DEPLOY_KEY="${convexFeatureProject.deployKey}" && cd ${projectPath}/apps/web && npx convex deploy --yes`,
-				);
-				deploySpinner?.succeed("Convex schema deployed to feature project");
-			} catch (error) {
-				deploySpinner?.fail("Failed to deploy Convex schema");
-				throw error;
-			}
-
-			// VM: Seed the feature deployment
-			const seedSpinner = options.json
-				? null
-				: createSpinner("Seeding Convex feature deployment").start();
-			try {
-				await sshExec(
-					sshHost,
-					`${envPrefix} export CONVEX_DEPLOY_KEY="${convexFeatureProject.deployKey}" && cd ${projectPath}/apps/web && npx convex run seed:seedData`,
-				);
-				seedSpinner?.succeed("Convex feature deployment seeded");
-			} catch {
-				seedSpinner?.warn(
-					"Could not seed feature deployment. You may need to run seed manually.",
-				);
-			}
-
-			// Pull Vercel env vars
+			// Pull Vercel env vars (includes the preview deploy key as CONVEX_DEPLOY_KEY)
 			const vercelEnvSpinner = options.json
 				? null
 				: createSpinner("Pulling environment variables from Vercel").start();
@@ -737,23 +691,50 @@ export const spikeCommand = new Command()
 				`cd ${projectPath}/apps/web && echo 'ALLOWED_DEV_ORIGINS=${exeDevOrigin}' >> .env.local`,
 			);
 
-			// Update .env.local with feature project URL and app URLs
+			// Deploy to Convex preview deployment using the preview deploy key from .env.local
+			const deploySpinner = options.json
+				? null
+				: createSpinner("Creating Convex preview deployment").start();
+			let convexPreviewDeployment:
+				| { deploymentUrl: string; deploymentName: string }
+				| undefined;
+			try {
+				const { stdout: deployOutput } = await sshExec(
+					sshHost,
+					`${envPrefix} cd ${projectPath}/apps/web && npx convex deploy --yes 2>&1`,
+				);
+				convexPreviewDeployment = parseConvexDeployUrl(deployOutput);
+				if (convexPreviewDeployment) {
+					deploySpinner?.succeed(
+						`Convex preview deployment created: ${convexPreviewDeployment.deploymentName}`,
+					);
+				} else {
+					deploySpinner?.succeed("Convex preview deployment created");
+				}
+			} catch (error) {
+				deploySpinner?.fail("Failed to create Convex preview deployment");
+				throw error;
+			}
+
+			// Update .env.local with preview deployment URL and app URLs
 			const convexEnvSpinner = options.json
 				? null
 				: createSpinner("Configuring Convex environment variables").start();
 			try {
-				const siteUrl = convexFeatureProject.deploymentUrl.replace(
-					".convex.cloud",
-					".convex.site",
-				);
-				await sshExec(
-					sshHost,
-					`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_CONVEX_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_CONVEX_URL=.*|NEXT_PUBLIC_CONVEX_URL=${convexFeatureProject.deploymentUrl}|' .env.local || echo 'NEXT_PUBLIC_CONVEX_URL=${convexFeatureProject.deploymentUrl}' >> .env.local)`,
-				);
-				await sshExec(
-					sshHost,
-					`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_CONVEX_SITE_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_CONVEX_SITE_URL=.*|NEXT_PUBLIC_CONVEX_SITE_URL=${siteUrl}|' .env.local || echo 'NEXT_PUBLIC_CONVEX_SITE_URL=${siteUrl}' >> .env.local)`,
-				);
+				if (convexPreviewDeployment) {
+					const siteUrl = convexPreviewDeployment.deploymentUrl.replace(
+						".convex.cloud",
+						".convex.site",
+					);
+					await sshExec(
+						sshHost,
+						`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_CONVEX_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_CONVEX_URL=.*|NEXT_PUBLIC_CONVEX_URL=${convexPreviewDeployment.deploymentUrl}|' .env.local || echo 'NEXT_PUBLIC_CONVEX_URL=${convexPreviewDeployment.deploymentUrl}' >> .env.local)`,
+					);
+					await sshExec(
+						sshHost,
+						`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_CONVEX_SITE_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_CONVEX_SITE_URL=.*|NEXT_PUBLIC_CONVEX_SITE_URL=${siteUrl}|' .env.local || echo 'NEXT_PUBLIC_CONVEX_SITE_URL=${siteUrl}' >> .env.local)`,
+					);
+				}
 				await sshExec(
 					sshHost,
 					`cd ${projectPath}/apps/web && (grep -q '^BETTER_AUTH_URL=' .env.local && sed -i 's|^BETTER_AUTH_URL=.*|BETTER_AUTH_URL=${appUrl}|' .env.local || echo 'BETTER_AUTH_URL=${appUrl}' >> .env.local)`,
@@ -769,14 +750,34 @@ export const spikeCommand = new Command()
 				);
 			}
 
+			// Seed the preview deployment
+			const seedSpinner = options.json
+				? null
+				: createSpinner("Seeding Convex preview deployment").start();
+			try {
+				await sshExec(
+					sshHost,
+					`${envPrefix} cd ${projectPath}/apps/web && npx convex run seed:seedData`,
+				);
+				seedSpinner?.succeed("Convex preview deployment seeded");
+			} catch {
+				seedSpinner?.warn(
+					"Could not seed preview deployment. You may need to run seed manually.",
+				);
+			}
+
 			// Write .claude/settings.local.json with Convex MCP server config
 			const mcpSpinner = options.json
 				? null
 				: createSpinner("Configuring Convex MCP server").start();
 			try {
-				const deploymentName = convexFeatureProject.deploymentUrl
-					.replace("https://", "")
-					.replace(".convex.cloud", "");
+				// Read CONVEX_DEPLOY_KEY from .env.local on the VM
+				const { stdout: deployKeyFromEnv } = await sshExec(
+					sshHost,
+					`cd ${projectPath}/apps/web && grep '^CONVEX_DEPLOY_KEY=' .env.local | cut -d= -f2-`,
+				);
+				const deployKey = deployKeyFromEnv.trim();
+				const deploymentName = convexPreviewDeployment?.deploymentName || "";
 				const mcpConfig = JSON.stringify(
 					{
 						mcpServers: {
@@ -785,7 +786,7 @@ export const spikeCommand = new Command()
 								args: ["-y", "@convex-dev/mcp-server"],
 								env: {
 									CONVEX_DEPLOYMENT: deploymentName,
-									CONVEX_DEPLOY_KEY: convexFeatureProject.deployKey,
+									CONVEX_DEPLOY_KEY: deployKey,
 								},
 							},
 						},
@@ -804,7 +805,7 @@ export const spikeCommand = new Command()
 				);
 			}
 
-			// Step 14: Install Claude Agent SDK and tsx
+			// Install Claude Agent SDK and tsx
 			const sdkSpinner = options.json
 				? null
 				: createSpinner("Installing Claude Agent SDK").start();
@@ -819,7 +820,7 @@ export const spikeCommand = new Command()
 				throw error;
 			}
 
-			// Step 15: Copy agent runner script to VM (into project so it finds node_modules)
+			// Copy agent runner script to VM
 			const agentScriptSpinner = options.json
 				? null
 				: createSpinner("Copying agent runner script").start();
@@ -838,14 +839,14 @@ export const spikeCommand = new Command()
 				`${projectPath}/agent-runner.ts`,
 			);
 
-			// Ensure gitignore entry exists (for projects created before this was in the template)
+			// Ensure gitignore entry exists
 			await sshExec(
 				sshHost,
 				`cd ${projectPath} && grep -q '^agent-runner.ts$' .gitignore 2>/dev/null || echo 'agent-runner.ts' >> .gitignore`,
 			);
 			agentScriptSpinner?.succeed("Agent runner script copied");
 
-			// Push branch to origin so Vercel can see it for per-branch env vars
+			// Push branch to origin
 			const pushSpinner = options.json
 				? null
 				: createSpinner("Pushing branch to origin").start();
@@ -860,48 +861,7 @@ export const spikeCommand = new Command()
 				throw error;
 			}
 
-			// Set per-branch Vercel env vars so preview deployments use this feature's Convex backend
-			if (convexFeatureProject) {
-				const vercelBranchSpinner = options.json
-					? null
-					: createSpinner(
-							"Setting per-branch Vercel environment variables",
-						).start();
-				try {
-					const siteUrlForVercel = convexFeatureProject.deploymentUrl.replace(
-						".convex.cloud",
-						".convex.site",
-					);
-					await setVercelBranchEnvVars(
-						project.vercel.projectId,
-						featureName,
-						[
-							{
-								key: "CONVEX_DEPLOY_KEY",
-								value: convexFeatureProject.deployKey,
-							},
-							{
-								key: "NEXT_PUBLIC_CONVEX_URL",
-								value: convexFeatureProject.deploymentUrl,
-							},
-							{
-								key: "NEXT_PUBLIC_CONVEX_SITE_URL",
-								value: siteUrlForVercel,
-							},
-						],
-						vercelToken,
-					);
-					vercelBranchSpinner?.succeed(
-						"Per-branch Vercel environment variables set",
-					);
-				} catch (error) {
-					vercelBranchSpinner?.warn(
-						`Could not set per-branch Vercel env vars: ${error instanceof Error ? error.message : error}`,
-					);
-				}
-			}
-
-			// Step 16: Save VM to local tracking (before starting agent)
+			// Save VM to local tracking (before starting agent)
 			const vmRecord: VMRecord = {
 				name: vmName,
 				sshHost,
@@ -909,14 +869,14 @@ export const spikeCommand = new Command()
 				feature: featureName,
 				createdAt: new Date().toISOString(),
 				githubBranch: featureName,
-				convexFeatureProject,
+				convexPreviewDeployment,
 				spikeStatus: "running",
 				spikeIterations: 1,
 				originalPrompt: options.prompt,
 			};
 			await addVM(vmRecord);
 
-			// Step 17: Start agent in background
+			// Start agent in background
 			const agentSpinner = options.json
 				? null
 				: createSpinner("Starting Claude agent").start();
@@ -928,11 +888,8 @@ export const spikeCommand = new Command()
 				.replace(/\$/g, "\\$")
 				.replace(/`/g, "\\`");
 
-			// Use nohup to run agent in background (use pnpm tsx since we installed it)
-			// Wrap in subshell and redirect stdin to fully detach from SSH
-			const convexDeployKeyExport = convexFeatureProject
-				? `export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="${convexFeatureProject.deployKey}" &&`
-				: "";
+			// Read deploy key from .env.local and export for agent
+			const convexDeployKeyExport = `export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="$(grep '^CONVEX_DEPLOY_KEY=' ${projectPath}/apps/web/.env.local | cut -d= -f2-)" &&`;
 			const agentCommand = `${envPrefix} ${convexDeployKeyExport} cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${featureName} --project ${project.name} > /dev/null 2>&1 < /dev/null &)`;
 
 			await sshExec(sshHost, agentCommand);
@@ -1081,31 +1038,6 @@ export const spikeCommand = new Command()
 					log.error(
 						`Failed to start spike: ${error instanceof Error ? error.message : error}`,
 					);
-				}
-			}
-
-			// Rollback: delete Convex feature project if it was created
-			if (convexFeatureProjectId) {
-				if (!options.json) {
-					log.info("Rolling back: deleting Convex feature project...");
-				}
-				try {
-					const rollbackConfig = await fs.readJson(
-						options.config || path.join(os.homedir(), ".hatch.json"),
-					);
-					await deleteConvexProject(
-						convexFeatureProjectId,
-						rollbackConfig.convex?.accessToken,
-					);
-					if (!options.json) {
-						log.success("Convex feature project deleted");
-					}
-				} catch {
-					if (!options.json) {
-						log.warn(
-							"Failed to delete Convex feature project. Delete manually from the Convex dashboard.",
-						);
-					}
 				}
 			}
 

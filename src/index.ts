@@ -10,6 +10,7 @@ import { destroyCommand } from "./commands/destroy.js";
 import { featureCommand } from "./commands/feature.js";
 import { listCommand } from "./commands/list.js";
 import { newCommand } from "./commands/new.js";
+import { setPreviewDeployKeyCommand } from "./commands/set-preview-deploy-key.js";
 import { spikeCommand } from "./commands/spike.js";
 import { updateCommand } from "./commands/update.js";
 
@@ -29,6 +30,7 @@ program.addCommand(configCommand);
 program.addCommand(configPushCommand);
 program.addCommand(createCommand);
 program.addCommand(destroyCommand);
+program.addCommand(setPreviewDeployKeyCommand);
 program.addCommand(updateCommand);
 
 // If no command is specified, default to help

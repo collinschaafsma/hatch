@@ -388,6 +388,21 @@ export async function deleteConvexProject(
 }
 
 /**
+ * Parse a Convex deployment URL from `npx convex deploy` stdout.
+ * Looks for https://<name>.convex.cloud pattern.
+ */
+export function parseConvexDeployUrl(
+	output: string,
+): { deploymentUrl: string; deploymentName: string } | undefined {
+	const match = output.match(/https:\/\/([\w-]+)\.convex\.cloud/);
+	if (!match) return undefined;
+	return {
+		deploymentUrl: match[0],
+		deploymentName: match[1],
+	};
+}
+
+/**
  * Create a separate Convex project for a feature branch.
  * Orchestrates: get teamId → create project → create deploy key → set env vars.
  * Returns all info needed to deploy code and track the project.

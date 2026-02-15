@@ -66,6 +66,22 @@ export async function listProjects(): Promise<ProjectRecord[]> {
 }
 
 /**
+ * Update a project in the store (partial update, merged with existing)
+ */
+export async function updateProject(
+	name: string,
+	updates: Partial<ProjectRecord>,
+): Promise<void> {
+	const store = await loadProjectStore();
+	const index = store.projects.findIndex((p) => p.name === name);
+	if (index === -1) {
+		throw new Error(`Project not found: ${name}`);
+	}
+	store.projects[index] = { ...store.projects[index], ...updates };
+	await saveProjectStore(store);
+}
+
+/**
  * Delete a project from the store
  */
 export async function deleteProject(name: string): Promise<void> {

@@ -134,6 +134,7 @@ export interface ProjectRecord {
 		projectSlug: string;
 		deployKey: string;
 		deploymentName: string;
+		previewDeployKey?: string;
 	};
 }
 
@@ -151,12 +152,16 @@ export interface VMRecord {
 	feature: string; // Feature name (e.g., "add-auth")
 	createdAt: string; // ISO timestamp
 	githubBranch: string; // e.g., "add-auth"
-	convexFeatureProject: {
+	convexFeatureProject?: {
 		projectId: string;
 		projectSlug: string; // e.g. "my-app-add-auth"
 		deploymentName: string; // e.g. "cool-penguin-123"
 		deploymentUrl: string;
 		deployKey: string;
+	};
+	convexPreviewDeployment?: {
+		deploymentUrl: string; // e.g. "https://happy-animal-123.convex.cloud"
+		deploymentName: string; // e.g. "happy-animal-123"
 	};
 	// Spike-specific fields (optional for feature VMs)
 	agentSessionId?: string; // For session resume

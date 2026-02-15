@@ -87,6 +87,41 @@ export async function setVercelBranchEnvVars(
 }
 
 /**
+ * Set a project-wide environment variable scoped to the "preview" target (not branch-scoped).
+ * Uses upsert to make it idempotent.
+ */
+export async function setVercelPreviewEnvVar(
+	projectId: string,
+	key: string,
+	value: string,
+	token: string,
+): Promise<void> {
+	const response = await fetch(
+		`https://api.vercel.com/v10/projects/${projectId}/env?upsert=true`,
+		{
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${token}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify([
+				{
+					key,
+					value,
+					type: "encrypted",
+					target: ["preview"],
+				},
+			]),
+		},
+	);
+
+	if (!response.ok) {
+		const error = await response.text();
+		throw new Error(`Failed to set Vercel preview env var: ${error}`);
+	}
+}
+
+/**
  * List env vars scoped to a specific git branch on a Vercel project.
  */
 async function listVercelBranchEnvVars(

@@ -6,6 +6,7 @@ import fs from "fs-extra";
 import { deleteConvexProject } from "../headless/convex.js";
 import { deleteVercelBranchEnvVars } from "../headless/vercel.js";
 import { exeDevRm } from "../utils/exe-dev.js";
+
 import { log } from "../utils/logger.js";
 import { getProject } from "../utils/project-store.js";
 import { createSpinner } from "../utils/spinner.js";
@@ -63,7 +64,12 @@ export const cleanCommand = new Command()
 				vercelToken = config.vercel?.token || "";
 			}
 
-			const { name: vmName, githubBranch, convexFeatureProject } = vmRecord;
+			const {
+				name: vmName,
+				githubBranch,
+				convexFeatureProject,
+				convexPreviewDeployment,
+			} = vmRecord;
 
 			// Show what will be deleted
 			log.info(`Feature: ${featureName}`);
@@ -72,16 +78,20 @@ export const cleanCommand = new Command()
 			if (githubBranch) {
 				log.step(`Git branch: ${githubBranch}`);
 			}
-			if (convexFeatureProject) {
+			if (convexPreviewDeployment) {
+				log.step(`Convex preview: ${convexPreviewDeployment.deploymentName}`);
+			} else if (convexFeatureProject) {
 				log.step(`Convex project: ${convexFeatureProject.projectSlug}`);
 			}
 			log.blank();
 
 			// Confirm deletion
 			if (!options.force) {
+				const confirmMessage = convexFeatureProject
+					? "Are you sure you want to delete this feature VM and its Convex project?"
+					: "Are you sure you want to delete this feature VM?";
 				const confirmed = await confirm({
-					message:
-						"Are you sure you want to delete this feature VM and its Convex project?",
+					message: confirmMessage,
 					default: false,
 				});
 
@@ -93,8 +103,14 @@ export const cleanCommand = new Command()
 
 			log.blank();
 
-			// Step 1: Delete Convex feature project
-			if (convexFeatureProject) {
+			// Step 1: Handle Convex cleanup
+			if (convexPreviewDeployment) {
+				// Preview deployment path: no project to delete, no branch env vars
+				log.info(
+					`Convex preview deployment "${convexPreviewDeployment.deploymentName}" will be cleaned up automatically.`,
+				);
+			} else if (convexFeatureProject) {
+				// Legacy separate project path: delete the project
 				const convexSpinner = createSpinner(
 					"Deleting Convex feature project",
 				).start();
@@ -114,7 +130,7 @@ export const cleanCommand = new Command()
 						`Failed to delete Convex project: ${error instanceof Error ? error.message : error}. Delete manually from the Convex dashboard.`,
 					);
 				}
-				// Clean up per-branch Vercel env vars
+				// Clean up per-branch Vercel env vars (only for legacy path)
 				if (vercelToken && githubBranch) {
 					const vercelEnvSpinner = createSpinner(
 						"Removing per-branch Vercel environment variables",
@@ -186,7 +202,11 @@ export const cleanCommand = new Command()
 			if (githubBranch) {
 				log.step(`Git branch: ${githubBranch}`);
 			}
-			if (convexFeatureProject) {
+			if (convexPreviewDeployment) {
+				log.step(
+					`Convex preview: ${convexPreviewDeployment.deploymentName} (auto-cleanup)`,
+				);
+			} else if (convexFeatureProject) {
 				log.step(`Convex project: ${convexFeatureProject.projectSlug}`);
 			}
 			log.blank();

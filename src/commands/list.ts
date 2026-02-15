@@ -90,7 +90,11 @@ export const listCommand = new Command()
 						log.info(`    ${vm.feature} (${vm.name})`);
 						log.info(`      SSH:      ssh ${vm.sshHost}`);
 						log.info(`      Branch:   ${vm.githubBranch}`);
-						if (vm.convexFeatureProject) {
+						if (vm.convexPreviewDeployment) {
+							log.info(
+								`      Convex:   ${vm.convexPreviewDeployment.deploymentName} (preview)`,
+							);
+						} else if (vm.convexFeatureProject) {
 							log.info(
 								`      Convex:   ${vm.convexFeatureProject.projectSlug}`,
 							);

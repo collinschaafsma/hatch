@@ -299,6 +299,16 @@ export const createCommand = new Command()
 						),
 						templates.generateDbMigrateSkill(),
 					);
+					await writeFile(
+						path.join(
+							projectPath,
+							".claude",
+							"skills",
+							"setup-preview-deploy",
+							"SKILL.md",
+						),
+						templates.generateSetupPreviewDeploySkill(),
+					);
 				});
 
 				// Install external Claude Code skills from GitHub repos

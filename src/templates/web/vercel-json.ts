@@ -1,6 +1,6 @@
 export function generateVercelJson(): string {
 	const buildCommand =
-		'if [ "$VERCEL_ENV" = "production" ]; then npx convex deploy && pnpm build; else (unset VERCEL VERCEL_ENV && npx convex deploy) && pnpm build; fi';
+		'if [ "$VERCEL_ENV" = "production" ]; then npx convex deploy && pnpm build; else npx convex deploy --cmd \'pnpm build\'; fi';
 
 	return `${JSON.stringify(
 		{
