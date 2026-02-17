@@ -42,5 +42,8 @@ coverage/
 
 # Hatch spike agent runner
 agent-runner.ts
+
+# Harness evidence (screenshots, captures)
+.harness/
 `;
 }

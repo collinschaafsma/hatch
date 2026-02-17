@@ -8,6 +8,7 @@ import { connectCommand } from "./commands/connect.js";
 import { createCommand } from "./commands/create.js";
 import { destroyCommand } from "./commands/destroy.js";
 import { featureCommand } from "./commands/feature.js";
+import { hardenCommand } from "./commands/harden.js";
 import { listCommand } from "./commands/list.js";
 import { newCommand } from "./commands/new.js";
 import { setPreviewDeployKeyCommand } from "./commands/set-preview-deploy-key.js";
@@ -30,6 +31,7 @@ program.addCommand(configCommand);
 program.addCommand(configPushCommand);
 program.addCommand(createCommand);
 program.addCommand(destroyCommand);
+program.addCommand(hardenCommand);
 program.addCommand(setPreviewDeployKeyCommand);
 program.addCommand(updateCommand);
 

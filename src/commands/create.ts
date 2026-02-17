@@ -826,6 +826,96 @@ export const createCommand = new Command()
 					);
 				});
 
+				// Set up agent harness (AGENTS.md, docs, risk contract, scripts)
+				await withSpinner("Setting up agent harness", async () => {
+					// AGENTS.md and harness.json at project root
+					await writeFile(
+						path.join(projectPath, "AGENTS.md"),
+						templates.generateAgentsMd(name),
+					);
+					await writeFile(
+						path.join(projectPath, "harness.json"),
+						templates.generateHarnessJson(name),
+					);
+
+					// docs/ knowledge base
+					await ensureDir(path.join(projectPath, "docs"));
+					await ensureDir(path.join(projectPath, "docs", "decisions"));
+					await writeFile(
+						path.join(projectPath, "docs", "architecture.md"),
+						templates.generateDocsArchitecture(name),
+					);
+					await writeFile(
+						path.join(projectPath, "docs", "patterns.md"),
+						templates.generateDocsPatterns(),
+					);
+					await writeFile(
+						path.join(projectPath, "docs", "api-contracts.md"),
+						templates.generateDocsApiContracts(),
+					);
+					await writeFile(
+						path.join(projectPath, "docs", "deployment.md"),
+						templates.generateDocsDeployment(name),
+					);
+					await writeFile(
+						path.join(projectPath, "docs", "troubleshooting.md"),
+						templates.generateDocsTroubleshooting(),
+					);
+					await writeFile(
+						path.join(projectPath, "docs", "decisions", "adr-template.md"),
+						templates.generateAdrTemplate(),
+					);
+
+					// scripts/harness/
+					await ensureDir(path.join(projectPath, "scripts", "harness"));
+					const riskTierPath = path.join(
+						projectPath,
+						"scripts",
+						"harness",
+						"risk-tier.mjs",
+					);
+					await writeFile(riskTierPath, templates.generateRiskTierScript());
+					await setExecutable(riskTierPath);
+
+					const docsDriftPath = path.join(
+						projectPath,
+						"scripts",
+						"harness",
+						"docs-drift-check.mjs",
+					);
+					await writeFile(docsDriftPath, templates.generateDocsDriftScript());
+					await setExecutable(docsDriftPath);
+
+					const uiCapturePath = path.join(
+						projectPath,
+						"scripts",
+						"harness",
+						"ui-capture.mjs",
+					);
+					await writeFile(uiCapturePath, templates.generateUiCaptureScript());
+					await setExecutable(uiCapturePath);
+
+					const uiVerifyPath = path.join(
+						projectPath,
+						"scripts",
+						"harness",
+						"ui-verify.mjs",
+					);
+					await writeFile(uiVerifyPath, templates.generateUiVerifyScript());
+					await setExecutable(uiVerifyPath);
+
+					// Risk policy gate workflow
+					await writeFile(
+						path.join(
+							projectPath,
+							".github",
+							"workflows",
+							"risk-policy-gate.yml",
+						),
+						templates.generateRiskPolicyGateWorkflow(),
+					);
+				});
+
 				// Format code with Biome
 				await withSpinner("Formatting code", async () => {
 					await pnpmRun("format", projectPath);
@@ -857,6 +947,29 @@ export const createCommand = new Command()
 						projectPath,
 						headlessOptions,
 					);
+
+					// Auto-harden branch protection (non-strict, solo-friendly)
+					if (result.success && result.github) {
+						try {
+							const { applyBranchProtection } = await import("./harden.js");
+							await applyBranchProtection({
+								owner: result.github.owner,
+								repo: result.github.repo,
+								branch: "main",
+								harnessPath: projectPath,
+								strict: false,
+								dryRun: false,
+								quiet: options.quiet,
+								token: options.githubToken,
+							});
+						} catch {
+							if (!options.quiet) {
+								log.warn(
+									"Could not auto-apply branch protection. Run 'hatch harden' manually.",
+								);
+							}
+						}
+					}
 
 					outputResult(result, options.json, options.quiet);
 

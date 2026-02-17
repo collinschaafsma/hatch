@@ -31,6 +31,13 @@ export function generateTurboJson(): string {
 					cache: false,
 					persistent: true,
 				},
+				"harness:risk-tier": {
+					cache: false,
+				},
+				"harness:pre-pr": {
+					dependsOn: ["lint", "typecheck", "test"],
+					cache: false,
+				},
 			},
 		},
 		null,

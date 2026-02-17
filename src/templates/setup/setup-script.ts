@@ -572,6 +572,36 @@ commit_and_deploy() {
 }
 
 # =============================================================================
+# Step 10: Apply Branch Protection (auto-harden)
+# =============================================================================
+
+harden_branch() {
+  print_header "Applying Branch Protection"
+
+  # Check if harness.json exists
+  if [[ ! -f "harness.json" ]]; then
+    print_warning "No harness.json found, skipping branch protection"
+    return 0
+  fi
+
+  # Check if hatch CLI is available
+  if ! command -v hatch &> /dev/null; then
+    print_warning "hatch CLI not found, skipping auto-harden"
+    print_step "Run 'hatch harden' manually after installing the CLI"
+    return 0
+  fi
+
+  print_step "Applying branch protection to main (solo-friendly, admins can bypass)..."
+  if hatch harden --branch main 2>/dev/null; then
+    print_success "Branch protection applied"
+    print_step "Admins can bypass checks (use 'hatch harden --strict' for team mode)"
+  else
+    print_warning "Could not apply branch protection automatically"
+    print_step "Run 'hatch harden' manually to configure branch protection"
+  fi
+}
+
+# =============================================================================
 # Main Execution
 # =============================================================================
 
@@ -594,6 +624,7 @@ main() {
   pull_vercel_env
   install_skills
   commit_and_deploy
+  harden_branch
   print_summary
 }
 

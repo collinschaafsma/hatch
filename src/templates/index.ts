@@ -60,3 +60,6 @@ export * from "./setup/index.js";
 
 // SEO templates
 export * from "./seo/index.js";
+
+// Harness templates (agent docs, risk contract, CI)
+export * from "./harness/index.js";
