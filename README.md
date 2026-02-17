@@ -364,6 +364,16 @@ The config command prompts to add custom environment variables that will be auto
 | `hatch list` | List projects with feature VMs |
 | `hatch clean <feature> --project <project>` | Delete feature VM and branches |
 
+### Hardening
+
+| Command | Description |
+|---------|-------------|
+| `hatch harden` | Apply branch protection from harness.json merge policy |
+| `hatch harden --dry-run` | Preview protection config without applying |
+| `hatch harden --strict` | Enforce on admins too (team mode) |
+| `hatch harden --project <name>` | Look up repo from project store |
+| `hatch harden --branch <branch>` | Target branch (default: main) |
+
 ### Remote Management
 
 | Command | Description |
@@ -405,9 +415,13 @@ my-app/
 │       └── __tests__/        # Vitest tests
 ├── packages/
 │   └── ui/                   # Shared shadcn/ui components
-├── scripts/                  # Setup scripts
+├── scripts/
+│   └── harness/              # Evidence capture scripts
+├── docs/                     # Architecture and design docs
 ├── .claude/                  # Claude Code configuration
 ├── .github/workflows/        # CI/CD
+├── harness.json              # Risk contract and merge policies
+├── AGENTS.md                 # Agent constraints and guidelines
 ├── CLAUDE.md                 # Claude Code context
 └── README.md                 # Generated project documentation
 ```
@@ -429,6 +443,101 @@ The generated project includes:
 |----------|-------------|
 | `checks.yml` | Lint and typecheck on PRs |
 | `test.yml` | Run tests |
+
+## Agent Harness
+
+Every generated project includes an agent harness that provides risk-aware merge policies, documentation drift detection, browser evidence capture, and branch protection. The harness is defined in `harness.json` at the project root and enforced via scripts and CI workflows.
+
+### What's Included
+
+- **`harness.json`** — Risk contract defining which files are high/medium/low risk and the corresponding merge policies
+- **`AGENTS.md`** — Constraints and guidelines for AI agents working in the codebase
+- **`scripts/harness/`** — Evidence capture and validation scripts
+- **`docs/`** — Architecture and design documentation
+- **CI workflows** — Automated checks that run harness validation on PRs
+
+### Risk Tiers
+
+Changes are classified by the files they touch:
+
+| Tier | Files | Merge Policy |
+|------|-------|--------------|
+| **High** | Schema, auth, security config | Human review required + all checks pass |
+| **Medium** | Services, API routes | Auto-merge with all checks passing |
+| **Low** | Everything else | Checks pass |
+
+### Auto-Hardening
+
+When `hatch new` creates a project, it automatically applies non-strict branch protection to the `main` branch after creating the GitHub repo. This requires PR reviews and status checks but allows admins to bypass (suitable for solo development). Use `hatch harden --strict` to enforce on admins too (recommended for teams).
+
+### Manual Hardening
+
+Use `hatch harden` to apply or update branch protection at any time:
+
+```bash
+hatch harden                    # Apply from harness.json
+hatch harden --dry-run          # Preview without applying
+hatch harden --strict           # Enforce on admins (team mode)
+hatch harden --project my-app   # Look up repo from project store
+```
+
+### Testing the Harness
+
+Test the full harness flow using a VM-based workflow:
+
+1. **Create a project with the harness:**
+   ```bash
+   pnpm dev new test-harness
+   ```
+
+2. **SSH into the VM and verify files exist:**
+   ```bash
+   ls harness.json AGENTS.md scripts/harness/ docs/
+   ```
+
+3. **Check risk tier (no changes = low):**
+   ```bash
+   pnpm harness:risk-tier
+   pnpm harness:risk-tier --json    # Machine-readable output
+   ```
+
+4. **Make a high-risk change and re-check:**
+   ```bash
+   # Edit a schema or auth file, then:
+   pnpm harness:risk-tier           # Should show "high"
+   ```
+
+5. **Check documentation drift:**
+   ```bash
+   pnpm harness:docs-drift
+   ```
+
+6. **Run full pre-PR validation:**
+   ```bash
+   pnpm harness:pre-pr
+   ```
+
+7. **Test browser evidence capture (graceful fallback without agent-browser):**
+   ```bash
+   pnpm harness:ui:capture-browser-evidence
+   pnpm harness:ui:verify-browser-evidence
+   ```
+
+8. **Verify branch protection was auto-applied:**
+   ```bash
+   gh api /repos/{owner}/{repo}/branches/main/protection
+   ```
+
+9. **Preview and upgrade protection:**
+   ```bash
+   hatch harden --dry-run           # Preview current config
+   hatch harden --strict            # Upgrade to team mode
+   ```
+
+10. **Clean up:**
+    ```bash
+    pnpm dev clean test-harness --project test-harness
+    ```
 
 ## Claude Code Skills
 

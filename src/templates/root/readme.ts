@@ -32,8 +32,12 @@ ${projectName}/
 │       └── __tests__/    # Vitest tests
 ├── packages/
 │   └── ui/               # Shared UI components
-├── scripts/              # Setup scripts
-└── .github/workflows/    # CI/CD workflows
+├── scripts/
+│   └── harness/          # Evidence capture scripts
+├── docs/                 # Architecture and design docs
+├── .github/workflows/    # CI/CD workflows
+├── harness.json          # Risk contract and merge policies
+├── AGENTS.md             # Agent constraints and guidelines
 \`\`\``;
 
 	const backendCommands = `## Convex Commands
@@ -228,6 +232,75 @@ ${envVarsAuth}
 |----------|---------|-------------|
 | \`checks.yml\` | Pull request | Runs linting and type checking |
 | \`test.yml\` | Pull request | Runs Vitest tests |
+
+---
+
+## Agent Harness
+
+This project includes an agent harness that provides risk-aware merge policies, documentation drift detection, and browser evidence capture. The harness is defined in \`harness.json\` at the project root.
+
+### Harness Scripts
+
+| Script | Description |
+|--------|-------------|
+| \`pnpm harness:risk-tier\` | Compute risk tier of current changes |
+| \`pnpm harness:risk-tier --json\` | Machine-readable risk tier output |
+| \`pnpm harness:docs-drift\` | Check if docs need updating |
+| \`pnpm harness:pre-pr\` | Full pre-PR validation (lint + typecheck + test + risk) |
+| \`pnpm harness:ui:capture-browser-evidence\` | Screenshot changed UI routes via agent-browser |
+| \`pnpm harness:ui:verify-browser-evidence\` | Verify screenshots exist for changed UI files |
+
+### Risk Tiers
+
+Changes are classified by the files they touch:
+
+| Tier | Files | Merge Policy |
+|------|-------|--------------|
+| **High** | Schema, auth, security config | Human review required + all checks pass |
+| **Medium** | Services, API routes | Auto-merge with all checks passing |
+| **Low** | Everything else | Checks pass |
+
+### Evidence Capture
+
+The browser evidence scripts capture screenshots of changed UI routes:
+
+1. Start the dev server (\`pnpm dev\`)
+2. Run \`pnpm harness:ui:capture-browser-evidence\`
+3. Screenshots are saved to \`.harness/evidence/\` (gitignored)
+4. Set \`DEV_URL\` environment variable to override the default localhost URL
+
+### Branch Protection
+
+Branch protection is auto-applied during project setup. By default, admins can bypass (suitable for solo development). Use \`hatch harden --strict\` to enforce on admins too (recommended for teams).
+
+### Testing the Harness
+
+1. **Check risk tier:**
+   \`\`\`bash
+   pnpm harness:risk-tier
+   \`\`\`
+
+2. **Make a high-risk change and re-check:**
+   \`\`\`bash
+   # Edit apps/web/convex/schema.ts, then:
+   pnpm harness:risk-tier           # Should show "high"
+   \`\`\`
+
+3. **Check documentation drift:**
+   \`\`\`bash
+   pnpm harness:docs-drift
+   \`\`\`
+
+4. **Run full pre-PR validation:**
+   \`\`\`bash
+   pnpm harness:pre-pr
+   \`\`\`
+
+5. **Test browser evidence capture:**
+   \`\`\`bash
+   pnpm harness:ui:capture-browser-evidence
+   pnpm harness:ui:verify-browser-evidence
+   \`\`\`
 
 ---
 
