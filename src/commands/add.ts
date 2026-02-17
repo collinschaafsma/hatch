@@ -1,17 +1,23 @@
 import os from "node:os";
 import path from "node:path";
-import { input } from "@inquirer/prompts";
+import { confirm, input } from "@inquirer/prompts";
 import { Command } from "commander";
 import { execa } from "execa";
 import fs from "fs-extra";
 import { vercelGetProjectUrl } from "../headless/cli-wrappers.js";
 import type { HatchConfig, ProjectRecord } from "../types/index.js";
+import {
+	mergeHarnessPackageJsonScripts,
+	scaffoldHarness,
+} from "../utils/harness-scaffold.js";
 import { log } from "../utils/logger.js";
 import { getProject, saveProject } from "../utils/project-store.js";
 import { createSpinner } from "../utils/spinner.js";
 
 interface AddOptions {
 	config?: string;
+	cwd?: string;
+	skipHarness?: boolean;
 }
 
 interface GitHubRepo {
@@ -37,6 +43,8 @@ export const addCommand = new Command()
 		"Path to hatch.json config file",
 		path.join(os.homedir(), ".hatch.json"),
 	)
+	.option("--cwd <path>", "Local project directory", process.cwd())
+	.option("--skip-harness", "Skip harness scaffolding, only save ProjectRecord")
 	.action(async (projectName: string, options: AddOptions) => {
 		try {
 			log.blank();
@@ -244,6 +252,101 @@ export const addCommand = new Command()
 
 			await saveProject(projectRecord);
 
+			// Step 5: Scaffold harness files
+			if (!options.skipHarness) {
+				const projectPath = path.resolve(options.cwd || process.cwd());
+
+				if (!(await fs.pathExists(projectPath))) {
+					log.warn(
+						`Directory ${projectPath} does not exist, skipping harness scaffolding.`,
+					);
+					log.info(
+						"Run 'hatch harden' in your project directory to set up the harness later.",
+					);
+				} else {
+					// Write core harness files (skip existing)
+					const harnessSpinner = createSpinner(
+						"Scaffolding agent harness",
+					).start();
+					const coreResult = await scaffoldHarness({
+						projectPath,
+						projectName,
+						skipExisting: true,
+						includeDocs: false,
+					});
+					harnessSpinner.succeed("Agent harness scaffolded");
+
+					// Merge harness scripts into package.json
+					const pkgPath = path.join(projectPath, "package.json");
+					const scriptsAdded = await mergeHarnessPackageJsonScripts(pkgPath);
+					if (scriptsAdded) {
+						log.step("Added harness scripts to package.json");
+					}
+
+					// Apply branch protection (non-fatal)
+					try {
+						const { applyBranchProtection } = await import("./harden.js");
+						await applyBranchProtection({
+							owner: github.owner,
+							repo: github.repo,
+							branch: "main",
+							harnessPath: projectPath,
+							strict: false,
+							dryRun: false,
+							quiet: true,
+						});
+						log.step("Applied branch protection rules");
+					} catch {
+						log.warn(
+							"Could not apply branch protection. Run 'hatch harden' manually to set up branch protection.",
+						);
+					}
+
+					// Show written/skipped files
+					if (coreResult.written.length > 0) {
+						log.blank();
+						log.info("Harness files written:");
+						for (const f of coreResult.written) {
+							log.step(f);
+						}
+					}
+					if (coreResult.skipped.length > 0) {
+						log.blank();
+						log.info("Harness files skipped (already exist):");
+						for (const f of coreResult.skipped) {
+							log.step(f);
+						}
+					}
+
+					// Prompt for docs stubs
+					log.blank();
+					const wantDocs = await confirm({
+						message: "Generate documentation stubs?",
+						default: true,
+					});
+
+					if (wantDocs) {
+						const docsResult = await scaffoldHarness({
+							projectPath,
+							projectName,
+							skipExisting: true,
+							includeDocs: true,
+						});
+
+						if (docsResult.written.length > 0) {
+							log.info("Documentation stubs written:");
+							for (const f of docsResult.written) {
+								log.step(f);
+							}
+							log.blank();
+							log.info(
+								"Run Claude in your project to fill in docs with project-specific content.",
+							);
+						}
+					}
+				}
+			}
+
 			// Print summary
 			log.blank();
 			log.success("Project added successfully!");
@@ -255,6 +358,9 @@ export const addCommand = new Command()
 			log.step(`Convex:   ${convex.projectSlug}`);
 			log.blank();
 			log.info("Next steps:");
+			if (!options.skipHarness) {
+				log.step("Commit the new harness files to your repository");
+			}
 			log.step(
 				`Start a feature: hatch feature <feature-name> --project ${projectName}`,
 			);

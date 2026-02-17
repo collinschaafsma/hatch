@@ -25,6 +25,7 @@ import {
 	setExecutable,
 	writeFile,
 } from "../utils/fs.js";
+import { scaffoldHarness } from "../utils/harness-scaffold.js";
 import { log } from "../utils/logger.js";
 import { withSpinner } from "../utils/spinner.js";
 
@@ -828,92 +829,12 @@ export const createCommand = new Command()
 
 				// Set up agent harness (AGENTS.md, docs, risk contract, scripts)
 				await withSpinner("Setting up agent harness", async () => {
-					// AGENTS.md and harness.json at project root
-					await writeFile(
-						path.join(projectPath, "AGENTS.md"),
-						templates.generateAgentsMd(name),
-					);
-					await writeFile(
-						path.join(projectPath, "harness.json"),
-						templates.generateHarnessJson(name),
-					);
-
-					// docs/ knowledge base
-					await ensureDir(path.join(projectPath, "docs"));
-					await ensureDir(path.join(projectPath, "docs", "decisions"));
-					await writeFile(
-						path.join(projectPath, "docs", "architecture.md"),
-						templates.generateDocsArchitecture(name),
-					);
-					await writeFile(
-						path.join(projectPath, "docs", "patterns.md"),
-						templates.generateDocsPatterns(),
-					);
-					await writeFile(
-						path.join(projectPath, "docs", "api-contracts.md"),
-						templates.generateDocsApiContracts(),
-					);
-					await writeFile(
-						path.join(projectPath, "docs", "deployment.md"),
-						templates.generateDocsDeployment(name),
-					);
-					await writeFile(
-						path.join(projectPath, "docs", "troubleshooting.md"),
-						templates.generateDocsTroubleshooting(),
-					);
-					await writeFile(
-						path.join(projectPath, "docs", "decisions", "adr-template.md"),
-						templates.generateAdrTemplate(),
-					);
-
-					// scripts/harness/
-					await ensureDir(path.join(projectPath, "scripts", "harness"));
-					const riskTierPath = path.join(
+					await scaffoldHarness({
 						projectPath,
-						"scripts",
-						"harness",
-						"risk-tier.mjs",
-					);
-					await writeFile(riskTierPath, templates.generateRiskTierScript());
-					await setExecutable(riskTierPath);
-
-					const docsDriftPath = path.join(
-						projectPath,
-						"scripts",
-						"harness",
-						"docs-drift-check.mjs",
-					);
-					await writeFile(docsDriftPath, templates.generateDocsDriftScript());
-					await setExecutable(docsDriftPath);
-
-					const uiCapturePath = path.join(
-						projectPath,
-						"scripts",
-						"harness",
-						"ui-capture.mjs",
-					);
-					await writeFile(uiCapturePath, templates.generateUiCaptureScript());
-					await setExecutable(uiCapturePath);
-
-					const uiVerifyPath = path.join(
-						projectPath,
-						"scripts",
-						"harness",
-						"ui-verify.mjs",
-					);
-					await writeFile(uiVerifyPath, templates.generateUiVerifyScript());
-					await setExecutable(uiVerifyPath);
-
-					// Risk policy gate workflow
-					await writeFile(
-						path.join(
-							projectPath,
-							".github",
-							"workflows",
-							"risk-policy-gate.yml",
-						),
-						templates.generateRiskPolicyGateWorkflow(),
-					);
+						projectName: name,
+						skipExisting: false,
+						includeDocs: true,
+					});
 				});
 
 				// Format code with Biome
