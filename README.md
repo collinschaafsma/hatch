@@ -360,6 +360,7 @@ The config command prompts to add custom environment variables that will be auto
 |---------|-------------|
 | `hatch feature <name> --project <project>` | Create feature VM with branches |
 | `hatch spike <name> --project <project> --prompt "<instructions>"` | Create VM and run Claude Agent SDK autonomously |
+| `hatch status [--json] [--project <name>]` | Dashboard of VM liveness, spike progress, and PR status |
 | `hatch connect [feature] --project <project>` | Show connection info |
 | `hatch list` | List projects with feature VMs |
 | `hatch clean <feature> --project <project>` | Delete feature VM and branches |
@@ -650,6 +651,7 @@ pnpm install
 | `pnpm dev feature <name> --project <project>` | Create feature VM |
 | `pnpm dev config` | Generate config file |
 | `pnpm dev add <name>` | Add existing project |
+| `pnpm dev status` | Dashboard of VM liveness, spike progress, and PR status |
 | `pnpm dev list` | List projects and VMs |
 | `pnpm dev connect` | Show VM connection info |
 | `pnpm dev clean <name> --project <project>` | Clean up feature VM |

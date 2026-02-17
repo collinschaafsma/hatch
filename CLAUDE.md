@@ -12,6 +12,7 @@ Hatch is a TypeScript CLI tool that provisions exe.dev VMs for cloud-first devel
 # Development - run CLI directly
 pnpm dev new <project-name>                    # Create new project
 pnpm dev feature <name> --project <project>    # Create feature VM
+pnpm dev status                                # Dashboard: VM liveness, spike, PR status
 pnpm dev list                                  # List projects and VMs
 pnpm dev connect                               # Show VM connection info
 pnpm dev clean <name> --project <project>      # Clean up feature VM
@@ -36,6 +37,7 @@ pnpm format                                    # Format with Biome
 ### Commands
 - **new.ts** - Create a new project via ephemeral VM
 - **feature.ts** - Create feature VM with git branches and Convex preview deployments
+- **status.ts** - Dashboard view of VMs, spikes, and PR status
 - **add.ts** - Add existing project to tracking
 - **connect.ts** - Show VM connection info
 - **list.ts** - List projects and feature VMs
