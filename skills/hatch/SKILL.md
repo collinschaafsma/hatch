@@ -19,6 +19,19 @@ cd ~/.hatch-cli && pnpm dev list --json
 ```
 Use first to find project names. Returns JSON with projects array and vms array.
 
+### Check status of VMs, spikes, and PRs
+```bash
+cd ~/.hatch-cli && pnpm dev status --json
+```
+Returns dashboard with VM liveness, spike progress, and PR review/CI status.
+
+**Options:**
+- `--json` - Output as JSON (recommended for agents)
+- `--project <name>` - Filter to a specific project
+
+Use after starting a spike to check progress, PR review status, and CI checks.
+Automatically detects if a "running" spike has actually completed.
+
 ### Create new project
 ```bash
 cd ~/.hatch-cli && pnpm dev new <project-name>
@@ -224,6 +237,9 @@ cd ~/.hatch-cli && pnpm dev list --json
 
 # Start spike
 cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "Add contact form"
+
+# Check status (VM liveness, spike progress, PR review/CI)
+cd ~/.hatch-cli && pnpm dev status --project my-app --json
 
 # Optionally monitor progress
 ssh <vm>.exe.xyz 'tail -f ~/spike.log'

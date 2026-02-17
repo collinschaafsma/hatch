@@ -194,6 +194,42 @@ export interface SpikeCost {
 	outputTokens: number;
 }
 
+export interface PRStatus {
+	number: number;
+	title: string;
+	url: string;
+	state: "OPEN" | "MERGED" | "CLOSED";
+	reviewDecision: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
+	mergeable: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
+	checksStatus: "pass" | "fail" | "pending";
+	checksDetail: Array<{ name: string; status: string; conclusion: string }>;
+}
+
+export interface VMStatus {
+	vmName: string;
+	feature: string;
+	project: string;
+	sshHost: string;
+	githubBranch: string;
+	vmReachable: boolean;
+	spike: {
+		status: "running" | "completed" | "failed";
+		iterations: number;
+		originalPrompt: string | null;
+		cumulativeCost: SpikeCost | null;
+		createdAgo: string;
+		createdAt: string;
+		spikeActuallyDone: boolean | null;
+	} | null;
+	pr: PRStatus | null;
+}
+
+export interface StatusResult {
+	timestamp: string;
+	project: string | null;
+	vms: VMStatus[];
+}
+
 export interface SpikeResult {
 	status: "started" | "completed" | "failed";
 	vmName: string;

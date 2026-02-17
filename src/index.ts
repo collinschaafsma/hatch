@@ -13,6 +13,7 @@ import { listCommand } from "./commands/list.js";
 import { newCommand } from "./commands/new.js";
 import { setPreviewDeployKeyCommand } from "./commands/set-preview-deploy-key.js";
 import { spikeCommand } from "./commands/spike.js";
+import { statusCommand } from "./commands/status.js";
 import { updateCommand } from "./commands/update.js";
 
 const program = new Command()
@@ -33,6 +34,7 @@ program.addCommand(createCommand);
 program.addCommand(destroyCommand);
 program.addCommand(hardenCommand);
 program.addCommand(setPreviewDeployKeyCommand);
+program.addCommand(statusCommand);
 program.addCommand(updateCommand);
 
 // If no command is specified, default to help
