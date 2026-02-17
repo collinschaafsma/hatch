@@ -7,9 +7,15 @@ export default defineConfig({
 	plugins: [tsconfigPaths(), react()],
 	test: {
 		environment: "jsdom",
+		environmentMatchGlobs: [["__tests__/convex/**", "edge-runtime"]],
 		setupFiles: ["./vitest.setup.ts"],
 		include: ["__tests__/**/*.{test,spec}.{ts,tsx}"],
 		globals: true,
+		server: {
+			deps: {
+				inline: ["convex-test"],
+			},
+		},
 		coverage: {
 			provider: "v8",
 			reporter: ["text", "json", "html"],

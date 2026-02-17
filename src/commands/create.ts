@@ -606,6 +606,7 @@ export const createCommand = new Command()
 					await ensureDir(path.join(webPath, "__tests__", "unit"));
 					await ensureDir(path.join(webPath, "__tests__", "components"));
 					await ensureDir(path.join(webPath, "__tests__", "integration"));
+					await ensureDir(path.join(webPath, "__tests__", "convex"));
 					await ensureDir(path.join(webPath, "__tests__", "factories"));
 
 					// Config files
@@ -655,6 +656,12 @@ export const createCommand = new Command()
 							"ai-trigger.test.tsx",
 						),
 						templates.generateAiTriggerTest(),
+					);
+
+					// Convex function integration tests
+					await writeFile(
+						path.join(webPath, "__tests__", "convex", "db.test.ts"),
+						templates.generateDbTest(),
 					);
 				});
 

@@ -19,17 +19,6 @@ export function generateTurboJson(): string {
 				},
 				test: {
 					dependsOn: ["^build"],
-					env: ["TEST_DATABASE_URL"],
-				},
-				"db:generate": {
-					cache: false,
-				},
-				"db:migrate": {
-					cache: false,
-				},
-				"db:studio": {
-					cache: false,
-					persistent: true,
 				},
 				"harness:risk-tier": {
 					cache: false,

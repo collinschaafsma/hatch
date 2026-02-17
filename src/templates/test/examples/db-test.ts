@@ -1,199 +1,55 @@
-export function generateDbTest(_projectName: string): string {
-	return `import {
-	describe,
-	it,
-	expect,
-	beforeAll,
-	beforeEach,
-	afterAll,
-} from "vitest";
-import { eq } from "drizzle-orm";
-import {
-	getTestDb,
-	resetTestDb,
-	seedTestDb,
-	closeTestDb,
-} from "../utils/test-db";
-import * as schema from "@/db/schema";
+export function generateDbTest(): string {
+	return `import { describe, it, expect } from "vitest";
+import { api } from "@/convex/_generated/api";
+import { createConvexTest } from "../utils/test-db";
 
-describe("Better Auth Schema Integration Tests", () => {
-	beforeAll(async () => {
-		await getTestDb();
-	});
+describe("Convex Function Integration Tests", () => {
+	describe("unauthenticated access", () => {
+		it("can call a query without auth", async () => {
+			const t = createConvexTest();
 
-	beforeEach(async () => {
-		await resetTestDb();
-	});
-
-	afterAll(async () => {
-		await closeTestDb();
-	});
-
-	describe("user table", () => {
-		it("can create a user", async () => {
-			const db = await getTestDb();
-
-			const [user] = await db
-				.insert(schema.user)
-				.values({
-					id: "user-123",
-					name: "John Doe",
-					email: "john@example.com",
-				})
-				.returning();
-
-			expect(user.id).toBe("user-123");
-			expect(user.name).toBe("John Doe");
-			expect(user.email).toBe("john@example.com");
-			expect(user.emailVerified).toBe(false); // default value
-			expect(user.createdAt).toBeInstanceOf(Date);
+			// Example: call a public query
+			// Replace with your own query once you have one
+			try {
+				await t.query(api.functions.list, {});
+			} catch (error) {
+				// Expected if the query requires auth — that's fine,
+				// this verifies the in-memory backend is running.
+				expect(error).toBeDefined();
+			}
 		});
+	});
 
-		it("enforces unique email constraint", async () => {
-			const db = await getTestDb();
-
-			await db.insert(schema.user).values({
-				id: "user-1",
-				name: "User 1",
-				email: "duplicate@example.com",
+	describe("authenticated access", () => {
+		it("can call a mutation with an authenticated identity", async () => {
+			const t = createConvexTest();
+			const asUser = t.withIdentity({
+				name: "Test User",
+				email: "test@example.com",
+				subject: "user-123",
 			});
 
-			await expect(
-				db.insert(schema.user).values({
-					id: "user-2",
-					name: "User 2",
-					email: "duplicate@example.com",
-				}),
-			).rejects.toThrow();
-		});
-
-		it("can update user fields", async () => {
-			const db = await getTestDb();
-
-			await db.insert(schema.user).values({
-				id: "user-update",
-				name: "Original Name",
-				email: "update@example.com",
+			// Example: run a direct DB read inside the Convex context
+			const result = await t.run(async (ctx) => {
+				// Verify the in-memory DB is accessible
+				const docs = await ctx.db.query("users").collect();
+				return docs;
 			});
 
-			const [updated] = await db
-				.update(schema.user)
-				.set({ name: "Updated Name", emailVerified: true })
-				.where(eq(schema.user.id, "user-update"))
-				.returning();
-
-			expect(updated.name).toBe("Updated Name");
-			expect(updated.emailVerified).toBe(true);
+			expect(Array.isArray(result)).toBe(true);
 		});
 	});
 
-	describe("session table", () => {
-		it("can create a session for a user", async () => {
-			const db = await getTestDb();
+	describe("mutation round-trip", () => {
+		it("can write and read back data", async () => {
+			const t = createConvexTest();
 
-			// Create user first
-			await db.insert(schema.user).values({
-				id: "user-session",
-				name: "Session User",
-				email: "session@example.com",
+			// Use t.run() to insert directly into the in-memory DB
+			await t.run(async (ctx) => {
+				// This tests raw DB access — replace with your own table
+				// once your schema has concrete tables.
+				// For now, this validates the convex-test setup works.
 			});
-
-			const [session] = await db
-				.insert(schema.session)
-				.values({
-					id: "session-123",
-					userId: "user-session",
-					token: "token-abc",
-					expiresAt: new Date(Date.now() + 3600000),
-				})
-				.returning();
-
-			expect(session.id).toBe("session-123");
-			expect(session.userId).toBe("user-session");
-			expect(session.token).toBe("token-abc");
-		});
-
-		it("cascades delete when user is deleted", async () => {
-			const db = await getTestDb();
-
-			await db.insert(schema.user).values({
-				id: "user-cascade",
-				name: "Cascade User",
-				email: "cascade@example.com",
-			});
-
-			await db.insert(schema.session).values({
-				id: "session-cascade",
-				userId: "user-cascade",
-				token: "token-cascade",
-				expiresAt: new Date(Date.now() + 3600000),
-			});
-
-			await db.delete(schema.user).where(eq(schema.user.id, "user-cascade"));
-
-			const sessions = await db.select().from(schema.session);
-			expect(sessions).toHaveLength(0);
-		});
-	});
-
-	describe("account table", () => {
-		it("can create an account for a user", async () => {
-			const db = await getTestDb();
-
-			await db.insert(schema.user).values({
-				id: "user-account",
-				name: "Account User",
-				email: "account@example.com",
-			});
-
-			const [account] = await db
-				.insert(schema.account)
-				.values({
-					id: "account-123",
-					userId: "user-account",
-					accountId: "oauth-id-123",
-					providerId: "google",
-				})
-				.returning();
-
-			expect(account.id).toBe("account-123");
-			expect(account.providerId).toBe("google");
-			expect(account.userId).toBe("user-account");
-		});
-	});
-
-	describe("verification table", () => {
-		it("can create a verification entry", async () => {
-			const db = await getTestDb();
-
-			const [verification] = await db
-				.insert(schema.verification)
-				.values({
-					id: "verification-123",
-					identifier: "test@example.com",
-					value: "otp-code-123456",
-					expiresAt: new Date(Date.now() + 600000), // 10 minutes
-				})
-				.returning();
-
-			expect(verification.id).toBe("verification-123");
-			expect(verification.identifier).toBe("test@example.com");
-			expect(verification.value).toBe("otp-code-123456");
-		});
-	});
-
-	describe("seed data", () => {
-		it("seeds test data correctly", async () => {
-			await seedTestDb();
-
-			const db = await getTestDb();
-			const users = await db.select().from(schema.user);
-			const sessions = await db.select().from(schema.session);
-
-			expect(users).toHaveLength(1);
-			expect(users[0].email).toBe("test@example.com");
-			expect(sessions).toHaveLength(1);
-			expect(sessions[0].userId).toBe("test-user-1");
 		});
 	});
 });

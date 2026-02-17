@@ -46,16 +46,16 @@ pnpm --filter web test -- --run --testNamePattern "pattern"
 3. Show results and any failure details
 4. For failures, offer to help debug
 
-## Test Database
+## Convex Function Tests
 
-For integration tests, ensure the test database is running:
-\`\`\`bash
-pnpm docker:up:test
-\`\`\`
+Convex function tests use \`convex-test\` with an in-memory backend — no external services needed.
+Tests in \`__tests__/convex/\` automatically run in the \`edge-runtime\` environment.
+See \`__tests__/utils/test-db.ts\` for the shared \`createConvexTest()\` helper.
 
 ## Test Structure
 
 - \`apps/web/__tests__/\` - Main test directory
+- \`apps/web/__tests__/convex/\` - Convex function integration tests
 - \`apps/web/__tests__/utils/\` - Test utilities (test-db.ts, mocks.ts)
 - \`apps/web/__tests__/factories/\` - Data factories
 - \`apps/web/vitest.config.mts\` - Vitest configuration

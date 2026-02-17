@@ -45,6 +45,7 @@ export function generateWebPackageJson(): string {
 
 	// Build devDependencies
 	const devDependencies: Record<string, string> = {
+		"@edge-runtime/vm": "^5.0.0",
 		"@faker-js/faker": "^10.3.0",
 		"@tailwindcss/postcss": "^4.1.18",
 		"@testing-library/dom": "^10.4.1",
@@ -55,6 +56,7 @@ export function generateWebPackageJson(): string {
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",
 		"@vitejs/plugin-react": "^5.1.4",
+		"convex-test": "^0.0.41",
 		dotenv: "^17.3.1",
 		jsdom: "^28.1.0",
 		postcss: "^8.5.6",

@@ -1,39 +1,25 @@
 export function generateConvexTestDbUtils(): string {
-	return `// Convex test utilities
-// For Convex, integration tests should use a preview deployment
-// This module provides mock helpers for unit tests
+	return `// Convex test utilities using convex-test
+// Provides an in-memory Convex backend for Vitest — no mocks needed.
 
-import { vi } from "vitest";
+import schema from "@/convex/schema";
+import { convexTest } from "convex-test";
 
-/**
- * Mock Convex client for unit tests.
- * For integration tests, use a Convex preview deployment.
- */
-export function createMockConvexClient() {
-	return {
-		query: vi.fn(),
-		mutation: vi.fn(),
-		action: vi.fn(),
-	};
-}
+// Import all Convex modules so convex-test can resolve function references
+const modules = import.meta.glob("../../convex/**/*.ts");
 
 /**
- * Returns a mock Convex client for testing.
+ * Creates a convex-test instance with schema and modules pre-configured.
+ * Use t.run() / t.query() / t.mutation() / t.action() to test Convex functions.
+ *
+ * @example
+ * const t = createConvexTest();
+ * await t.mutation(api.myModule.myMutation, { arg: "value" });
+ * const result = await t.query(api.myModule.myQuery, {});
+ * expect(result).toEqual(...);
  */
-export async function getTestDb() {
-	return createMockConvexClient();
-}
-
-export async function resetTestDb() {
-	// No-op: Convex preview deployments handle isolation
-}
-
-export async function seedTestDb() {
-	// No-op: Use 'npx convex run seed:seedData --preview-name <name>'
-}
-
-export async function closeTestDb() {
-	// No-op: No connection to close
+export function createConvexTest() {
+	return convexTest(schema, modules);
 }
 `;
 }
