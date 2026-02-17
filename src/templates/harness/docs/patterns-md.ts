@@ -32,37 +32,46 @@ export function ItemList({ dataPromise }: { dataPromise: Promise<Item[]> }) {
 - \`(auth)/\` — Login and authentication flows
 - \`(app)/\` — Authenticated pages, protected by middleware
 
-## Services Layer
+## Convex Mutations
 
-All database access goes through \`services/\` files. Components and server actions never call Convex queries or mutations directly. This keeps data access testable and centralized.
+Use \`useMutation\` from \`convex/react\` to call Convex mutations. Mutations are transactional and run in the Convex database.
 
 \`\`\`typescript
-// services/items.ts
-import { fetchQuery } from "convex/nextjs";
-import { api } from "@/convex/_generated/api";
+"use client";
+import { useMutation } from "convex/react";
+import { api } from "@convex/_generated/api";
 
-export async function getItems() {
-  return fetchQuery(api.items.list);
+export function CreateButton() {
+  const createItem = useMutation(api.items.create);
+
+  return (
+    <button onClick={() => createItem({ name: "New item" })}>
+      Create
+    </button>
+  );
 }
 \`\`\`
 
-## Safe Actions with Zod Validation
+## Convex Workflows
 
-Use \`next-safe-action\` for server actions with Zod schema validation. This provides type-safe inputs and structured error handling.
+Use \`@convex-dev/workflow\` for long-running, multi-step operations. Workflows are durable and can survive server restarts.
 
 \`\`\`typescript
-import { actionClient } from "@/lib/safe-action";
-import { z } from "zod";
+import { WorkflowManager } from "@convex-dev/workflow";
+import { components, internal } from "./_generated/api";
 
-const schema = z.object({
-  name: z.string().min(1),
+export const workflow = new WorkflowManager(components.workflow);
+
+export const myWorkflow = workflow.define({
+  args: { input: v.string() },
+  handler: async (ctx, args) => {
+    // Each step is tracked and retried automatically
+    const result = await ctx.runAction(internal.myModule.doWork, {
+      input: args.input,
+    });
+    return result;
+  },
 });
-
-export const createItem = actionClient
-  .schema(schema)
-  .action(async ({ parsedInput }) => {
-    // parsedInput is typed and validated
-  });
 \`\`\`
 
 ## Convex Conventions
@@ -80,7 +89,7 @@ export const createItem = actionClient
 
 ## Import Structure
 
-- \`@/*\` — App root imports (e.g., \`@/components/header\`, \`@/services/items\`)
+- \`@/*\` — App root imports (e.g., \`@/components/header\`)
 - \`@workspace/ui\` — Shared UI components from the \`packages/ui\` workspace
 
 ## Testing Patterns

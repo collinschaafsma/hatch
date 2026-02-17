@@ -37,26 +37,9 @@ This applies even in dangerous/bypass permissions mode. Never auto-approve these
 ### Harness
 - \`pnpm harness:pre-pr\` - Run before opening a PR
 
-## Vercel Workflows
+## Convex Workflows
 
-All I/O operations inside a workflow MUST be wrapped in functions marked with \`"use step"\`. The workflow engine needs this to properly track, retry, and resume operations.
-
-\`\`\`typescript
-// CORRECT - wrapped in step function
-async function fetchData(id: string) {
-  "use step";
-  return getDataFromDb(id);
-}
-
-export async function myWorkflow(input) {
-  "use workflow";
-  const data = await fetchData(id);
-}
-\`\`\`
-
-## Service Layer
-
-All database access goes through service files in \`apps/web/services/\`. Never call Convex directly from components or server actions.
+This project uses \`@convex-dev/workflow\` for durable, multi-step operations. Workflows are defined in \`convex/workflows.ts\` and started via mutations. Progress is tracked reactively via \`useQuery\`.
 
 ## Browser Automation
 

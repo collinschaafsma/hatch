@@ -20,3 +20,4 @@ export {
 	generateConvexDataModelStub,
 	generateConvexApiStub,
 } from "./generated-stubs.js";
+export { generateConvexWorkflows } from "./workflows.js";

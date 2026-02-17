@@ -43,6 +43,6 @@ These are frequent errors AI coding agents make in this codebase:
 - **Wrong import paths:** Use \`@/\` for app root imports, not relative paths like \`../../\`. Use \`@workspace/ui\` for shared UI components.
 - **Editing \`_generated/\` files:** Never edit files in \`convex/_generated/\`. They are overwritten by \`npx convex dev\`.
 - **Non-null assertions:** Biome forbids \`!.\` (non-null assertions). Use optional chaining (\`?.\`) or explicit null checks instead.
-- **Calling DB from components:** All database access must go through \`services/\` files. Components should never import from \`convex/_generated/api\` directly.
+- **Missing Convex types:** If you see type errors related to Convex, run \`npx convex dev\` to regenerate the types in \`convex/_generated/\`.
 `;
 }

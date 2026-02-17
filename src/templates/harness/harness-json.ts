@@ -16,11 +16,7 @@ export function generateHarnessJson(name: string): string {
 					docsDriftRules: ["docs/api-contracts.md", "docs/architecture.md"],
 				},
 				medium: {
-					patterns: [
-						"apps/web/services/**",
-						"apps/web/app/api/**",
-						"apps/web/convex/**",
-					],
+					patterns: ["apps/web/app/api/**", "apps/web/convex/**"],
 					requiredChecks: ["lint", "typecheck", "test"],
 					docsDriftRules: ["docs/api-contracts.md"],
 				},

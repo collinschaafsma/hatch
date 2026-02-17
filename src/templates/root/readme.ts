@@ -24,11 +24,8 @@ ${projectName}/
 │   └── web/              # Next.js application
 │       ├── app/          # App router pages
 │       ├── components/   # React components
-│       ├── convex/       # Convex schema, functions, and seed
-│       ├── hooks/        # Custom React hooks
+│       ├── convex/       # Convex schema, functions, workflows, and seed
 │       ├── lib/          # Utilities and auth
-│       ├── services/     # Business logic layer
-│       ├── workflows/    # Vercel Workflow DevKit
 │       └── __tests__/    # Vitest tests
 ├── packages/
 │   └── ui/               # Shared UI components
@@ -100,7 +97,7 @@ Each feature branch gets its own Convex project so preview deployments are fully
 
 2. **Build command** — \`vercel.json\` uses a conditional build:
    - **Production**: \`npx convex deploy && pnpm build\` deploys to the main Convex project.
-   - **Preview**: Unsets \`VERCEL\` and \`VERCEL_ENV\` before running \`npx convex deploy\` so the Convex CLI accepts the feature project's production deploy key in a non-production Vercel environment. The Next.js build runs separately so Vercel Workflow DevKit can detect the Vercel environment.
+   - **Preview**: Unsets \`VERCEL\` and \`VERCEL_ENV\` before running \`npx convex deploy\` so the Convex CLI accepts the feature project's production deploy key in a non-production Vercel environment. The Next.js build runs separately afterward.
 
 3. **Auth URL resolution** — The auth client uses \`window.location.origin\` in the browser so auth requests always target the current deployment's origin. This avoids CORS mismatches between preview URLs. The Convex backend's Better Auth config includes \`trustedOrigins\` with \`*.vercel.app\` and \`*.exe.xyz\` wildcards to accept requests from any preview or VM origin.
 
@@ -135,7 +132,7 @@ Convex functions deploy automatically during the build via \`vercel.json\`. See 
 - **Backend:** [Convex](https://www.convex.dev/) (real-time database + serverless functions)
 - **Auth:** [Better Auth](https://www.better-auth.com/) via [@convex-dev/better-auth](https://github.com/get-convex/convex-better-auth)
 - **AI:** [Vercel AI SDK](https://sdk.vercel.ai/) with OpenAI
-- **Workflows:** [Vercel Workflow DevKit](https://vercel.com/docs/workflow-kit)
+- **Workflows:** [Convex Workflows](https://github.com/get-convex/workflow) (\`@convex-dev/workflow\`)
 - **Styling:** [Tailwind CSS 4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/)
 - **Testing:** [Vitest](https://vitest.dev/)
 - **Monorepo:** [Turborepo](https://turbo.build/repo)
@@ -257,7 +254,7 @@ Changes are classified by the files they touch:
 | Tier | Files | Merge Policy |
 |------|-------|--------------|
 | **High** | Schema, auth, security config | Human review required + all checks pass |
-| **Medium** | Services, API routes | Auto-merge with all checks passing |
+| **Medium** | API routes, Convex functions | Auto-merge with all checks passing |
 | **Low** | Everything else | Checks pass |
 
 ### Evidence Capture
@@ -306,45 +303,24 @@ Branch protection is auto-applied during project setup. By default, admins can b
 
 ## Workflows
 
-This project includes [Vercel Workflow DevKit](https://vercel.com/docs/workflow-kit) for durable, long-running AI workflows.
+This project uses [Convex Workflows](https://github.com/get-convex/workflow) (\`@convex-dev/workflow\`) for durable, multi-step operations.
 
 ### Example Workflow
 
-The included example workflow (\`workflows/ai-agent.ts\`) demonstrates:
-- Multi-step AI processing with OpenAI
-- Real-time progress streaming via SSE
-- Error handling and retry logic
+The included example workflow (\`convex/workflows.ts\`) demonstrates:
+- Multi-step AI processing with OpenAI via Vercel AI SDK
+- Reactive progress tracking via \`useQuery\`
+- Durable execution with automatic retries
 
-### Progress Streaming
-
-Workflows emit real-time progress events that the UI consumes via Server-Sent Events:
+### How It Works
 
 \`\`\`
-Client                    Server
-  |                         |
-  +- POST /api/workflow --->|  Start workflow, get runId
-  |<-- { runId } -----------|
-  |                         |
-  +- GET /api/workflow-progress/[runId] -->|
-  |<-- SSE: step 1/5 -------|
-  |<-- SSE: step 2/5 -------|
-  |<-- SSE: completed ------|
+Button click → useMutation(startRun) → Convex workflow → step mutations → useQuery(getRun) reactively updates UI
 \`\`\`
 
 Key files:
-- \`workflows/ai-agent.ts\` - Workflow definition with progress emits
-- \`app/api/workflow/route.ts\` - Starts workflow runs
-- \`app/api/workflow-progress/[runId]/route.ts\` - SSE progress stream
-- \`hooks/use-workflow-progress.ts\` - React hook for consuming progress
-- \`lib/workflow-progress/types.ts\` - Shared progress types
-
-### Monitoring
-
-View workflow runs in the browser:
-
-\`\`\`bash
-npx workflow web
-\`\`\`
+- \`convex/workflows.ts\` - Workflow definition, mutations, and queries
+- \`app/(app)/dashboard/_components/ai-trigger.tsx\` - UI component with reactive progress
 
 ---
 

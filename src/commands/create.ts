@@ -397,17 +397,9 @@ export const createCommand = new Command()
 						path.join(webPath, "app", "(app)", "dashboard", "_components"),
 					);
 					await ensureDir(path.join(webPath, "app", "api", "auth", "[...all]"));
-					await ensureDir(path.join(webPath, "app", "api", "chat"));
-					await ensureDir(path.join(webPath, "app", "api", "workflow"));
-					await ensureDir(
-						path.join(webPath, "app", "api", "workflow-progress", "[runId]"),
-					);
 					await ensureDir(path.join(webPath, "components", "providers"));
 					await ensureDir(path.join(webPath, "lib"));
-					await ensureDir(path.join(webPath, "lib", "workflow-progress"));
-					await ensureDir(path.join(webPath, "hooks"));
 					await ensureDir(path.join(webPath, "db"));
-					await ensureDir(path.join(webPath, "workflows"));
 
 					// Generate web app files
 					await writeFile(
@@ -544,43 +536,12 @@ export const createCommand = new Command()
 					);
 				});
 
-				// Generate AI and workflow files
-				await withSpinner("Setting up AI and workflows", async () => {
+				// Generate Convex workflow files
+				await withSpinner("Setting up Convex workflows", async () => {
+					const convexDir = path.join(webPath, "convex");
 					await writeFile(
-						path.join(webPath, "app", "api", "chat", "route.ts"),
-						templates.generateChatRoute(),
-					);
-					await writeFile(
-						path.join(webPath, "workflows", "ai-agent.ts"),
-						templates.generateExampleWorkflow(),
-					);
-					await writeFile(
-						path.join(webPath, "app", "api", "workflow", "route.ts"),
-						templates.generateWorkflowRoute(),
-					);
-					// Workflow progress streaming
-					await writeFile(
-						path.join(webPath, "lib", "workflow-progress", "types.ts"),
-						templates.generateWorkflowProgressTypes(),
-					);
-					await writeFile(
-						path.join(
-							webPath,
-							"app",
-							"api",
-							"workflow-progress",
-							"[runId]",
-							"route.ts",
-						),
-						templates.generateWorkflowProgressRoute(),
-					);
-					await writeFile(
-						path.join(webPath, "hooks", "use-workflow-progress.ts"),
-						templates.generateUseWorkflowProgress(),
-					);
-					await writeFile(
-						path.join(webPath, "hooks", "use-latest.ts"),
-						templates.generateUseLatest(),
+						path.join(convexDir, "workflows.ts"),
+						templates.generateConvexWorkflows(),
 					);
 				});
 
@@ -697,29 +658,9 @@ export const createCommand = new Command()
 					);
 				});
 
-				// Generate services layer
-				await withSpinner("Setting up services layer", async () => {
-					await ensureDir(path.join(webPath, "services"));
-
-					await writeFile(
-						path.join(webPath, "services", "user.ts"),
-						templates.generateUserService(),
-					);
-					await writeFile(
-						path.join(webPath, "services", "index.ts"),
-						templates.generateServicesIndex(),
-					);
-				});
-
-				// Generate safe-action and logger
-				await withSpinner("Setting up safe-action and logger", async () => {
+				// Generate logger
+				await withSpinner("Setting up logger", async () => {
 					await ensureDir(path.join(webPath, "lib", "logger"));
-
-					// Safe action client
-					await writeFile(
-						path.join(webPath, "lib", "safe-action.ts"),
-						templates.generateSafeAction(),
-					);
 
 					// Logger (server and client)
 					await writeFile(
@@ -729,12 +670,6 @@ export const createCommand = new Command()
 					await writeFile(
 						path.join(webPath, "lib", "logger", "client.ts"),
 						templates.generateClientLogger(),
-					);
-
-					// Dashboard actions example
-					await writeFile(
-						path.join(webPath, "app", "(app)", "dashboard", "_actions.ts"),
-						templates.generateDashboardActions(),
 					);
 				});
 

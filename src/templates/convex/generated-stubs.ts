@@ -13,6 +13,9 @@ import {
 	queryGeneric,
 	mutationGeneric,
 	actionGeneric,
+	internalQueryGeneric,
+	internalMutationGeneric,
+	internalActionGeneric,
 } from "convex/server";
 
 // biome-ignore lint/suspicious/noExplicitAny: stub replaced by codegen
@@ -21,6 +24,12 @@ export const query: any = queryGeneric;
 export const mutation: any = mutationGeneric;
 // biome-ignore lint/suspicious/noExplicitAny: stub replaced by codegen
 export const action: any = actionGeneric;
+// biome-ignore lint/suspicious/noExplicitAny: stub replaced by codegen
+export const internalQuery: any = internalQueryGeneric;
+// biome-ignore lint/suspicious/noExplicitAny: stub replaced by codegen
+export const internalMutation: any = internalMutationGeneric;
+// biome-ignore lint/suspicious/noExplicitAny: stub replaced by codegen
+export const internalAction: any = internalActionGeneric;
 `;
 }
 
@@ -30,9 +39,11 @@ export function generateConvexDataModelStub(): string {
 // biome-ignore-all: auto-generated stub
 
 import type { AnyDataModel } from "convex/server";
+import type { GenericId } from "convex/values";
 
 export type DataModel = AnyDataModel;
 export type TableNames = string;
+export type Id<T extends string> = GenericId<T>;
 `;
 }
 

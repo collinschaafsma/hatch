@@ -53,7 +53,7 @@ async function DashboardContent() {
 						<CardTitle>AI Workflow Demo</CardTitle>
 						<CardDescription>
 							Click the button below to trigger an AI workflow that processes
-							your request using Vercel Workflow DevKit.
+							your request using Convex Workflows.
 						</CardDescription>
 					</CardHeader>
 					<CardContent>

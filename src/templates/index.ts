@@ -10,17 +10,8 @@ export * from "./db/index.js";
 // Better Auth templates
 export * from "./auth/better-auth/index.js";
 
-// AI templates
-export * from "./ai/index.js";
-
 // Analytics templates
 export * from "./analytics/index.js";
-
-// Workflow templates
-export * from "./workflow/index.js";
-
-// Hooks templates
-export * from "./hooks/index.js";
 
 // Dashboard templates
 export * from "./dashboard/index.js";
@@ -37,11 +28,8 @@ export * from "./ui/index.js";
 // Test templates
 export * from "./test/index.js";
 
-// Lib templates (safe-action, logger)
+// Lib templates (logger)
 export * from "./lib/index.js";
-
-// Services templates
-export * from "./services/index.js";
 
 // GitHub workflows templates
 export * from "./github/index.js";

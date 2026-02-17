@@ -61,7 +61,7 @@ Set \`DEV_URL\` env var to override the default \`http://localhost:3000\`.
 ## Conventions
 
 - **Server/client split**: Server components create promises, client components unwrap with \`use()\`. See [docs/patterns.md](docs/patterns.md).
-- **Services layer**: All database access goes through \`apps/web/services/\`. Never call Convex directly from components.
+- **Convex-native**: Use \`useQuery\`/\`useMutation\` from \`convex/react\` for data access. Workflows use \`@convex-dev/workflow\`.
 - **Route groups**: \`(marketing)/\` for public, \`(auth)/\` for login, \`(app)/\` for authenticated pages.
 - **Biome**: Tabs for indentation, double quotes, no non-null assertions.
 - **Imports**: \`@/*\` for app root, \`@workspace/ui\` for shared UI package.

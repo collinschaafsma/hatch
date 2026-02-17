@@ -1,20 +1,34 @@
 export function generateAiTriggerTest(): string {
-	return `import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+	return `import { describe, it, expect, vi, beforeEach } from "vitest";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { render } from "../utils/render";
-import { mockFetch, resetFetchMock } from "../utils/mocks";
 import { AITriggerButton } from "@/app/(app)/dashboard/_components/ai-trigger";
+
+// Mock Convex hooks
+const mockStartWorkflow = vi.fn();
+let mockRunData: Record<string, unknown> | undefined;
+
+vi.mock("convex/react", () => ({
+	useMutation: () => mockStartWorkflow,
+	useQuery: () => mockRunData,
+}));
+
+vi.mock("@/convex/_generated/api", () => ({
+	api: {
+		workflows: {
+			startRun: "workflows:startRun",
+			getRun: "workflows:getRun",
+		},
+	},
+}));
+
+vi.mock("@/convex/_generated/dataModel", () => ({}));
 
 describe("AITriggerButton", () => {
 	beforeEach(() => {
-		mockFetch({
-			"/api/workflow": { runId: "test-run-123" },
-		});
-	});
-
-	afterEach(() => {
-		resetFetchMock();
+		mockStartWorkflow.mockReset();
+		mockRunData = undefined;
 	});
 
 	it("renders with default prompt", () => {
@@ -51,75 +65,64 @@ describe("AITriggerButton", () => {
 		).toBeDisabled();
 	});
 
-	it("shows loading state when triggered", async () => {
-		// Create a mock readable stream body for SSE endpoints
-		const mockBody = {
-			getReader: () => ({
-				read: () => Promise.resolve({ done: true, value: undefined }),
-			}),
+	it("calls startWorkflow when triggered", async () => {
+		mockStartWorkflow.mockResolvedValue("run-123");
+
+		const user = userEvent.setup();
+		render(<AITriggerButton />);
+
+		const button = screen.getByRole("button", { name: /trigger ai workflow/i });
+		await user.click(button);
+
+		expect(mockStartWorkflow).toHaveBeenCalledWith({
+			prompt: "What are 3 interesting facts about TypeScript?",
+		});
+	});
+
+	it("shows progress when workflow is running", () => {
+		mockRunData = {
+			status: "running",
+			step: 2,
+			totalSteps: 4,
+			message: "Generating AI response...",
 		};
 
-		// Use a delayed mock to capture the loading state
-		global.fetch = vi.fn<typeof fetch>(() =>
-			new Promise((resolve) =>
-				setTimeout(
-					() =>
-						resolve({
-							ok: true,
-							json: () => Promise.resolve({ runId: "test-run-123" }),
-							body: mockBody,
-						} as Response),
-					100,
-				),
-			),
-		);
-
-		const user = userEvent.setup();
 		render(<AITriggerButton />);
 
-		const button = screen.getByRole("button", { name: /trigger ai workflow/i });
-		await user.click(button);
-
-		// Check loading state appears
-		expect(screen.getByRole("button", { name: /running/i })).toBeInTheDocument();
-
-		// Wait for completion
-		await waitFor(() => {
-			expect(
-				screen.getByText(/workflow started.*test-run-123/i),
-			).toBeInTheDocument();
-		});
+		expect(screen.getByText("Processing")).toBeInTheDocument();
+		expect(screen.getByText("Step 2 of 4")).toBeInTheDocument();
+		expect(screen.getByText("Generating AI response...")).toBeInTheDocument();
 	});
 
-	it("displays success message with run ID", async () => {
-		const user = userEvent.setup();
+	it("shows result when workflow is completed", () => {
+		mockRunData = {
+			status: "completed",
+			step: 4,
+			totalSteps: 4,
+			message: "Complete",
+			result: "Here are 3 facts about TypeScript...",
+		};
+
 		render(<AITriggerButton />);
 
-		const button = screen.getByRole("button", { name: /trigger ai workflow/i });
-		await user.click(button);
-
-		await waitFor(() => {
-			expect(
-				screen.getByText(/workflow started.*test-run-123/i),
-			).toBeInTheDocument();
-		});
+		expect(screen.getByText("Workflow completed!")).toBeInTheDocument();
+		expect(
+			screen.getByText("Here are 3 facts about TypeScript..."),
+		).toBeInTheDocument();
 	});
 
-	it("displays error message on failure", async () => {
-		mockFetch({
-			"/api/workflow": { ok: false, error: "Something went wrong" },
-		});
+	it("shows error when workflow fails", () => {
+		mockRunData = {
+			status: "error",
+			step: 1,
+			totalSteps: 4,
+			message: "Failed",
+			error: "Something went wrong",
+		};
 
-		const user = userEvent.setup();
 		render(<AITriggerButton />);
 
-		await user.click(
-			screen.getByRole("button", { name: /trigger ai workflow/i }),
-		);
-
-		await waitFor(() => {
-			expect(screen.getByText(/something went wrong/i)).toBeInTheDocument();
-		});
+		expect(screen.getByText("Something went wrong")).toBeInTheDocument();
 	});
 });
 `;
