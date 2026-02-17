@@ -62,7 +62,7 @@ async function getClaudeCredentials(): Promise<ClaudeConfig | undefined> {
 	const config: ClaudeConfig = {
 		accessToken: oauth.accessToken,
 		refreshToken: oauth.refreshToken,
-		expiresAt: oauth.expiresAt,
+		expiresAt: oauth.expiresAt ?? 0,
 		scopes: oauth.scopes || [],
 	};
 	if (oauth.subscriptionType) {
@@ -98,7 +98,7 @@ async function getClaudeCredentials(): Promise<ClaudeConfig | undefined> {
 /**
  * Check if Claude token is expired or about to expire (5 minute buffer)
  */
-export function isClaudeTokenExpired(config: HatchConfig): boolean {
+export function isClaudeTokenExpired(config: Partial<HatchConfig>): boolean {
 	if (!config.claude?.expiresAt) return true;
 	// 5 minute buffer before expiry
 	return config.claude.expiresAt < Date.now() + 5 * 60 * 1000;

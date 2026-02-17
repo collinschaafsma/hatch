@@ -159,10 +159,11 @@ describe("add command", () => {
 				throw new Error("Not found");
 			}) as never);
 			// First input: Convex slug, second: deployment URL, third: deploy key,
-			// then Vercel prompts return empty
+			// fourth: deployment name, then Vercel prompts return empty
 			mockInput
 				.mockResolvedValueOnce("my-slug")
 				.mockResolvedValueOnce("https://my-slug.convex.cloud")
+				.mockResolvedValueOnce("")
 				.mockResolvedValueOnce("")
 				.mockResolvedValueOnce("");
 
@@ -191,10 +192,11 @@ describe("add command", () => {
 				}
 				throw new Error("Not found");
 			}) as never);
-			// Convex slug, deployment URL, deploy key, then Vercel project ID, Vercel URL
+			// Convex slug, deployment URL, deploy key, deployment name, then Vercel project ID, Vercel URL
 			mockInput
 				.mockResolvedValueOnce("my-slug")
 				.mockResolvedValueOnce("https://my-slug.convex.cloud")
+				.mockResolvedValueOnce("")
 				.mockResolvedValueOnce("")
 				.mockResolvedValueOnce("manual_id")
 				.mockResolvedValueOnce("https://custom.vercel.app");
@@ -235,11 +237,12 @@ describe("add command", () => {
 				}
 				throw new Error("Not found");
 			}) as never);
-			// Convex slug, deployment URL, deploy key prompts
+			// Convex slug, deployment URL, deploy key, deployment name prompts
 			mockInput
 				.mockResolvedValueOnce("my-convex-project")
 				.mockResolvedValueOnce("https://my-convex-project.convex.cloud")
-				.mockResolvedValueOnce("dk_abc123");
+				.mockResolvedValueOnce("dk_abc123")
+				.mockResolvedValueOnce("my-convex-project");
 			mockVercelGetProjectUrl.mockResolvedValue({
 				url: "https://my-project.vercel.app",
 				hasAlias: true,
@@ -264,6 +267,7 @@ describe("add command", () => {
 					convex: {
 						projectSlug: "my-convex-project",
 						deploymentUrl: "https://my-convex-project.convex.cloud",
+						deploymentName: "my-convex-project",
 						deployKey: "dk_abc123",
 					},
 				}),

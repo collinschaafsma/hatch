@@ -148,10 +148,14 @@ export const addCommand = new Command()
 					const deployKey = await input({
 						message: "Convex deploy key (or press Enter to skip):",
 					});
+					const deploymentName = await input({
+						message: "Convex deployment name (or press Enter to skip):",
+					});
 					convex = {
 						projectSlug: slug,
 						deploymentUrl,
-						...(deployKey ? { deployKey } : {}),
+						deploymentName: deploymentName || slug,
+						deployKey: deployKey || "",
 					};
 				}
 			}
