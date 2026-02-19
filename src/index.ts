@@ -2,6 +2,7 @@
 import { Command } from "commander";
 import { addCommand } from "./commands/add.js";
 import { cleanCommand } from "./commands/clean.js";
+import { cloneCommand } from "./commands/clone.js";
 import { configPushCommand } from "./commands/config-push.js";
 import { configCommand } from "./commands/config.js";
 import { connectCommand } from "./commands/connect.js";
@@ -26,6 +27,7 @@ program.addCommand(newCommand);
 program.addCommand(featureCommand);
 program.addCommand(spikeCommand);
 program.addCommand(addCommand);
+program.addCommand(cloneCommand);
 program.addCommand(connectCommand);
 program.addCommand(listCommand);
 program.addCommand(cleanCommand);

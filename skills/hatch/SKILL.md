@@ -81,6 +81,12 @@ cd ~/.hatch-cli && pnpm dev add <project-name>
 ```
 Adds an existing GitHub/Vercel/Convex project to Hatch tracking.
 
+### Clone project repo locally
+```bash
+cd ~/.hatch-cli && pnpm dev clone --project <name> [--path <dir>] [--pull] [--json]
+```
+Clones a project's GitHub repo to `~/projects/<name>/repo/`. If already cloned, pulls latest changes. Use `--pull` to only pull (skip clone logic). Use before spikes to give the agent fresh codebase context.
+
 ### Show VM connection info
 ```bash
 cd ~/.hatch-cli && pnpm dev connect

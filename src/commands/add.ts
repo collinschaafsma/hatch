@@ -256,6 +256,17 @@ export const addCommand = new Command()
 
 			await saveProject(projectRecord);
 
+			// Auto-clone repo locally for agent context
+			try {
+				const { cloneProject } = await import("./clone.js");
+				const cloneResult = await cloneProject(projectName);
+				log.step(`Cloned to ${cloneResult.path}`);
+			} catch {
+				log.warn(
+					"Could not auto-clone repo locally. Run 'hatch clone' manually.",
+				);
+			}
+
 			// Step 5: Scaffold harness files
 			if (!options.skipHarness) {
 				const projectPath = path.resolve(options.cwd || process.cwd());

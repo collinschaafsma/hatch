@@ -67,3 +67,20 @@ export async function gitAdd(cwd: string, files = "."): Promise<void> {
 export async function gitCommit(message: string, cwd: string): Promise<void> {
 	await execCommand("git", ["commit", "-m", message], { cwd });
 }
+
+export async function gitClone(url: string, targetDir: string): Promise<void> {
+	await execCommand("git", ["clone", url, targetDir]);
+}
+
+export async function gitPull(cwd: string): Promise<{ stdout: string }> {
+	return await execCommand("git", ["pull"], { cwd });
+}
+
+export async function gitCurrentBranch(cwd: string): Promise<string> {
+	const { stdout } = await execCommand(
+		"git",
+		["rev-parse", "--abbrev-ref", "HEAD"],
+		{ cwd },
+	);
+	return stdout.trim();
+}

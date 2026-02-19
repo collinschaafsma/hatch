@@ -181,6 +181,17 @@ export const newCommand = new Command()
 					},
 				};
 				await saveProject(projectRecord);
+
+				// Auto-clone repo locally for agent context
+				try {
+					const { cloneProject } = await import("./clone.js");
+					const cloneResult = await cloneProject(projectName);
+					log.step(`Cloned to ${cloneResult.path}`);
+				} catch {
+					log.warn(
+						"Could not auto-clone repo locally. Run 'hatch clone' manually.",
+					);
+				}
 			} else {
 				log.warn(
 					"Could not save full project details. You may need to look up URLs manually.",
