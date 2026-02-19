@@ -114,7 +114,7 @@ class ServerLogger {
 					logDirReady = true;
 				}
 				const entry = JSON.stringify({ timestamp, level, message, ...context });
-				fs.appendFileSync(LOG_FILE, entry + "\\n");
+				fs.appendFileSync(LOG_FILE, \`\${entry}\\n\`);
 			} catch {
 				// Never crash the app due to logging failures
 			}

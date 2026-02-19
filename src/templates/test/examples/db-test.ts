@@ -23,7 +23,7 @@ describe("Convex Function Integration Tests", () => {
 	describe("authenticated access", () => {
 		it("can call a mutation with an authenticated identity", async () => {
 			const t = createConvexTest();
-			const asUser = t.withIdentity({
+			const _asUser = t.withIdentity({
 				name: "Test User",
 				email: "test@example.com",
 				subject: "user-123",
@@ -32,7 +32,7 @@ describe("Convex Function Integration Tests", () => {
 			// Example: run a direct DB read inside the Convex context
 			const result = await t.run(async (ctx) => {
 				// Verify the in-memory DB is accessible
-				const docs = await ctx.db.query("users").collect();
+				const docs = await ctx.db.query("workflowRuns").collect();
 				return docs;
 			});
 
@@ -45,7 +45,7 @@ describe("Convex Function Integration Tests", () => {
 			const t = createConvexTest();
 
 			// Use t.run() to insert directly into the in-memory DB
-			await t.run(async (ctx) => {
+			await t.run(async (_ctx) => {
 				// This tests raw DB access — replace with your own table
 				// once your schema has concrete tables.
 				// For now, this validates the convex-test setup works.

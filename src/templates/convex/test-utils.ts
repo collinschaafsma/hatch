@@ -6,6 +6,7 @@ import schema from "@/convex/schema";
 import { convexTest } from "convex-test";
 
 // Import all Convex modules so convex-test can resolve function references
+// @ts-expect-error -- import.meta.glob is provided by Vite at runtime (used by Vitest)
 const modules = import.meta.glob("../../convex/**/*.ts");
 
 /**
