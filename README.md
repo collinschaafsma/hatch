@@ -361,6 +361,7 @@ The config command prompts to add custom environment variables that will be auto
 | `hatch feature <name> --project <project>` | Create feature VM with branches |
 | `hatch spike <name> --project <project> --prompt "<instructions>"` | Create VM and run Claude Agent SDK autonomously |
 | `hatch status [--json] [--project <name>]` | Dashboard of VM liveness, spike progress, and PR status |
+| `hatch progress <feature> --project <project> [--json]` | Detailed spike progress with plan steps and recent logs |
 | `hatch connect [feature] --project <project>` | Show connection info |
 | `hatch list` | List projects with feature VMs |
 | `hatch clean <feature> --project <project>` | Delete feature VM and branches |
@@ -388,6 +389,7 @@ The config command prompts to add custom environment variables that will be auto
 | Flag | Description |
 |------|-------------|
 | `--prompt "<instructions>"` | Required. Instructions for Claude to implement |
+| `--plan` | Create an execution plan before coding (for complex features) |
 | `--wait` | Wait for spike to complete instead of returning immediately |
 | `--timeout <minutes>` | Max time in minutes when using `--wait` (default: 60) |
 | `--json` | Output result as JSON (useful for automation) |
@@ -652,6 +654,7 @@ pnpm install
 | `pnpm dev config` | Generate config file |
 | `pnpm dev add <name>` | Add existing project |
 | `pnpm dev status` | Dashboard of VM liveness, spike progress, and PR status |
+| `pnpm dev progress <name> --project <project>` | Detailed spike progress with plan steps and recent logs |
 | `pnpm dev list` | List projects and VMs |
 | `pnpm dev connect` | Show VM connection info |
 | `pnpm dev clean <name> --project <project>` | Clean up feature VM |

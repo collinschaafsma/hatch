@@ -3,6 +3,7 @@ import { execa } from "execa";
 import type { PRStatus, StatusResult, VMStatus } from "../types/index.js";
 import { log } from "../utils/logger.js";
 import { listProjects } from "../utils/project-store.js";
+import { checkPlanProgress } from "../utils/spike-progress.js";
 import { checkSSHConnection, sshExec } from "../utils/ssh.js";
 import { listVMs, listVMsByProject, updateVM } from "../utils/vm-store.js";
 
@@ -155,12 +156,23 @@ export const statusCommand = new Command()
 				return;
 			}
 
+			// Build project-to-repo map for plan progress lookups
+			const projects = await listProjects();
+			const projectRepoMap = new Map<string, string>();
+			for (const p of projects) {
+				projectRepoMap.set(p.name, p.github.repo);
+			}
+
 			// Run all checks in parallel
 			const vmStatuses: VMStatus[] = await Promise.all(
 				vms.map(async (vm) => {
-					const [prResult, livenessResult] = await Promise.all([
+					const repo = projectRepoMap.get(vm.project);
+					const [prResult, livenessResult, planResult] = await Promise.all([
 						vm.prUrl ? fetchPRStatus(vm.prUrl) : Promise.resolve(null),
 						checkVMLiveness(vm.sshHost, vm.spikeStatus),
+						vm.spikeStatus && repo
+							? checkPlanProgress(vm.sshHost, repo, vm.feature)
+							: Promise.resolve(null),
 					]);
 
 					// Auto-correct stale spike status
@@ -181,6 +193,7 @@ export const statusCommand = new Command()
 								createdAgo: timeAgo(vm.createdAt),
 								createdAt: vm.createdAt,
 								spikeActuallyDone: livenessResult.spikeActuallyDone,
+								planProgress: planResult,
 							}
 						: null;
 
@@ -211,8 +224,6 @@ export const statusCommand = new Command()
 			// Human-readable output grouped by project
 			log.blank();
 
-			const projects = await listProjects();
-			const projectNames = new Set(projects.map((p) => p.name));
 			const byProject = new Map<string, VMStatus[]>();
 
 			for (const vm of vmStatuses) {
@@ -242,6 +253,11 @@ export const statusCommand = new Command()
 						log.info(
 							`    Spike:  ${vm.spike.status} (${vm.spike.iterations} iteration${vm.spike.iterations === 1 ? "" : "s"}${costStr})`,
 						);
+						if (vm.spike.planProgress) {
+							log.info(
+								`    Plan:   ${vm.spike.planProgress.completed}/${vm.spike.planProgress.total} steps completed`,
+							);
+						}
 						if (vm.spike.originalPrompt) {
 							const prompt =
 								vm.spike.originalPrompt.length > 60

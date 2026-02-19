@@ -11,6 +11,7 @@ import { featureCommand } from "./commands/feature.js";
 import { hardenCommand } from "./commands/harden.js";
 import { listCommand } from "./commands/list.js";
 import { newCommand } from "./commands/new.js";
+import { progressCommand } from "./commands/progress.js";
 import { setPreviewDeployKeyCommand } from "./commands/set-preview-deploy-key.js";
 import { spikeCommand } from "./commands/spike.js";
 import { statusCommand } from "./commands/status.js";
@@ -34,6 +35,7 @@ program.addCommand(createCommand);
 program.addCommand(destroyCommand);
 program.addCommand(hardenCommand);
 program.addCommand(setPreviewDeployKeyCommand);
+program.addCommand(progressCommand);
 program.addCommand(statusCommand);
 program.addCommand(updateCommand);
 

@@ -53,9 +53,21 @@ cd ~/.hatch-cli && pnpm dev spike <name> --project <project> --prompt "<instruct
 Creates VM, runs Claude Agent SDK autonomously, creates PR when done.
 
 **Options:**
+- `--plan` - Create an execution plan before coding (see Execution Plans below)
 - `--wait` - Block until spike completes (default: return immediately)
 - `--timeout <minutes>` - Max time when using `--wait` (default: 240)
 - `--json` - Output result as JSON
+
+### Show detailed spike progress
+```bash
+cd ~/.hatch-cli && pnpm dev progress <feature> --project <project>
+```
+Shows detailed spike progress for a feature VM including plan steps checklist and recent log activity.
+
+**Options:**
+- `--json` - Output as JSON (recommended for agents)
+
+Use after starting a spike to see plan step progress and recent activity without SSH.
 
 ### Clean up
 ```bash
@@ -98,6 +110,38 @@ cd ~/.hatch-cli && pnpm dev destroy <project-name>
 Permanently deletes Convex project, Vercel project, and local tracking.
 Requires typing project name to confirm. GitHub repo is preserved.
 Only use after all feature VMs are cleaned.
+
+## Execution Plans
+
+The `--plan` flag tells the spike agent to create a structured execution plan before writing any code.
+
+### How it works
+
+1. The agent reads `docs/plans/_template.md` and project context (`docs/architecture.md`, `docs/patterns.md`)
+2. Creates `docs/plans/<spike-name>.md` with goal, approach, and step-by-step checklist
+3. Commits the plan as the first commit on the branch
+4. Executes each step in order, checking boxes and logging decisions as it goes
+5. Final commit marks the plan status as "completed"
+
+### When to use `--plan`
+
+Use `--plan` for complex features with multiple steps. Skip it for simple, single-task spikes.
+
+```bash
+cd ~/.hatch-cli && pnpm dev spike settings-page --project my-app --plan --prompt "Add user settings page with profile editing, notification preferences, and theme selection"
+```
+
+### Continuing a planned spike
+
+When using `--continue` on a spike that has a plan, the agent reads the existing plan and resumes from the first unchecked step.
+
+### Plan progress in status
+
+`hatch status` shows plan progress when available:
+
+```
+    Plan:   3/5 steps completed
+```
 
 ## When to Use Feature vs Spike
 
