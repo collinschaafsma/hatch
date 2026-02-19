@@ -57,6 +57,11 @@ export async function scaffoldHarness(
 			executable: true,
 		},
 		{
+			relativePath: "scripts/harness/query-logs.mjs",
+			content: templates.generateQueryLogsScript(),
+			executable: true,
+		},
+		{
 			relativePath: ".github/workflows/risk-policy-gate.yml",
 			content: templates.generateRiskPolicyGateWorkflow(),
 		},
@@ -119,6 +124,11 @@ const HARNESS_SCRIPTS: Record<string, string> = {
 		"pnpm lint && pnpm typecheck && pnpm test && node scripts/harness/risk-tier.mjs",
 	"harness:ui:capture-browser-evidence": "node scripts/harness/ui-capture.mjs",
 	"harness:ui:verify-browser-evidence": "node scripts/harness/ui-verify.mjs",
+	"harness:logs": "node scripts/harness/query-logs.mjs",
+	"harness:logs:errors": "node scripts/harness/query-logs.mjs --level error",
+	"harness:logs:slow": "node scripts/harness/query-logs.mjs --slow 200",
+	"harness:logs:summary": "node scripts/harness/query-logs.mjs --summary",
+	"harness:logs:clear": "node scripts/harness/query-logs.mjs --clear",
 };
 
 export async function mergeHarnessPackageJsonScripts(

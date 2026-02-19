@@ -46,6 +46,11 @@ Run \`pnpm harness:pre-pr\` before opening a pull request to validate all checks
 | \`pnpm harness:pre-pr\` | Full pre-PR validation (lint + typecheck + test + risk-tier) |
 | \`pnpm harness:ui:capture-browser-evidence\` | Capture screenshots of changed UI routes via agent-browser |
 | \`pnpm harness:ui:verify-browser-evidence\` | Verify that screenshots exist for changed UI files |
+| \`pnpm harness:logs\` | Query structured app logs (last 50 entries) |
+| \`pnpm harness:logs:errors\` | Show only error-level log entries |
+| \`pnpm harness:logs:slow\` | Show requests slower than 200ms |
+| \`pnpm harness:logs:summary\` | Aggregate stats by route |
+| \`pnpm harness:logs:clear\` | Clear logs (useful before a test run) |
 
 ## Evidence Capture
 
@@ -63,6 +68,7 @@ Set \`DEV_URL\` env var to override the default \`http://localhost:3000\`.
 - **Server/client split**: Server components create promises, client components unwrap with \`use()\`. See [docs/patterns.md](docs/patterns.md).
 - **Convex-native**: Use \`useQuery\`/\`useMutation\` from \`convex/react\` for data access. Workflows use \`@convex-dev/workflow\`.
 - **Route groups**: \`(marketing)/\` for public, \`(auth)/\` for login, \`(app)/\` for authenticated pages.
+- **Structured logging**: Use \`lib/logger\` for server logging. In development, JSON logs are written to \`~/.harness/logs/app.jsonl\`. Query with \`pnpm harness:logs\`.
 - **Biome**: Tabs for indentation, double quotes, no non-null assertions.
 - **Imports**: \`@/*\` for app root, \`@workspace/ui\` for shared UI package.
 

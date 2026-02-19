@@ -1,12 +1,19 @@
 export function generateServerLogger(): string {
 	return `import "server-only";
 import getPostHogClient from "@/lib/posthog";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 
 interface LogContext {
 	[key: string]: unknown;
 }
+
+const LOG_DIR = path.join(os.homedir(), ".harness", "logs");
+const LOG_FILE = path.join(LOG_DIR, "app.jsonl");
+let logDirReady = false;
 
 class ServerLogger {
 	/**
@@ -97,6 +104,20 @@ class ServerLogger {
 			console[level](\`\${prefix} \${message}\`, context);
 		} else {
 			console[level](\`\${prefix} \${message}\`);
+		}
+
+		// Write JSON log to file in development
+		if (process.env.NODE_ENV === "development" || !process.env.NODE_ENV) {
+			try {
+				if (!logDirReady) {
+					fs.mkdirSync(LOG_DIR, { recursive: true });
+					logDirReady = true;
+				}
+				const entry = JSON.stringify({ timestamp, level, message, ...context });
+				fs.appendFileSync(LOG_FILE, entry + "\\n");
+			} catch {
+				// Never crash the app due to logging failures
+			}
 		}
 	}
 }

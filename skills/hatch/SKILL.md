@@ -194,6 +194,24 @@ The spike writes these files to the VM home directory:
 | `~/spike-done` | Marker file indicating completion |
 | `~/pr-url.txt` | The created PR URL |
 
+## Observability (Structured Logs)
+
+Generated projects include structured logging. In development, the server logger writes JSON log entries to `~/.harness/logs/app.jsonl` on the VM.
+
+### Log Query Commands
+
+Run these from the project root on the VM:
+
+| Command | Description |
+|---------|-------------|
+| `pnpm harness:logs` | Last 50 log entries (human-readable) |
+| `pnpm harness:logs:errors` | Error-level entries only |
+| `pnpm harness:logs:slow` | Requests slower than 200ms |
+| `pnpm harness:logs:summary` | Aggregate stats by route |
+| `pnpm harness:logs:clear` | Truncate log file |
+
+Additional flags: `--route <path>`, `--since <5m|1h|30s>`, `--limit <n>`, `--json`.
+
 ## Cost Tracking
 
 Spikes track token usage and cost in `~/spike-result.json`:

@@ -102,6 +102,17 @@ function loadPrUrl(): string | undefined {
 	return undefined;
 }
 
+const OBSERVABILITY_INSTRUCTIONS = `
+## Observability
+
+This project has structured logging. Use these commands to verify your changes:
+- \`pnpm harness:logs:clear\` — Clear logs before testing for a clean window
+- \`pnpm harness:logs\` — See recent log entries
+- \`pnpm harness:logs --level error\` — Check for errors
+- \`pnpm harness:logs --slow 200\` — Find slow requests
+- \`pnpm harness:logs --summary\` — Aggregate stats by route
+`;
+
 const CONVEX_INSTRUCTIONS = `
 ## Convex Development
 
@@ -211,6 +222,7 @@ Important: The branch is already created (${feature}). Make your changes, verify
 	}
 
 	fullPrompt += `\n${CONVEX_INSTRUCTIONS}`;
+	fullPrompt += `\n${OBSERVABILITY_INSTRUCTIONS}`;
 
 	let totalInputTokens = 0;
 	let totalOutputTokens = 0;
