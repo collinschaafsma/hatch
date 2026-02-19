@@ -30,5 +30,11 @@ export function generatePlanTemplate(): string {
 ## References
 
 - [Link to related docs, past plans, architecture docs]
+
+## Observability Checklist
+
+- [ ] No errors in logs after full test run (\`pnpm harness:logs:errors\`)
+- [ ] No requests slower than 500ms (\`pnpm harness:logs --slow 500\`)
+- [ ] Log summary looks healthy (\`pnpm harness:logs:summary\`)
 `;
 }

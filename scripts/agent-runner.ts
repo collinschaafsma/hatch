@@ -228,6 +228,7 @@ Important: The branch already exists (${feature}). Make your changes, verify qua
    - Add any decisions to the Decision Log
    - Commit the plan update with your code changes
 6. When all steps are done, update the plan status to "completed"
+7. Use observability commands (pnpm harness:logs:errors, pnpm harness:logs --slow 500, pnpm harness:logs:summary) to verify each step and complete the Observability Checklist
 
 Your task:
 `
@@ -247,8 +248,13 @@ When you are done implementing your changes:
 Important: The branch is already created (${feature}). Make your changes, verify quality, then commit, push, and create the PR.`;
 	}
 
-	fullPrompt += `\n${CONVEX_INSTRUCTIONS}`;
-	fullPrompt += `\n${OBSERVABILITY_INSTRUCTIONS}`;
+	if (HATCH_PLAN) {
+		fullPrompt += `\n${OBSERVABILITY_INSTRUCTIONS}`;
+		fullPrompt += `\n${CONVEX_INSTRUCTIONS}`;
+	} else {
+		fullPrompt += `\n${CONVEX_INSTRUCTIONS}`;
+		fullPrompt += `\n${OBSERVABILITY_INSTRUCTIONS}`;
+	}
 
 	let totalInputTokens = 0;
 	let totalOutputTokens = 0;
