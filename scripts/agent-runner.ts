@@ -102,6 +102,9 @@ function loadPrUrl(): string | undefined {
 	return undefined;
 }
 
+const HATCH_PLAN = process.env.HATCH_PLAN === "true";
+const HATCH_SPIKE_NAME = process.env.HATCH_SPIKE_NAME || "";
+
 const OBSERVABILITY_INSTRUCTIONS = `
 ## Observability
 
@@ -185,7 +188,12 @@ async function main(): Promise<void> {
 			)
 			.join("\n");
 
-		fullPrompt = `You are continuing work on feature "${feature}".
+		const planContinuation =
+			HATCH_PLAN && HATCH_SPIKE_NAME
+				? `Read docs/plans/${HATCH_SPIKE_NAME}.md for the existing execution plan. Continue from the first unchecked step.\n\n`
+				: "";
+
+		fullPrompt = `${planContinuation}You are continuing work on feature "${feature}".
 
 Previous work:
 ${previousWork}
@@ -207,7 +215,25 @@ When you are done implementing your changes:
 Important: The branch already exists (${feature}). Make your changes, verify quality, commit, and push.`;
 	} else {
 		// First iteration - create PR
-		fullPrompt = `${prompt}
+		const planPreamble =
+			HATCH_PLAN && HATCH_SPIKE_NAME
+				? `PLANNING MODE: Before writing any code, create an execution plan.
+
+1. Read docs/plans/_template.md for the plan format
+2. Read docs/architecture.md and docs/patterns.md for project context
+3. Create docs/plans/${HATCH_SPIKE_NAME}.md with your plan
+4. Commit the plan: git add docs/plans/${HATCH_SPIKE_NAME}.md && git commit -m "plan: ${HATCH_SPIKE_NAME}"
+5. Execute each step in order. After completing each step:
+   - Check the box in the plan
+   - Add any decisions to the Decision Log
+   - Commit the plan update with your code changes
+6. When all steps are done, update the plan status to "completed"
+
+Your task:
+`
+				: "";
+
+		fullPrompt = `${planPreamble}${prompt}
 
 When you are done implementing your changes:
 1. Run \`pnpm lint\` from the project root and fix any lint errors

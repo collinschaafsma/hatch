@@ -220,6 +220,7 @@ export interface VMStatus {
 		createdAgo: string;
 		createdAt: string;
 		spikeActuallyDone: boolean | null;
+		planProgress: { completed: number; total: number } | null;
 	} | null;
 	pr: PRStatus | null;
 }

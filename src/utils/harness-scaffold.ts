@@ -92,6 +92,14 @@ export async function scaffoldHarness(
 			relativePath: "docs/decisions/adr-template.md",
 			content: templates.generateAdrTemplate(),
 		},
+		{
+			relativePath: "docs/plans/_template.md",
+			content: templates.generatePlanTemplate(),
+		},
+		{
+			relativePath: "docs/plans/README.md",
+			content: templates.generatePlansIndex(),
+		},
 	];
 
 	const files = includeDocs ? [...coreFiles, ...docFiles] : coreFiles;
