@@ -2,6 +2,7 @@ import os from "node:os";
 import path from "node:path";
 import { Command } from "commander";
 import fs from "fs-extra";
+import { loadConfigFile } from "../headless/config.js";
 import { gitClone, gitCurrentBranch, gitPull } from "../utils/exec.js";
 import { log } from "../utils/logger.js";
 import { getProject } from "../utils/project-store.js";
@@ -35,6 +36,13 @@ export async function cloneProject(
 	const targetDir =
 		options?.path || path.join(os.homedir(), "projects", projectName, "repo");
 
+	// Resolve GitHub token for authenticated git operations
+	const config = await loadConfigFile();
+	const token =
+		config?.github?.token ??
+		process.env.GITHUB_TOKEN ??
+		process.env.GH_TOKEN;
+
 	// --pull mode: only pull, error if not a git repo
 	if (options?.pull) {
 		if (!(await fs.pathExists(path.join(targetDir, ".git")))) {
@@ -42,7 +50,7 @@ export async function cloneProject(
 				`Not a git repo: ${targetDir}. Run 'hatch clone --project ${projectName}' first.`,
 			);
 		}
-		await gitPull(targetDir);
+		await gitPull(targetDir, token);
 		const branch = await gitCurrentBranch(targetDir);
 		return { path: targetDir, action: "pulled", branch };
 	}
@@ -50,7 +58,7 @@ export async function cloneProject(
 	// Directory exists — check if it's already a git repo
 	if (await fs.pathExists(targetDir)) {
 		if (await fs.pathExists(path.join(targetDir, ".git"))) {
-			await gitPull(targetDir);
+			await gitPull(targetDir, token);
 			const branch = await gitCurrentBranch(targetDir);
 			return { path: targetDir, action: "pulled", branch };
 		}
@@ -62,7 +70,7 @@ export async function cloneProject(
 	// Clone fresh
 	const parentDir = path.dirname(targetDir);
 	await fs.ensureDir(parentDir);
-	await gitClone(cloneUrl, targetDir);
+	await gitClone(cloneUrl, targetDir, token);
 	const branch = await gitCurrentBranch(targetDir);
 	return { path: targetDir, action: "cloned", branch };
 }

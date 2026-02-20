@@ -68,12 +68,38 @@ export async function gitCommit(message: string, cwd: string): Promise<void> {
 	await execCommand("git", ["commit", "-m", message], { cwd });
 }
 
-export async function gitClone(url: string, targetDir: string): Promise<void> {
-	await execCommand("git", ["clone", url, targetDir]);
+function gitEnvWithToken(token?: string): {
+	args: string[];
+	env?: Record<string, string>;
+} {
+	if (!token) return { args: [] };
+	return {
+		args: [
+			"-c",
+			"credential.helper=!f() { echo username=x-access-token; echo password=$GITHUB_TOKEN; }; f",
+		],
+		env: { ...process.env, GITHUB_TOKEN: token, GH_TOKEN: token } as Record<
+			string,
+			string
+		>,
+	};
 }
 
-export async function gitPull(cwd: string): Promise<{ stdout: string }> {
-	return await execCommand("git", ["pull"], { cwd });
+export async function gitClone(
+	url: string,
+	targetDir: string,
+	token?: string,
+): Promise<void> {
+	const { args, env } = gitEnvWithToken(token);
+	await execCommand("git", [...args, "clone", url, targetDir], { env });
+}
+
+export async function gitPull(
+	cwd: string,
+	token?: string,
+): Promise<{ stdout: string }> {
+	const { args, env } = gitEnvWithToken(token);
+	return await execCommand("git", [...args, "pull"], { cwd, env });
 }
 
 export async function gitCurrentBranch(cwd: string): Promise<string> {
