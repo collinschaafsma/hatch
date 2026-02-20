@@ -496,17 +496,17 @@ print_summary() {
 # =============================================================================
 
 install_skills() {
-  print_header "Installing Claude Code Skills"
+  print_header "Installing Skills"
 
   print_step "Installing vercel-react-best-practices skill..."
-  if npx -y skills add vercel-labs/agent-skills --skill vercel-react-best-practices --agent claude-code -y; then
+  if npx -y skills add vercel-labs/agent-skills --skill vercel-react-best-practices --agent claude-code codex -y; then
     print_success "vercel-react-best-practices skill installed"
   else
     print_warning "Could not install vercel-react-best-practices skill"
   fi
 
   print_step "Installing agent-browser skill..."
-  if npx -y skills add vercel-labs/agent-browser --skill agent-browser --agent claude-code -y; then
+  if npx -y skills add vercel-labs/agent-browser --skill agent-browser --agent claude-code codex -y; then
     print_success "agent-browser skill installed"
   else
     print_warning "Could not install agent-browser skill"

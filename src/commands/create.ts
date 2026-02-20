@@ -313,7 +313,7 @@ export const createCommand = new Command()
 				});
 
 				// Install external Claude Code skills from GitHub repos
-				await withSpinner("Installing Claude Code skills", async () => {
+				await withSpinner("Installing skills", async () => {
 					const skillsByRepo = [
 						{
 							repo: "https://github.com/vercel-labs/agent-skills",
@@ -368,7 +368,16 @@ export const createCommand = new Command()
 						try {
 							await npxCommand(
 								"skills",
-								["add", repo, "--skill", ...skills, "-a", "claude-code", "-y"],
+								[
+									"add",
+									repo,
+									"--skill",
+									...skills,
+									"-a",
+									"claude-code",
+									"codex",
+									"-y",
+								],
 								projectPath,
 							);
 						} catch (error) {
