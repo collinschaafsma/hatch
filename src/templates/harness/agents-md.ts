@@ -69,16 +69,16 @@ Set \`DEV_URL\` env var to override the default \`http://localhost:3000\`.
 - **Convex-native**: Use \`useQuery\`/\`useMutation\` from \`convex/react\` for data access. Workflows use \`@convex-dev/workflow\`.
 - **Route groups**: \`(marketing)/\` for public, \`(auth)/\` for login, \`(app)/\` for authenticated pages.
 - **Structured logging**: Use \`lib/logger\` for server logging. In development, JSON logs are written to \`~/.harness/logs/app.jsonl\`. Query with \`pnpm harness:logs\`.
-- **Biome**: Tabs for indentation, double quotes, no non-null assertions.
+- **Biome**: 2 spaces for indentation, double quotes, no non-null assertions.
 - **Imports**: \`@/*\` for app root, \`@workspace/ui\` for shared UI package.
 
 ## Git Safety
 
-Always confirm before running destructive or state-modifying git commands:
-- \`git commit\`, \`git push\`, \`git merge\`, \`git rebase\`
-- \`git reset\`, \`git stash\`, \`git cherry-pick\`
-- \`git branch -D\`, \`git push --force\`
+On feature branches, \`git commit\` and \`git push\` are encouraged — commit early and often.
 
-This applies regardless of automation level or permissions mode.
+Always confirm before running destructive or shared-branch git commands:
+- \`git push --force\`, \`git branch -D\`, \`git reset --hard\`
+- \`git merge\`, \`git rebase\`, \`git cherry-pick\` on \`main\`
+- Any push to \`main\`
 `;
 }
