@@ -10,7 +10,7 @@ export function generateHarnessJson(name: string): string {
 						"apps/web/convex/betterAuth/**",
 						"apps/web/lib/auth*.ts",
 						"apps/web/app/api/auth/**",
-						"apps/web/middleware.ts",
+						"apps/web/proxy.ts",
 					],
 					requiredChecks: ["lint", "typecheck", "test", "risk-policy-gate"],
 					docsDriftRules: ["docs/api-contracts.md", "docs/architecture.md"],

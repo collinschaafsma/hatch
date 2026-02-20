@@ -33,7 +33,7 @@ This project uses a machine-readable risk contract at \`harness.json\`.
 - \`apps/web/convex/betterAuth/**\` — Authentication component
 - \`apps/web/lib/auth*.ts\` — Auth configuration
 - \`apps/web/app/api/auth/**\` — Auth API routes
-- \`apps/web/middleware.ts\` — Request middleware
+- \`apps/web/proxy.ts\` — Request proxy
 
 Run \`pnpm harness:pre-pr\` before opening a pull request to validate all checks pass.
 
