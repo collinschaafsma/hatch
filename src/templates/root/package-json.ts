@@ -27,7 +27,7 @@ export function generateRootPackageJson(projectName: string): string {
 					"node scripts/harness/ui-verify.mjs",
 			},
 			devDependencies: {
-				"@biomejs/biome": "^2.4.2",
+				"@biomejs/biome": "^2.4.3",
 				turbo: "^2.8.9",
 				typescript: "^5.9.3",
 			},

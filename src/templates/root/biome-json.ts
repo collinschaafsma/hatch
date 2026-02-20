@@ -1,7 +1,7 @@
 export function generateBiomeJson(): string {
 	return `${JSON.stringify(
 		{
-			$schema: "https://biomejs.dev/schemas/2.3.11/schema.json",
+			$schema: "https://biomejs.dev/schemas/2.4.3/schema.json",
 			vcs: {
 				enabled: true,
 				clientKind: "git",
