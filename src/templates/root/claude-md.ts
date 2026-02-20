@@ -3,18 +3,14 @@ export function generateClaudeMd(name: string): string {
 
 > Agent-agnostic instructions live in AGENTS.md. This file adds Claude Code-specific overlays.
 
-## Git Operations
+## Git Safety
 
-**ALWAYS ask for explicit user confirmation before running any git commands that modify history or remote state**, including:
-- \`git commit\`
-- \`git push\`
-- \`git merge\`
-- \`git rebase\`
-- \`git reset\`
-- \`git stash\`
-- \`git cherry-pick\`
+On feature branches, \`git commit\` and \`git push\` are encouraged — commit early and often.
 
-This applies even in dangerous/bypass permissions mode. Never auto-approve these operations.
+Always confirm before running destructive or shared-branch git commands:
+- \`git push --force\`, \`git branch -D\`, \`git reset --hard\`
+- \`git merge\`, \`git rebase\`, \`git cherry-pick\` on \`main\`
+- Any push to \`main\`
 
 ## Commands
 
