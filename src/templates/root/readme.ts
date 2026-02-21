@@ -244,7 +244,7 @@ This project includes an agent harness that provides risk-aware merge policies, 
 | \`pnpm harness:risk-tier\` | Compute risk tier of current changes |
 | \`pnpm harness:risk-tier --json\` | Machine-readable risk tier output |
 | \`pnpm harness:docs-drift\` | Check if docs need updating |
-| \`pnpm harness:pre-pr\` | Full pre-PR validation (lint + typecheck + test + risk) |
+| \`pnpm harness:pre-pr\` | Full pre-PR validation (build + lint + typecheck + test + risk) |
 | \`pnpm harness:ui:capture-browser-evidence\` | Screenshot changed UI routes via agent-browser |
 | \`pnpm harness:ui:verify-browser-evidence\` | Verify screenshots exist for changed UI files |
 

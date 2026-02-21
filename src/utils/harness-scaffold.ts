@@ -129,7 +129,7 @@ const HARNESS_SCRIPTS: Record<string, string> = {
 	"harness:risk-tier": "node scripts/harness/risk-tier.mjs",
 	"harness:docs-drift": "node scripts/harness/docs-drift-check.mjs",
 	"harness:pre-pr":
-		"pnpm lint && pnpm typecheck && pnpm test && node scripts/harness/risk-tier.mjs",
+		"pnpm build && pnpm lint && pnpm typecheck && pnpm test && node scripts/harness/risk-tier.mjs",
 	"harness:ui:capture-browser-evidence": "node scripts/harness/ui-capture.mjs",
 	"harness:ui:verify-browser-evidence": "node scripts/harness/ui-verify.mjs",
 	"harness:logs": "node scripts/harness/query-logs.mjs",

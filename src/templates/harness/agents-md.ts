@@ -43,7 +43,7 @@ Run \`pnpm harness:pre-pr\` before opening a pull request to validate all checks
 |--------|-------------|
 | \`pnpm harness:risk-tier\` | Compute the risk tier of current changes |
 | \`pnpm harness:docs-drift\` | Check if docs need updating for current changes |
-| \`pnpm harness:pre-pr\` | Full pre-PR validation (lint + typecheck + test + risk-tier) |
+| \`pnpm harness:pre-pr\` | Full pre-PR validation (build + lint + typecheck + test + risk-tier) |
 | \`pnpm harness:ui:capture-browser-evidence\` | Capture screenshots of changed UI routes via agent-browser |
 | \`pnpm harness:ui:verify-browser-evidence\` | Verify that screenshots exist for changed UI files |
 | \`pnpm harness:logs\` | Query structured app logs (last 50 entries) |

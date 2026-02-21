@@ -24,7 +24,7 @@ export function generateTurboJson(): string {
 					cache: false,
 				},
 				"harness:pre-pr": {
-					dependsOn: ["lint", "typecheck", "test"],
+					dependsOn: ["build", "lint", "typecheck", "test"],
 					cache: false,
 				},
 			},

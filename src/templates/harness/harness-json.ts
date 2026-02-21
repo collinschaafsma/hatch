@@ -12,17 +12,23 @@ export function generateHarnessJson(name: string): string {
 						"apps/web/app/api/auth/**",
 						"apps/web/proxy.ts",
 					],
-					requiredChecks: ["lint", "typecheck", "test", "risk-policy-gate"],
+					requiredChecks: [
+						"build",
+						"lint",
+						"typecheck",
+						"test",
+						"risk-policy-gate",
+					],
 					docsDriftRules: ["docs/api-contracts.md", "docs/architecture.md"],
 				},
 				medium: {
 					patterns: ["apps/web/app/api/**", "apps/web/convex/**"],
-					requiredChecks: ["lint", "typecheck", "test"],
+					requiredChecks: ["build", "lint", "typecheck", "test"],
 					docsDriftRules: ["docs/api-contracts.md"],
 				},
 				low: {
 					patterns: ["**"],
-					requiredChecks: ["lint", "typecheck"],
+					requiredChecks: ["build", "lint", "typecheck"],
 				},
 			},
 			mergePolicy: {
