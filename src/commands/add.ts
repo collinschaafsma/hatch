@@ -7,6 +7,10 @@ import fs from "fs-extra";
 import { vercelGetProjectUrl } from "../headless/cli-wrappers.js";
 import type { HatchConfig, ProjectRecord } from "../types/index.js";
 import {
+	getProjectConfigPath,
+	resolveConfigPath,
+} from "../utils/config-resolver.js";
+import {
 	mergeHarnessPackageJsonScripts,
 	scaffoldHarness,
 } from "../utils/harness-scaffold.js";
@@ -59,12 +63,21 @@ export const addCommand = new Command()
 				process.exit(1);
 			}
 
-			// Load config to get org names
-			const configPath =
-				options.config || path.join(os.homedir(), ".hatch.json");
+			// Resolve config path (auto-detects per-project config)
+			const configPath = await resolveConfigPath({
+				configPath: options.config,
+				project: projectName,
+			});
 			let config: HatchConfig = { convex: {} };
+			const perProjectConfigPath = await getProjectConfigPath(projectName);
+			const usedPerProjectConfig = configPath === perProjectConfigPath;
 			if (await fs.pathExists(configPath)) {
 				config = await fs.readJson(configPath);
+				if (usedPerProjectConfig) {
+					log.step(
+						`Using per-project config: ~/.hatch/configs/${projectName}.json`,
+					);
+				}
 			}
 
 			const githubOrg = config.github?.org;
@@ -256,10 +269,57 @@ export const addCommand = new Command()
 
 			await saveProject(projectRecord);
 
+			// Create per-project config if one wasn't already used
+			if (!usedPerProjectConfig) {
+				log.blank();
+				const createConfig = await confirm({
+					message: `Create a per-project config for "${projectName}"?`,
+					default: true,
+				});
+
+				if (createConfig) {
+					const newConfigPath = await getProjectConfigPath(projectName);
+					const projectConfig: HatchConfig = {
+						project: projectName,
+						convex: {
+							accessToken: config.convex?.accessToken,
+						},
+					};
+					if (config.github?.token || config.github?.org) {
+						projectConfig.github = {
+							token: config.github?.token,
+							org: config.github?.org,
+							email: config.github?.email,
+							name: config.github?.name,
+						};
+					}
+					if (config.vercel?.token || config.vercel?.team) {
+						projectConfig.vercel = {
+							token: config.vercel?.token,
+							team: config.vercel?.team,
+						};
+					}
+					if (config.claude) {
+						projectConfig.claude = config.claude;
+					}
+					// Include the Convex deploy key collected during add
+					if (convex.deployKey) {
+						projectConfig.convex.deployKey = convex.deployKey;
+					}
+
+					await fs.writeJson(newConfigPath, projectConfig, {
+						spaces: 2,
+					});
+					log.success(`Per-project config written to ${newConfigPath}`);
+				}
+			}
+
 			// Auto-clone repo locally for agent context
 			try {
 				const { cloneProject } = await import("./clone.js");
-				const cloneResult = await cloneProject(projectName);
+				const cloneResult = await cloneProject(projectName, {
+					configPath,
+				});
 				log.step(`Cloned to ${cloneResult.path}`);
 			} catch {
 				log.warn(

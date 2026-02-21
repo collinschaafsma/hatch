@@ -336,13 +336,66 @@ ssh <vm>.exe.xyz 'cat ~/pr-url.txt'               # Get PR URL
 
 ### Adding Existing Projects
 
-Have a project already set up? Add it to Hatch to use feature VMs:
+Have a project already set up with GitHub, Vercel, and Convex? You can add it to Hatch to use feature VMs, spikes, and the full isolation workflow.
+
+#### Requirements
+
+Your existing project must have:
+
+- **GitHub repository** — The repo name should match the project name you pass to `hatch add`. If your repo lives under an org, set `github.org` in your config so Hatch looks up `<org>/<project-name>` automatically.
+- **Convex backend** — You'll need the project slug (e.g. `my-app`), deployment URL, and ideally a deploy key. The deploy key is used by feature VMs to deploy schema and functions to isolated Convex projects.
+- **Vercel project** — The Vercel project name should match the repo name. Hatch uses the Vercel CLI to look it up, so make sure `vercel` is installed and authenticated.
+
+Optional but recommended:
+- **Per-project config** (`~/.hatch/configs/<name>.json`) — If you manage multiple projects with different credentials, create a per-project config first with `hatch config --project <name>`. The `add` command will auto-detect it.
+
+#### Step-by-Step
+
+1. **(Optional) Create a per-project config** if you have project-specific tokens:
+
+   ```bash
+   pnpm dev config --project my-existing-app
+   ```
+
+2. **Run `hatch add`** with your project name:
+
+   ```bash
+   pnpm dev add my-existing-app
+   ```
+
+3. **Hatch looks up your resources** automatically:
+   - Queries GitHub for the repo (via `gh repo view`)
+   - Searches Vercel for a matching project (via `vercel project ls`)
+   - Prompts you for Convex project details (slug, deployment URL, deploy key)
+
+   If any resource isn't found automatically, you'll be prompted to enter it manually.
+
+4. **Per-project config creation** — After saving the project record, if no per-project config existed, Hatch prompts to create one at `~/.hatch/configs/<name>.json`. This seeds it with all tokens from your resolved config plus the Convex deploy key you entered. This means `hatch feature` and `hatch spike` will automatically use the right credentials for this project.
+
+5. **Harness scaffolding** — If you run `hatch add` from your project directory, it scaffolds the agent harness (`harness.json`, `AGENTS.md`, risk-tier scripts) and offers to generate documentation stubs. Use `--skip-harness` to skip this.
+
+6. **Start using feature VMs:**
+
+   ```bash
+   pnpm dev feature add-auth --project my-existing-app
+   ```
+
+#### Example: Full Flow
 
 ```bash
-pnpm dev add my-existing-app
-```
+# Set up project-specific credentials
+pnpm dev config --project my-existing-app
 
-This looks up your GitHub, Vercel, and Convex resources by project name and saves them for tracking. Then use `hatch feature` to create isolated development environments.
+# Add the project (auto-detects the per-project config)
+cd ~/projects/my-existing-app
+pnpm dev add my-existing-app
+
+# Create a feature VM with full isolation
+pnpm dev feature payments --project my-existing-app
+
+# Or run an autonomous spike
+pnpm dev spike fix-nav --project my-existing-app --prompt "Fix mobile nav menu"
+```
 
 ### Backend Isolation
 

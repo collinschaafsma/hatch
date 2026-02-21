@@ -23,7 +23,7 @@ interface CloneResult {
 
 export async function cloneProject(
 	projectName: string,
-	options?: { path?: string; pull?: boolean },
+	options?: { path?: string; pull?: boolean; configPath?: string },
 ): Promise<CloneResult> {
 	const project = await getProject(projectName);
 	if (!project) {
@@ -37,11 +37,12 @@ export async function cloneProject(
 		options?.path || path.join(os.homedir(), "projects", projectName, "repo");
 
 	// Resolve GitHub token for authenticated git operations
-	const config = await loadConfigFile();
+	const config = await loadConfigFile({
+		configPath: options?.configPath,
+		project: projectName,
+	});
 	const token =
-		config?.github?.token ??
-		process.env.GITHUB_TOKEN ??
-		process.env.GH_TOKEN;
+		config?.github?.token ?? process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
 
 	// --pull mode: only pull, error if not a git repo
 	if (options?.pull) {
