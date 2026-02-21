@@ -10,6 +10,11 @@ import type {
 	EnvVar,
 	HatchConfig,
 } from "../types/index.js";
+import {
+	getProjectConfigPath,
+	listProjectConfigs,
+	resolveConfigPath,
+} from "../utils/config-resolver.js";
 import { log } from "../utils/logger.js";
 import { withSpinner } from "../utils/spinner.js";
 
@@ -336,105 +341,195 @@ async function validateTokens(configPath: string): Promise<{
 const checkCommand = new Command()
 	.name("check")
 	.description("Validate tokens in hatch.json are still valid")
-	.option(
-		"-c, --config <path>",
-		"Path to hatch.json config file",
-		path.join(os.homedir(), ".hatch.json"),
-	)
+	.option("-c, --config <path>", "Path to hatch.json config file")
+	.option("--project <name>", "Check a specific project's config")
 	.option("--json", "Output result as JSON")
-	.action(async (options: { config: string; json?: boolean }) => {
-		try {
-			const configPath = options.config.startsWith("~")
-				? path.join(os.homedir(), options.config.slice(2))
-				: path.resolve(process.cwd(), options.config);
+	.action(
+		async (options: {
+			config?: string;
+			project?: string;
+			json?: boolean;
+		}) => {
+			try {
+				const configPath = await resolveConfigPath({
+					configPath: options.config,
+					project: options.project,
+				});
 
-			if (!(await fs.pathExists(configPath))) {
+				if (!(await fs.pathExists(configPath))) {
+					if (options.json) {
+						console.log(
+							JSON.stringify({
+								valid: false,
+								error: `Config file not found: ${configPath}`,
+							}),
+						);
+					} else {
+						log.error(`Config file not found: ${configPath}`);
+						log.info("Run 'hatch config' to create a config file.");
+					}
+					process.exit(1);
+				}
+
+				if (!options.json) {
+					log.blank();
+					log.info(`Checking tokens in ${configPath}...`);
+					log.blank();
+				}
+
+				const results = await validateTokens(configPath);
+
+				if (options.json) {
+					const allValid = Object.values(results).every((r) => r.valid);
+					console.log(
+						JSON.stringify({
+							valid: allValid,
+							tokens: results,
+						}),
+					);
+				} else {
+					let allValid = true;
+
+					if (results.github.valid) {
+						log.success("GitHub: valid");
+					} else {
+						log.error(`GitHub: ${results.github.error}`);
+						allValid = false;
+					}
+
+					if (results.vercel.valid) {
+						log.success("Vercel: valid");
+					} else {
+						log.error(`Vercel: ${results.vercel.error}`);
+						allValid = false;
+					}
+
+					if (results.convex.valid) {
+						log.success("Convex: valid");
+					} else {
+						log.error(`Convex: ${results.convex.error}`);
+						allValid = false;
+					}
+
+					if (results.claude.valid) {
+						log.success("Claude Code: valid");
+					} else {
+						log.error(`Claude Code: ${results.claude.error}`);
+						allValid = false;
+					}
+
+					log.blank();
+					if (allValid) {
+						log.success("All tokens are valid!");
+					} else {
+						log.warn("Some tokens are invalid or expired.");
+						log.info("Run 'hatch config --refresh' to update tokens.");
+					}
+					log.blank();
+				}
+
+				const allValid = Object.values(results).every((r) => r.valid);
+				process.exit(allValid ? 0 : 1);
+			} catch (error) {
 				if (options.json) {
 					console.log(
 						JSON.stringify({
 							valid: false,
-							error: `Config file not found: ${configPath}`,
+							error: error instanceof Error ? error.message : String(error),
 						}),
 					);
 				} else {
-					log.error(`Config file not found: ${configPath}`);
-					log.info("Run 'hatch config' to create a config file.");
+					log.error(
+						`Failed to check tokens: ${error instanceof Error ? error.message : error}`,
+					);
 				}
 				process.exit(1);
 			}
+		},
+	);
 
-			if (!options.json) {
-				log.blank();
-				log.info(`Checking tokens in ${configPath}...`);
-				log.blank();
-			}
-
-			const results = await validateTokens(configPath);
+// List subcommand
+const listCommand = new Command()
+	.name("list")
+	.description("List all project-specific configs")
+	.option("--json", "Output result as JSON")
+	.action(async (options: { json?: boolean }) => {
+		try {
+			const globalPath = path.join(os.homedir(), ".hatch.json");
+			const globalExists = await fs.pathExists(globalPath);
+			const projectConfigs = await listProjectConfigs();
 
 			if (options.json) {
-				const allValid = Object.values(results).every((r) => r.valid);
+				const globalInfo = globalExists
+					? {
+							path: globalPath,
+							hasGithub: false,
+							hasVercel: false,
+							hasConvex: false,
+							hasClaude: false,
+						}
+					: null;
+
+				if (globalExists) {
+					try {
+						const config = await fs.readJson(globalPath);
+						if (globalInfo) {
+							globalInfo.hasGithub = !!config.github?.token;
+							globalInfo.hasVercel = !!config.vercel?.token;
+							globalInfo.hasConvex = !!config.convex?.accessToken;
+							globalInfo.hasClaude = !!config.claude?.accessToken;
+						}
+					} catch {
+						// Ignore parse errors
+					}
+				}
+
 				console.log(
-					JSON.stringify({
-						valid: allValid,
-						tokens: results,
-					}),
+					JSON.stringify(
+						{
+							global: globalInfo,
+							projects: projectConfigs,
+						},
+						null,
+						2,
+					),
 				);
 			} else {
-				let allValid = true;
-
-				if (results.github.valid) {
-					log.success("GitHub: valid");
-				} else {
-					log.error(`GitHub: ${results.github.error}`);
-					allValid = false;
-				}
-
-				if (results.vercel.valid) {
-					log.success("Vercel: valid");
-				} else {
-					log.error(`Vercel: ${results.vercel.error}`);
-					allValid = false;
-				}
-
-				if (results.convex.valid) {
-					log.success("Convex: valid");
-				} else {
-					log.error(`Convex: ${results.convex.error}`);
-					allValid = false;
-				}
-
-				if (results.claude.valid) {
-					log.success("Claude Code: valid");
-				} else {
-					log.error(`Claude Code: ${results.claude.error}`);
-					allValid = false;
-				}
-
 				log.blank();
-				if (allValid) {
-					log.success("All tokens are valid!");
+				log.info("Hatch configurations:");
+				log.blank();
+
+				if (globalExists) {
+					log.step(`Global: ${globalPath}`);
 				} else {
-					log.warn("Some tokens are invalid or expired.");
-					log.info("Run 'hatch config --refresh' to update tokens.");
+					log.step("Global: not configured");
 				}
+
+				if (projectConfigs.length > 0) {
+					log.blank();
+					log.info("Per-project configs:");
+					for (const config of projectConfigs) {
+						const tokens = [];
+						if (config.hasGithub) tokens.push("github");
+						if (config.hasVercel) tokens.push("vercel");
+						if (config.hasConvex) tokens.push("convex");
+						if (config.hasClaude) tokens.push("claude");
+						log.step(
+							`${config.name}: ${tokens.length > 0 ? tokens.join(", ") : "no tokens"}`,
+						);
+					}
+				} else {
+					log.blank();
+					log.info("No per-project configs found.");
+					log.info("Create one with: hatch config --project <project-name>");
+				}
+
 				log.blank();
 			}
-
-			const allValid = Object.values(results).every((r) => r.valid);
-			process.exit(allValid ? 0 : 1);
 		} catch (error) {
-			if (options.json) {
-				console.log(
-					JSON.stringify({
-						valid: false,
-						error: error instanceof Error ? error.message : String(error),
-					}),
-				);
-			} else {
-				log.error(
-					`Failed to check tokens: ${error instanceof Error ? error.message : error}`,
-				);
-			}
+			log.error(
+				`Failed to list configs: ${error instanceof Error ? error.message : error}`,
+			);
 			process.exit(1);
 		}
 	});
@@ -444,6 +539,10 @@ export const configCommand = new Command()
 	.description("Generate and manage hatch.json config file")
 	.option("-o, --output <path>", "Output file path (defaults to ~/.hatch.json)")
 	.option(
+		"--project <name>",
+		"Create per-project config at ~/.hatch/configs/<name>.json",
+	)
+	.option(
 		"--refresh",
 		"Refresh only tokens, preserving orgs/teams/env vars from existing config",
 	)
@@ -452,17 +551,25 @@ export const configCommand = new Command()
 		"Refresh only Claude Code credentials (preserves all other config)",
 	)
 	.addCommand(checkCommand)
+	.addCommand(listCommand)
 	.action(
 		async (options: {
 			output?: string;
+			project?: string;
 			refresh: boolean;
 			refreshClaude?: boolean;
 		}) => {
 			try {
-				// Determine config path - default to global ~/.hatch.json
-				const configPath = options.output
-					? path.resolve(process.cwd(), options.output)
-					: path.join(os.homedir(), ".hatch.json");
+				// Determine config path
+				// Priority: --output > --project > global default
+				let configPath: string;
+				if (options.output) {
+					configPath = path.resolve(process.cwd(), options.output);
+				} else if (options.project) {
+					configPath = await getProjectConfigPath(options.project);
+				} else {
+					configPath = path.join(os.homedir(), ".hatch.json");
+				}
 
 				// Handle --refresh-claude: update only Claude credentials
 				if (options.refreshClaude) {
@@ -539,6 +646,11 @@ export const configCommand = new Command()
 				log.blank();
 
 				const config: HatchConfig = { convex: {} };
+
+				// Set project name if creating per-project config
+				if (options.project) {
+					config.project = options.project;
+				}
 
 				// Read GitHub token
 				let githubToken: string | null = null;

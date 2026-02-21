@@ -1,10 +1,10 @@
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import fs from "fs-extra";
 import { parseConvexDeployUrl } from "../headless/convex.js";
 import type { SpikeResult, VMRecord } from "../types/index.js";
+import { resolveConfigPath } from "../utils/config-resolver.js";
 import {
 	checkExeDevAccess,
 	exeDevNew,
@@ -140,7 +140,10 @@ async function handleContinuation(
 		}
 
 		// Step 3: Load and refresh config
-		const configPath = options.config || path.join(os.homedir(), ".hatch.json");
+		const configPath = await resolveConfigPath({
+			configPath: options.config,
+			project: options.project,
+		});
 		if (!(await fs.pathExists(configPath))) {
 			const result: SpikeResult = {
 				status: "failed",
@@ -409,11 +412,7 @@ export const spikeCommand = new Command()
 	.argument("<feature-name>", "Name of the feature to build")
 	.requiredOption("--project <name>", "Project name (from hatch list)")
 	.requiredOption("--prompt <instructions>", "Instructions for Claude")
-	.option(
-		"-c, --config <path>",
-		"Path to hatch.json config file",
-		path.join(os.homedir(), ".hatch.json"),
-	)
+	.option("-c, --config <path>", "Path to hatch.json config file")
 	.option("--timeout <minutes>", "Maximum build time in minutes", "240")
 	.option("--wait", "Wait for completion instead of running in background")
 	.option("--json", "Output result as JSON")
@@ -517,9 +516,11 @@ export const spikeCommand = new Command()
 			}
 			accessSpinner?.succeed("exe.dev SSH access confirmed");
 
-			// Check config file exists and load it
-			const configPath =
-				options.config || path.join(os.homedir(), ".hatch.json");
+			// Resolve config file path
+			const configPath = await resolveConfigPath({
+				configPath: options.config,
+				project: options.project,
+			});
 			if (!(await fs.pathExists(configPath))) {
 				const result: SpikeResult = {
 					status: "failed",

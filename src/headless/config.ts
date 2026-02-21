@@ -1,33 +1,33 @@
-import os from "node:os";
-import path from "node:path";
 import fs from "fs-extra";
 import type {
 	HatchConfig,
 	HeadlessOptions,
 	ResolvedHeadlessConfig,
 } from "../types/index.js";
+import { resolveConfigPath } from "../utils/config-resolver.js";
 
 /**
- * Load hatch.json config file from specified path, current directory, or home directory
+ * Load hatch.json config file using the standard resolution order:
+ * 1. Explicit configPath (--config)
+ * 2. Per-project config (--project → ~/.hatch/configs/<name>.json)
+ * 3. ./hatch.json (current directory)
+ * 4. ~/.hatch.json (global fallback)
  */
-export async function loadConfigFile(
-	configPath?: string,
-): Promise<HatchConfig | null> {
-	const pathsToCheck = configPath
-		? [configPath]
-		: [
-				path.join(process.cwd(), "hatch.json"),
-				path.join(os.homedir(), ".hatch.json"),
-			];
+export async function loadConfigFile(options?: {
+	configPath?: string;
+	project?: string;
+}): Promise<HatchConfig | null> {
+	const resolvedPath = await resolveConfigPath({
+		configPath: options?.configPath,
+		project: options?.project,
+	});
 
-	for (const filePath of pathsToCheck) {
-		if (await fs.pathExists(filePath)) {
-			try {
-				const content = await fs.readFile(filePath, "utf-8");
-				return JSON.parse(content) as HatchConfig;
-			} catch {
-				throw new Error(`Failed to parse config file: ${filePath}`);
-			}
+	if (await fs.pathExists(resolvedPath)) {
+		try {
+			const content = await fs.readFile(resolvedPath, "utf-8");
+			return JSON.parse(content) as HatchConfig;
+		} catch {
+			throw new Error(`Failed to parse config file: ${resolvedPath}`);
 		}
 	}
 
@@ -41,7 +41,7 @@ export async function loadConfigFile(
 export async function resolveConfig(
 	options: HeadlessOptions,
 ): Promise<ResolvedHeadlessConfig> {
-	const config = await loadConfigFile(options.configPath);
+	const config = await loadConfigFile({ configPath: options.configPath });
 
 	// GitHub token resolution
 	const githubToken =

@@ -100,8 +100,28 @@ cd ~/.hatch-cli && pnpm dev config
 Generates `hatch.json` config file with credentials and defaults.
 
 **Options:**
+- `--project <name>` - Create per-project config at `~/.hatch/configs/<name>.json`
 - `--refresh` - Refresh all tokens (preserves orgs/teams/env vars)
 - `--refresh-claude` - Refresh only Claude credentials (useful when Claude token expires)
+
+### Per-project configuration
+Per-project configs live at `~/.hatch/configs/<project-name>.json`. Commands with `--project` auto-resolve the right config.
+
+```bash
+# Create config for a specific project
+cd ~/.hatch-cli && pnpm dev config --project my-app
+
+# List all project configs
+cd ~/.hatch-cli && pnpm dev config list --json
+
+# Validate a project's tokens before use
+cd ~/.hatch-cli && pnpm dev config check --project my-app --json
+
+# Push project config to remote VM
+cd ~/.hatch-cli && pnpm dev config-push <ssh-host> --project my-app
+```
+
+When `--project` is provided on feature/spike/clean commands, the matching config is used automatically. Falls back to `~/.hatch.json` if no project-specific config exists.
 
 ### Update hatch
 ```bash
@@ -109,13 +129,8 @@ cd ~/.hatch-cli && pnpm dev update
 ```
 Pulls latest code, reinstalls dependencies, rebuilds, and updates OpenClaw skills if installed.
 
-### Destroy project (DANGEROUS)
-```bash
-cd ~/.hatch-cli && pnpm dev destroy <project-name>
-```
-Permanently deletes Convex project, Vercel project, and local tracking.
-Requires typing project name to confirm. GitHub repo is preserved.
-Only use after all feature VMs are cleaned.
+### Destroy project (HUMAN ONLY)
+**DO NOT USE THIS COMMAND.** Project destruction must be performed manually by a human operator. If asked to destroy a project, instruct the user to run `hatch destroy <project-name>` themselves.
 
 ## Execution Plans
 
@@ -279,6 +294,16 @@ Spikes track token usage and cost in `~/spike-result.json`:
 ```
 
 Report costs to the user when a spike completes.
+
+## Environment Safety
+
+Before running any destructive or provisioning command, confirm you are using the correct project environment:
+
+1. **Always verify the target project**: Run `hatch config check --project <name> --json` before feature/spike/destroy operations to confirm which GitHub org, Vercel team, and Convex deployment will be affected.
+2. **Never assume config**: If managing multiple projects, always pass `--project <name>` explicitly. Do not rely on the global fallback when per-project configs exist.
+3. **Validate before provisioning**: Before `hatch new` or `hatch spike`, run `hatch config list --json` to confirm which config will be used.
+4. **Cross-check project names**: The `--project` value must match both the project name in `hatch list` and the config filename in `~/.hatch/configs/`. Mismatches mean wrong credentials.
+5. **NEVER run `hatch destroy`**: This command permanently deletes Convex and Vercel projects. Only a human operator should run destroy. If a user asks you to destroy a project, tell them to run the command manually.
 
 ## Workflows
 

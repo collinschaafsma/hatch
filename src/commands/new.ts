@@ -1,8 +1,7 @@
-import os from "node:os";
-import path from "node:path";
 import { Command } from "commander";
 import fs from "fs-extra";
 import type { HeadlessResult, ProjectRecord } from "../types/index.js";
+import { resolveConfigPath } from "../utils/config-resolver.js";
 import {
 	checkExeDevAccess,
 	exeDevNew,
@@ -22,11 +21,7 @@ export const newCommand = new Command()
 	.name("new")
 	.description("Create a new project (VM is ephemeral, destroyed after setup)")
 	.argument("<project-name>", "Name of the project to create")
-	.option(
-		"-c, --config <path>",
-		"Path to hatch.json config file",
-		path.join(os.homedir(), ".hatch.json"),
-	)
+	.option("-c, --config <path>", "Path to hatch.json config file")
 	.action(async (projectName: string, options: NewOptions) => {
 		let vmName: string | undefined;
 		let sshHost: string | undefined;
@@ -56,9 +51,10 @@ export const newCommand = new Command()
 			}
 			accessSpinner.succeed("exe.dev SSH access confirmed");
 
-			// Check config file exists
-			const configPath =
-				options.config || path.join(os.homedir(), ".hatch.json");
+			// Resolve config file path
+			const configPath = await resolveConfigPath({
+				configPath: options.config,
+			});
 			if (!(await fs.pathExists(configPath))) {
 				log.blank();
 				log.error(`Config file not found: ${configPath}`);

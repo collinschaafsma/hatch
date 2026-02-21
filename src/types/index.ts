@@ -53,6 +53,7 @@ export interface ClaudeConfig {
 }
 
 export interface HatchConfig {
+	project?: string;
 	github?: {
 		org?: string;
 		token?: string;

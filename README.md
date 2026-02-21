@@ -203,6 +203,35 @@ Running `hatch config` creates `~/.hatch.json` containing:
 
 This file is copied to VMs during setup so all CLIs authenticate automatically.
 
+### Per-Project Configuration
+
+For managing multiple projects with different credentials, create per-project configs:
+
+```bash
+pnpm dev config --project my-app
+```
+
+This writes to `~/.hatch/configs/my-app.json` instead of the global `~/.hatch.json`. Commands with `--project` auto-resolve the right config.
+
+**Config resolution order** (first match wins):
+1. `--config <path>` (explicit path)
+2. `--project <name>` → `~/.hatch/configs/<name>.json`
+3. `./hatch.json` (current directory)
+4. `~/.hatch.json` (global fallback)
+
+Discover and validate configs:
+
+```bash
+pnpm dev config list --json           # List all project configs
+pnpm dev config check --project my-app --json  # Validate tokens
+```
+
+When pushing to a remote VM, `config-push` copies the resolved config to `~/.hatch.json` on the VM (each VM serves one project):
+
+```bash
+pnpm dev config-push user@remote-server --project my-app
+```
+
 ### Custom Environment Variables
 
 You can add custom environment variables (like `RESEND_API_KEY`, `AI_GATEWAY_API_KEY`, or `EMAIL_FROM`) during `hatch config`. These get stored in `~/.hatch.json` and are automatically added to Vercel during project setup.
@@ -337,12 +366,17 @@ Convex has native [preview deployments](https://docs.convex.dev/production/hosti
 |---------|-------------|
 | `hatch config` | Create ~/.hatch.json (default) |
 | `hatch config -o <path>` | Create config at custom path |
+| `hatch config --project <name>` | Create per-project config at `~/.hatch/configs/<name>.json` |
 | `hatch config --refresh` | Refresh tokens without re-prompting for orgs/teams |
 | `hatch config --refresh-claude` | Refresh only Claude credentials (preserves other tokens) |
 | `hatch config check` | Validate tokens are still valid |
 | `hatch config check --json` | Validate tokens and output as JSON |
+| `hatch config check --project <name>` | Validate a specific project's tokens |
+| `hatch config list` | List all project-specific configs |
+| `hatch config list --json` | List configs as JSON (for automation) |
 | `hatch config-push <ssh-host>` | Push ~/.hatch.json to a remote server |
 | `hatch config-push <ssh-host> -c <path>` | Push custom config file to a remote server |
+| `hatch config-push <ssh-host> --project <name>` | Push project-specific config to remote |
 
 The config command prompts to add custom environment variables that will be automatically set in Vercel during project setup.
 
@@ -581,6 +615,9 @@ Hatch can be installed on any Linux server (not just macOS) for automation or AI
    ```bash
    # On your local machine (after running `hatch config`)
    pnpm dev config-push user@remote-server
+
+   # Or push a specific project's config
+   pnpm dev config-push user@remote-server --project my-app
    ```
 
 3. **Authenticate Claude Code** on the remote server:

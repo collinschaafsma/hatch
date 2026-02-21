@@ -1,10 +1,10 @@
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import fs from "fs-extra";
 import { parseConvexDeployUrl } from "../headless/convex.js";
 import type { VMRecord } from "../types/index.js";
+import { resolveConfigPath } from "../utils/config-resolver.js";
 import {
 	checkExeDevAccess,
 	exeDevNew,
@@ -38,11 +38,7 @@ export const featureCommand = new Command()
 	)
 	.argument("<feature-name>", "Name of the feature branch to create")
 	.requiredOption("--project <name>", "Project name (from hatch new)")
-	.option(
-		"-c, --config <path>",
-		"Path to hatch.json config file",
-		path.join(os.homedir(), ".hatch.json"),
-	)
+	.option("-c, --config <path>", "Path to hatch.json config file")
 	.action(async (featureName: string, options: FeatureOptions) => {
 		let vmName: string | undefined;
 		let sshHost: string | undefined;
@@ -86,9 +82,11 @@ export const featureCommand = new Command()
 			}
 			accessSpinner.succeed("exe.dev SSH access confirmed");
 
-			// Check config file exists and load it
-			const configPath =
-				options.config || path.join(os.homedir(), ".hatch.json");
+			// Resolve config file path
+			const configPath = await resolveConfigPath({
+				configPath: options.config,
+				project: options.project,
+			});
 			if (!(await fs.pathExists(configPath))) {
 				log.blank();
 				log.error(`Config file not found: ${configPath}`);

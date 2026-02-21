@@ -1,5 +1,3 @@
-import os from "node:os";
-import path from "node:path";
 import { confirm } from "@inquirer/prompts";
 import { Command } from "commander";
 import fs from "fs-extra";
@@ -7,6 +5,7 @@ import { deleteConvexProject } from "../headless/convex.js";
 import { deleteVercelBranchEnvVars } from "../headless/vercel.js";
 import { exeDevRm } from "../utils/exe-dev.js";
 
+import { resolveConfigPath } from "../utils/config-resolver.js";
 import { log } from "../utils/logger.js";
 import { getProject } from "../utils/project-store.js";
 import { createSpinner } from "../utils/spinner.js";
@@ -24,11 +23,7 @@ export const cleanCommand = new Command()
 	.argument("<feature-name>", "Feature name to clean up")
 	.requiredOption("--project <name>", "Project name")
 	.option("-f, --force", "Skip confirmation prompt")
-	.option(
-		"-c, --config <path>",
-		"Path to hatch.json config file",
-		path.join(os.homedir(), ".hatch.json"),
-	)
+	.option("-c, --config <path>", "Path to hatch.json config file")
 	.action(async (featureName: string, options: CleanOptions) => {
 		try {
 			log.blank();
@@ -51,9 +46,11 @@ export const cleanCommand = new Command()
 				process.exit(1);
 			}
 
-			// Load config to get tokens
-			const configPath =
-				options.config || path.join(os.homedir(), ".hatch.json");
+			// Resolve config path
+			const configPath = await resolveConfigPath({
+				configPath: options.config,
+				project: options.project,
+			});
 			let githubToken = "";
 			let convexAccessToken = "";
 			let vercelToken = "";

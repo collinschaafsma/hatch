@@ -44,7 +44,9 @@ export async function runHeadlessSetup(
 
 		// Resolve configuration from flags, config file, and env vars
 		let config: ResolvedHeadlessConfig;
-		const hatchConfig = await loadConfigFile(options.configPath);
+		const hatchConfig = await loadConfigFile({
+			configPath: options.configPath,
+		});
 		try {
 			config = await resolveConfig(options);
 		} catch (error) {
