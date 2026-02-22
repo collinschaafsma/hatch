@@ -1,4 +1,3 @@
-import os from "node:os";
 import path from "node:path";
 import { confirm, input } from "@inquirer/prompts";
 import { Command } from "commander";
@@ -42,11 +41,7 @@ export const addCommand = new Command()
 		"Add an existing project to Hatch: scaffolds harness, commits, pushes, and opens a PR",
 	)
 	.argument("<project-name>", "Project name (matches repo name)")
-	.option(
-		"-c, --config <path>",
-		"Path to hatch.json config file",
-		path.join(os.homedir(), ".hatch.json"),
-	)
+	.option("-c, --config <path>", "Path to hatch.json config file")
 	.option("--path <path>", "Path to an existing local checkout of the project")
 	.action(async (projectName: string, options: AddOptions) => {
 		try {
