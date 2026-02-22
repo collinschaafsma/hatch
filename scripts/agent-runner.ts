@@ -209,8 +209,13 @@ When you are done implementing your changes:
 1. Run \`pnpm lint\` from the project root and fix any lint errors
 2. Run \`pnpm typecheck\` from the project root and fix any type errors
 3. Run the test suite to verify your changes don't break existing tests — if tests need updates, fix them
-4. Commit all changes with a descriptive message
-5. Push the branch to origin (the PR will update automatically)
+4. If you changed any UI files (files matching \`apps/web/app/**/*.tsx\` or \`packages/ui/**/*.tsx\`), capture visual evidence:
+   a. Start the dev server in the background: \`cd apps/web && pnpm dev &\` and wait for it to be ready (curl localhost:3000 in a loop)
+   b. Run \`pnpm harness:ui:capture-browser-evidence\` to screenshot affected routes
+   c. Run \`pnpm harness:ui:post-evidence\` to commit the screenshots
+   d. Stop the dev server: \`kill %1\`
+5. Commit all changes with a descriptive message
+6. Push the branch to origin (the PR will update automatically)
 
 Important: The branch already exists (${feature}). Make your changes, verify quality, commit, and push.`;
 	} else {
@@ -240,10 +245,15 @@ When you are done implementing your changes:
 1. Run \`pnpm lint\` from the project root and fix any lint errors
 2. Run \`pnpm typecheck\` from the project root and fix any type errors
 3. Run the test suite to verify your changes don't break existing tests — if tests need updates, fix them
-4. Commit all changes with a descriptive message
-5. Push the branch to origin
-6. Create a pull request using 'gh pr create'
-7. Write the PR URL to ~/pr-url.txt (just the URL, nothing else)
+4. If you changed any UI files (files matching \`apps/web/app/**/*.tsx\` or \`packages/ui/**/*.tsx\`), capture visual evidence:
+   a. Start the dev server in the background: \`cd apps/web && pnpm dev &\` and wait for it to be ready (curl localhost:3000 in a loop)
+   b. Run \`pnpm harness:ui:capture-browser-evidence\` to screenshot affected routes
+   c. Run \`pnpm harness:ui:post-evidence\` to commit the screenshots
+   d. Stop the dev server: \`kill %1\`
+5. Commit all changes with a descriptive message
+6. Push the branch to origin
+7. Create a pull request using 'gh pr create'
+8. Write the PR URL to ~/pr-url.txt (just the URL, nothing else)
 
 Important: The branch is already created (${feature}). Make your changes, verify quality, then commit, push, and create the PR.`;
 	}
