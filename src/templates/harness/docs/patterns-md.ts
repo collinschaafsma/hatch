@@ -82,7 +82,7 @@ export const myWorkflow = workflow.define({
 
 ## Biome Rules
 
-- Tabs for indentation (not spaces)
+- Spaces for indentation (not tabs)
 - Double quotes for strings
 - No non-null assertions (\`!.\`) — use optional chaining (\`?.\`) or guard checks instead
 - Trailing commas in multi-line structures
