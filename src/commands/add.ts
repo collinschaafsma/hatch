@@ -339,7 +339,15 @@ export const addCommand = new Command()
 			} catch {
 				// May already be on main or remote may not be configured
 			}
-			await gitCheckout(projectPath, "add-hatch", true);
+			try {
+				await gitCheckout(projectPath, "add-hatch", true);
+			} catch {
+				// Branch already exists (previous run) — reset it to current HEAD
+				await execa("git", ["branch", "-D", "add-hatch"], {
+					cwd: projectPath,
+				});
+				await gitCheckout(projectPath, "add-hatch", true);
+			}
 			branchSpinner.succeed("Created branch: add-hatch");
 
 			// Step 8: Scaffold harness
@@ -348,7 +356,7 @@ export const addCommand = new Command()
 				projectPath,
 				projectName,
 				skipExisting: true,
-				includeDocs: false,
+				includeDocs: true,
 			});
 			harnessSpinner.succeed("Agent harness scaffolded");
 
@@ -394,27 +402,41 @@ export const addCommand = new Command()
 				}
 			}
 
-			// Prompt for docs stubs
+			// Prompt to populate docs with Claude
 			log.blank();
-			const wantDocs = await confirm({
-				message: "Generate documentation stubs?",
+			const populateDocs = await confirm({
+				message:
+					"Populate documentation stubs with project-specific content using Claude?",
 				default: true,
 			});
 
-			if (wantDocs) {
-				const docsResult = await scaffoldHarness({
-					projectPath,
-					projectName,
-					skipExisting: true,
-					includeDocs: true,
-				});
-
-				if (docsResult.written.length > 0) {
-					log.info("Documentation stubs written:");
-					for (const f of docsResult.written) {
-						log.step(f);
-					}
+			if (populateDocs) {
+				const docsSpinner = createSpinner(
+					"Populating documentation with project content",
+				).start();
+				try {
+					await execa(
+						"claude",
+						[
+							"-p",
+							"Read this project's codebase and populate each documentation stub in docs/ with accurate, project-specific content. Keep the existing headings and structure but replace placeholder content with real details based on what you find in the code.",
+							"--allowedTools",
+							"Read,Write,Edit,Glob,Grep",
+						],
+						{ cwd: projectPath, timeout: 600_000 },
+					);
+					docsSpinner.succeed("Documentation populated with project content");
+				} catch {
+					docsSpinner.warn(
+						"Could not populate documentation automatically. Doc stubs were scaffolded — fill them in manually or run Claude in the project.",
+					);
 				}
+			} else {
+				log.blank();
+				log.info("To populate docs later, run from the project directory:");
+				log.step(
+					'claude -p "Read this project\'s codebase and populate each documentation stub in docs/ with accurate, project-specific content. Keep the existing headings and structure but replace placeholder content with real details based on what you find in the code." --allowedTools Read,Write,Edit,Glob,Grep',
+				);
 			}
 
 			// Install/update agent-browser skill for Claude and Codex
@@ -473,9 +495,6 @@ export const addCommand = new Command()
 				{ cwd: projectPath },
 			);
 			prSpinner.succeed(`PR opened: ${prUrl.trim()}`);
-
-			// Step 12: Checkout main so working tree is clean
-			await gitCheckout(projectPath, "main");
 
 			// Apply branch protection (non-fatal)
 			try {

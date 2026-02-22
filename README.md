@@ -355,12 +355,14 @@ Optional but recommended:
 1. Looks up your GitHub, Convex, and Vercel resources (prompts for anything it can't find)
 2. Saves the project record to `~/.hatch/projects.json`
 3. Clones the repo (or uses your existing checkout via `--path`)
-4. Creates an `add-hatch` branch
-5. Scaffolds the agent harness (`harness.json`, `AGENTS.md`, scripts)
-6. Commits, pushes, and opens a PR
-7. Checks out `main` so your working tree is clean
+4. Creates an `add-hatch` branch (resets it if it already exists from a previous run)
+5. Scaffolds the agent harness (`harness.json`, `AGENTS.md`, scripts, and doc stubs in `docs/`)
+6. Optionally runs Claude to populate doc stubs with project-specific content
+7. Installs the `agent-browser` skill for Claude Code and Codex
+8. Commits, pushes, and opens a PR
+9. Applies branch protection rules
 
-You review the PR on GitHub and merge when ready.
+The working tree stays on the `add-hatch` branch so you can make further edits before the PR is merged.
 
 #### Step-by-Step
 
