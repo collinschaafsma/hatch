@@ -145,32 +145,6 @@ describe("add command", () => {
 		});
 	});
 
-	describe("Convex lookup", () => {
-		it("should error when Convex is not provided", async () => {
-			mockGetProject.mockResolvedValue(undefined);
-			mockExeca.mockImplementation((async (cmd: string) => {
-				if (cmd === "gh") {
-					return {
-						stdout: JSON.stringify({
-							url: "https://github.com/o/r",
-							owner: { login: "o" },
-							name: "r",
-						}),
-						stderr: "",
-					} as never;
-				}
-				throw new Error("Not found");
-			}) as never);
-			mockInput.mockResolvedValue("");
-
-			await expect(
-				addCommand.parseAsync(["node", "test", "my-project"]),
-			).rejects.toThrow("process.exit called");
-
-			expect(mockLog.error).toHaveBeenCalledWith("Convex project is required.");
-		});
-	});
-
 	describe("Vercel lookup", () => {
 		it("should error when Vercel is not provided", async () => {
 			mockGetProject.mockResolvedValue(undefined);
@@ -190,14 +164,8 @@ describe("add command", () => {
 				}
 				throw new Error("Not found");
 			}) as never);
-			// First input: Convex slug, second: deployment URL, third: deploy key,
-			// fourth: deployment name, then Vercel prompts return empty
-			mockInput
-				.mockResolvedValueOnce("my-slug")
-				.mockResolvedValueOnce("https://my-slug.convex.cloud")
-				.mockResolvedValueOnce("")
-				.mockResolvedValueOnce("")
-				.mockResolvedValueOnce("");
+			// Vercel prompts return empty
+			mockInput.mockResolvedValueOnce("");
 
 			await expect(
 				addCommand.parseAsync(["node", "test", "my-project"]),
@@ -239,12 +207,8 @@ describe("add command", () => {
 				}
 				throw new Error("Not found");
 			}) as never);
-			// Convex slug, deployment URL, deploy key, deployment name, then Vercel project ID, Vercel URL
+			// Vercel project ID, Vercel URL
 			mockInput
-				.mockResolvedValueOnce("my-slug")
-				.mockResolvedValueOnce("https://my-slug.convex.cloud")
-				.mockResolvedValueOnce("")
-				.mockResolvedValueOnce("")
 				.mockResolvedValueOnce("manual_id")
 				.mockResolvedValueOnce("https://custom.vercel.app");
 			mockSaveProject.mockResolvedValue(undefined);
@@ -307,12 +271,6 @@ describe("add command", () => {
 				}
 				throw new Error("Not found");
 			}) as never);
-			// Convex slug, deployment URL, deploy key, deployment name prompts
-			mockInput
-				.mockResolvedValueOnce("my-convex-project")
-				.mockResolvedValueOnce("https://my-convex-project.convex.cloud")
-				.mockResolvedValueOnce("dk_abc123")
-				.mockResolvedValueOnce("my-convex-project");
 			mockVercelGetProjectUrl.mockResolvedValue({
 				url: "https://my-project.vercel.app",
 				hasAlias: true,
@@ -341,12 +299,6 @@ describe("add command", () => {
 					vercel: {
 						projectId: "prj_123",
 						url: "https://my-project.vercel.app",
-					},
-					convex: {
-						projectSlug: "my-convex-project",
-						deploymentUrl: "https://my-convex-project.convex.cloud",
-						deploymentName: "my-convex-project",
-						deployKey: "dk_abc123",
 					},
 				}),
 			);
@@ -397,11 +349,6 @@ describe("add command", () => {
 				}
 				throw new Error("Not found");
 			}) as never);
-			mockInput
-				.mockResolvedValueOnce("slug")
-				.mockResolvedValueOnce("https://slug.convex.cloud")
-				.mockResolvedValueOnce("dk_key")
-				.mockResolvedValueOnce("slug");
 			mockVercelGetProjectUrl.mockResolvedValue({
 				url: "https://my-project.vercel.app",
 				hasAlias: true,
@@ -432,7 +379,6 @@ describe("add command", () => {
 					}),
 					convex: expect.objectContaining({
 						accessToken: "cvx_tok",
-						deployKey: "dk_key",
 					}),
 				}),
 				{ spaces: 2 },
@@ -476,11 +422,6 @@ describe("add command", () => {
 				}
 				throw new Error("Not found");
 			}) as never);
-			mockInput
-				.mockResolvedValueOnce("slug")
-				.mockResolvedValueOnce("https://slug.convex.cloud")
-				.mockResolvedValueOnce("")
-				.mockResolvedValueOnce("slug");
 			mockVercelGetProjectUrl.mockResolvedValue({
 				url: "https://my-project.vercel.app",
 				hasAlias: true,
@@ -536,11 +477,6 @@ describe("add command", () => {
 				}
 				throw new Error("Not found");
 			}) as never);
-			mockInput
-				.mockResolvedValueOnce("slug")
-				.mockResolvedValueOnce("https://slug.convex.cloud")
-				.mockResolvedValueOnce("")
-				.mockResolvedValueOnce("slug");
 			mockVercelGetProjectUrl.mockResolvedValue({
 				url: "https://my-project.vercel.app",
 				hasAlias: true,

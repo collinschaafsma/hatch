@@ -58,16 +58,6 @@ export const featureCommand = new Command()
 				process.exit(1);
 			}
 
-			// Require preview deploy key
-			if (!project.convex.previewDeployKey) {
-				log.error("Convex preview deploy key not configured.");
-				log.info("Generate one at https://dashboard.convex.dev then run:");
-				log.step(
-					`hatch set-preview-deploy-key <key> --project ${options.project}`,
-				);
-				process.exit(1);
-			}
-
 			// Step 2: Check exe.dev access
 			const accessSpinner = createSpinner(
 				"Checking exe.dev SSH access",

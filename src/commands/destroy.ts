@@ -74,12 +74,14 @@ export const destroyCommand = new Command()
 			log.info(`Project: ${projectName}`);
 			log.blank();
 
-			log.step("Convex:");
-			log.info(`    → Project: ${project.convex.projectSlug}`);
-			if (project.convex.deploymentUrl) {
-				log.info(`    → Deployment: ${project.convex.deploymentUrl}`);
+			if (project.convex?.projectSlug) {
+				log.step("Convex:");
+				log.info(`    → Project: ${project.convex.projectSlug}`);
+				if (project.convex.deploymentUrl) {
+					log.info(`    → Deployment: ${project.convex.deploymentUrl}`);
+				}
+				log.blank();
 			}
-			log.blank();
 
 			log.step("Vercel:");
 			log.info(`    → Project: ${projectName} (${project.vercel.projectId})`);
@@ -114,25 +116,27 @@ export const destroyCommand = new Command()
 				localStore: { success: false },
 			};
 
-			// Phase 4: Delete Convex project
-			const convexSpinner = createSpinner("Deleting Convex project").start();
-			try {
-				const slug = project.convex.projectSlug;
-				if (!slug) {
-					throw new Error("No Convex project slug found in project record");
+			// Phase 4: Delete Convex project (if configured)
+			if (project.convex?.projectSlug) {
+				const convexSpinner = createSpinner("Deleting Convex project").start();
+				try {
+					const slug = project.convex.projectSlug;
+					if (!convexAccessToken) {
+						throw new Error(
+							"No Convex access token found in config (~/.hatch.json)",
+						);
+					}
+					await deleteConvexProjectBySlug(slug, convexAccessToken);
+					results.convexProject = { success: true };
+					convexSpinner.succeed("Deleted Convex project");
+				} catch (error) {
+					const errorMsg =
+						error instanceof Error ? error.message : String(error);
+					results.convexProject = { success: false, error: errorMsg };
+					convexSpinner.fail("Failed to delete Convex project");
 				}
-				if (!convexAccessToken) {
-					throw new Error(
-						"No Convex access token found in config (~/.hatch.json)",
-					);
-				}
-				await deleteConvexProjectBySlug(slug, convexAccessToken);
+			} else {
 				results.convexProject = { success: true };
-				convexSpinner.succeed("Deleted Convex project");
-			} catch (error) {
-				const errorMsg = error instanceof Error ? error.message : String(error);
-				results.convexProject = { success: false, error: errorMsg };
-				convexSpinner.fail("Failed to delete Convex project");
 			}
 
 			// Phase 5: Delete Vercel Project
@@ -192,9 +196,11 @@ export const destroyCommand = new Command()
 				if (!results.convexProject.success) {
 					log.error("Convex project:");
 					log.info(`    ${results.convexProject.error}`);
-					log.info(
-						`    Manual: Delete via https://dashboard.convex.dev (project: ${project.convex.projectSlug})`,
-					);
+					if (project.convex?.projectSlug) {
+						log.info(
+							`    Manual: Delete via https://dashboard.convex.dev (project: ${project.convex.projectSlug})`,
+						);
+					}
 				}
 
 				if (!results.vercelProject.success) {

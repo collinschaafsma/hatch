@@ -48,7 +48,9 @@ export const listCommand = new Command()
 					log.step(`${project.name}`);
 					log.info(`  GitHub:   ${project.github.url}`);
 					log.info(`  Vercel:   ${project.vercel.url}`);
-					log.info(`  Convex:   ${project.convex.projectSlug}`);
+					if (project.convex?.projectSlug) {
+						log.info(`  Convex:   ${project.convex.projectSlug}`);
+					}
 					log.info(`  Created:  ${createdDate}`);
 					log.blank();
 				}
@@ -79,7 +81,9 @@ export const listCommand = new Command()
 				log.info(`Project: ${project.name}`);
 				log.step(`GitHub:   ${project.github.url}`);
 				log.step(`Vercel:   ${project.vercel.url}`);
-				log.step(`Convex:   ${project.convex.projectSlug}`);
+				if (project.convex?.projectSlug) {
+					log.step(`Convex:   ${project.convex.projectSlug}`);
+				}
 				log.step(`Created:  ${createdDate}`);
 
 				if (projectVMs.length > 0) {

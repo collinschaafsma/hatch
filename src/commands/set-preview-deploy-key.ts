@@ -51,7 +51,7 @@ export const setPreviewDeployKeyCommand = new Command()
 			).start();
 			await updateProject(options.project, {
 				convex: {
-					...project.convex,
+					...(project.convex || {}),
 					previewDeployKey: key,
 				},
 			});

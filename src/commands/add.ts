@@ -126,51 +126,7 @@ export const addCommand = new Command()
 				process.exit(1);
 			}
 
-			// Step 2: Look up Convex project
-			const convexSpinner = createSpinner("Looking up Convex project").start();
-			let convex: ProjectRecord["convex"] | undefined;
-
-			try {
-				const convexAccessToken = config.convex?.accessToken;
-				if (convexAccessToken) {
-					convexSpinner.warn("Convex project auto-detection not yet supported");
-				} else {
-					convexSpinner.warn("Convex access token not configured");
-				}
-			} catch {
-				convexSpinner.warn("Could not query Convex projects");
-			}
-
-			if (!convex) {
-				const slug = await input({
-					message: "Convex project slug (or press Enter to skip):",
-				});
-				if (slug) {
-					const deploymentUrl = await input({
-						message: "Convex deployment URL:",
-						default: `https://${slug}.convex.cloud`,
-					});
-					const deployKey = await input({
-						message: "Convex deploy key (or press Enter to skip):",
-					});
-					const deploymentName = await input({
-						message: "Convex deployment name (or press Enter to skip):",
-					});
-					convex = {
-						projectSlug: slug,
-						deploymentUrl,
-						deploymentName: deploymentName || slug,
-						deployKey: deployKey || "",
-					};
-				}
-			}
-
-			if (!convex) {
-				log.error("Convex project is required.");
-				process.exit(1);
-			}
-
-			// Step 3: Look up Vercel project
+			// Step 2: Look up Vercel project
 			const vercelSpinner = createSpinner("Looking up Vercel project").start();
 			let vercel: ProjectRecord["vercel"] | undefined;
 
@@ -243,18 +199,17 @@ export const addCommand = new Command()
 				process.exit(1);
 			}
 
-			// Step 4: Save project record
+			// Step 3: Save project record
 			const projectRecord: ProjectRecord = {
 				name: projectName,
 				createdAt: new Date().toISOString(),
 				github,
 				vercel,
-				convex,
 			};
 
 			await saveProject(projectRecord);
 
-			// Step 5: Create per-project config if one wasn't already used
+			// Step 4: Create per-project config if one wasn't already used
 			if (!usedPerProjectConfig) {
 				log.blank();
 				const createConfig = await confirm({
@@ -287,9 +242,6 @@ export const addCommand = new Command()
 					if (config.claude) {
 						projectConfig.claude = config.claude;
 					}
-					if (convex.deployKey) {
-						projectConfig.convex.deployKey = convex.deployKey;
-					}
 
 					await fs.writeJson(newConfigPath, projectConfig, {
 						spaces: 2,
@@ -298,7 +250,7 @@ export const addCommand = new Command()
 				}
 			}
 
-			// Step 6: Resolve project directory
+			// Step 5: Resolve project directory
 			let projectPath: string;
 
 			if (options.path) {
@@ -331,7 +283,7 @@ export const addCommand = new Command()
 				}
 			}
 
-			// Step 7: Create add-hatch branch
+			// Step 6: Create add-hatch branch
 			const branchSpinner = createSpinner("Creating add-hatch branch").start();
 			try {
 				await gitCheckout(projectPath, "main");
@@ -350,7 +302,7 @@ export const addCommand = new Command()
 			}
 			branchSpinner.succeed("Created branch: add-hatch");
 
-			// Step 8: Scaffold harness
+			// Step 7: Scaffold harness
 			const harnessSpinner = createSpinner("Scaffolding agent harness").start();
 			const coreResult = await scaffoldHarness({
 				projectPath,
@@ -467,18 +419,18 @@ export const addCommand = new Command()
 				);
 			}
 
-			// Step 9: Commit harness files
+			// Step 8: Commit harness files
 			const commitSpinner = createSpinner("Committing harness files").start();
 			await gitAdd(projectPath);
 			await gitCommit("feat: add hatch agent harness", projectPath);
 			commitSpinner.succeed("Committed: feat: add hatch agent harness");
 
-			// Step 10: Push branch
+			// Step 9: Push branch
 			const pushSpinner = createSpinner("Pushing add-hatch branch").start();
 			await gitPush(projectPath, "add-hatch", config.github?.token);
 			pushSpinner.succeed("Pushed branch: add-hatch");
 
-			// Step 11: Open PR
+			// Step 10: Open PR
 			const prSpinner = createSpinner("Opening pull request").start();
 			const { stdout: prUrl } = await execa(
 				"gh",
@@ -523,7 +475,6 @@ export const addCommand = new Command()
 			log.step(`Name:     ${projectName}`);
 			log.step(`GitHub:   ${github.url}`);
 			log.step(`Vercel:   ${vercel.url}`);
-			log.step(`Convex:   ${convex.projectSlug}`);
 			log.step(`PR:       ${prUrl.trim()}`);
 			log.blank();
 			log.info("Next steps:");

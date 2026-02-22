@@ -131,11 +131,11 @@ export interface ProjectRecord {
 		url: string; // e.g., "https://my-app.vercel.app"
 		projectId: string;
 	};
-	convex: {
-		deploymentUrl: string;
-		projectSlug: string;
-		deployKey: string;
-		deploymentName: string;
+	convex?: {
+		deploymentUrl?: string;
+		projectSlug?: string;
+		deployKey?: string;
+		deploymentName?: string;
 		previewDeployKey?: string;
 	};
 }

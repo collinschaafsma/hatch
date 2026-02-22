@@ -470,27 +470,6 @@ export const spikeCommand = new Command()
 				process.exit(1);
 			}
 
-			// Require preview deploy key
-			if (!project.convex.previewDeployKey) {
-				const result: SpikeResult = {
-					status: "failed",
-					vmName: "",
-					sshHost: "",
-					feature: featureName,
-					project: options.project,
-					error: "Convex preview deploy key not configured.",
-				};
-				outputJson(result);
-				if (!options.json) {
-					log.error("Convex preview deploy key not configured.");
-					log.info("Generate one at https://dashboard.convex.dev then run:");
-					log.step(
-						`hatch set-preview-deploy-key <key> --project ${options.project}`,
-					);
-				}
-				process.exit(1);
-			}
-
 			// Step 2: Check exe.dev access
 			const accessSpinner = options.json
 				? null
