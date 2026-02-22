@@ -310,6 +310,20 @@ export const featureCommand = new Command()
 				);
 			}
 
+			// Set HATCH_DEV_MODE on preview deployment for dev auth endpoint
+			const devModeSpinner = createSpinner("Enabling dev auth mode").start();
+			try {
+				await sshExec(
+					sshHost,
+					`${envPrefix} cd ${projectPath}/apps/web && npx convex env set HATCH_DEV_MODE true`,
+				);
+				devModeSpinner.succeed("Dev auth mode enabled");
+			} catch {
+				devModeSpinner.warn(
+					"Could not set HATCH_DEV_MODE. Dev auth endpoint will not be available.",
+				);
+			}
+
 			// Write .claude/settings.local.json with Convex MCP server config
 			const mcpSpinner = createSpinner("Configuring Convex MCP server").start();
 			try {

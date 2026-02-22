@@ -167,9 +167,7 @@ describe("add command", () => {
 				addCommand.parseAsync(["node", "test", "my-project"]),
 			).rejects.toThrow("process.exit called");
 
-			expect(mockLog.error).toHaveBeenCalledWith(
-				"Convex project is required.",
-			);
+			expect(mockLog.error).toHaveBeenCalledWith("Convex project is required.");
 		});
 	});
 
@@ -205,9 +203,7 @@ describe("add command", () => {
 				addCommand.parseAsync(["node", "test", "my-project"]),
 			).rejects.toThrow("process.exit called");
 
-			expect(mockLog.error).toHaveBeenCalledWith(
-				"Vercel project is required.",
-			);
+			expect(mockLog.error).toHaveBeenCalledWith("Vercel project is required.");
 		});
 
 		it("should prompt for Vercel info when not found", async () => {
@@ -412,9 +408,7 @@ describe("add command", () => {
 			});
 			mockSaveProject.mockResolvedValue(undefined);
 			// Accept per-project config, decline doc population
-			mockConfirm
-				.mockResolvedValueOnce(true)
-				.mockResolvedValueOnce(false);
+			mockConfirm.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
 
 			await addCommand.parseAsync([
 				"node",
@@ -493,9 +487,7 @@ describe("add command", () => {
 			});
 			mockSaveProject.mockResolvedValue(undefined);
 			// Decline per-project config, accept doc population
-			mockConfirm
-				.mockResolvedValueOnce(false)
-				.mockResolvedValueOnce(true);
+			mockConfirm.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
 
 			await addCommand.parseAsync([
 				"node",
@@ -583,9 +575,7 @@ describe("add command", () => {
 		it("should handle user force close gracefully", async () => {
 			mockGetProject.mockResolvedValue(undefined);
 			mockExeca.mockRejectedValue(new Error("Not found"));
-			mockInput.mockRejectedValue(
-				new Error("User force closed the prompt"),
-			);
+			mockInput.mockRejectedValue(new Error("User force closed the prompt"));
 
 			await expect(
 				addCommand.parseAsync(["node", "test", "my-project"]),

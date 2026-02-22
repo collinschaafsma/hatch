@@ -21,3 +21,4 @@ export {
 	generateConvexApiStub,
 } from "./generated-stubs.js";
 export { generateConvexWorkflows } from "./workflows.js";
+export { generateConvexDevAuth } from "./dev-auth.js";

@@ -208,6 +208,10 @@ export const createCommand = new Command()
 						path.join(convexDir, "http.ts"),
 						templates.generateConvexHttp(),
 					);
+					await writeFile(
+						path.join(convexDir, "devAuth.ts"),
+						templates.generateConvexDevAuth(),
+					);
 
 					// Better Auth component files
 					await writeFile(

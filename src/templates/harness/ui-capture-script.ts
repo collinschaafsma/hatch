@@ -59,6 +59,52 @@ function hasAgentBrowser() {
   }
 }
 
+function authenticateAgentBrowser(devUrl) {
+  try {
+    // Read NEXT_PUBLIC_CONVEX_SITE_URL from .env.local or environment
+    let convexSiteUrl = process.env.NEXT_PUBLIC_CONVEX_SITE_URL || "";
+    if (!convexSiteUrl) {
+      try {
+        const envLocal = readFileSync("apps/web/.env.local", "utf-8");
+        const match = envLocal.match(/^NEXT_PUBLIC_CONVEX_SITE_URL=(.+)$/m);
+        if (match) convexSiteUrl = match[1].trim();
+      } catch {}
+    }
+
+    if (!convexSiteUrl) {
+      console.log("No CONVEX_SITE_URL found — skipping dev auth.");
+      return false;
+    }
+
+    // Call the dev-auth endpoint to get a session cookie
+    const result = execSync(
+      "curl -s -D - -X POST " + JSON.stringify(convexSiteUrl + "/api/dev-auth"),
+      { encoding: "utf-8", timeout: 15000, stdio: ["pipe", "pipe", "pipe"] }
+    );
+
+    // Parse session token from Set-Cookie header
+    const cookieMatch = result.match(/set-cookie:.*better-auth\\.session_token=([^;\\s]+)/i);
+    if (!cookieMatch) {
+      console.log("Dev auth: no session cookie in response — skipping.");
+      return false;
+    }
+
+    const token = cookieMatch[1];
+
+    // Inject cookie into agent-browser
+    execSync("agent-browser cookies set better-auth.session_token " + JSON.stringify(token), {
+      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 10000,
+    });
+
+    console.log("Dev auth: authenticated as dev@test.local");
+    return true;
+  } catch (err) {
+    console.log("Dev auth failed (continuing without auth): " + (err.message || err));
+    return false;
+  }
+}
+
 const harness = JSON.parse(readFileSync("harness.json", "utf-8"));
 const uiPatterns = harness.evidence?.ui?.requiredForPatterns || [];
 const changedFiles = getChangedFiles();
@@ -105,6 +151,9 @@ const manifest = {
   devUrl,
   routes: [],
 };
+
+// Authenticate agent-browser for protected routes
+authenticateAgentBrowser(devUrl);
 
 console.log("Capturing browser evidence for " + routes.length + " route(s)...");
 
