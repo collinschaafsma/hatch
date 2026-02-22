@@ -431,6 +431,22 @@ else
 fi
 
 # ============================================================================
+# Step 7.5: Install agent-browser (for UI evidence capture)
+# ============================================================================
+info "Installing agent-browser..."
+if npm install -g agent-browser 2>/dev/null; then
+    success "agent-browser installed"
+    info "Installing Chromium browser..."
+    if agent-browser install --with-deps 2>/dev/null; then
+        success "Chromium installed for agent-browser"
+    else
+        warn "Could not install Chromium — agent-browser screenshots may not work"
+    fi
+else
+    warn "Could not install agent-browser — UI evidence capture will be skipped"
+fi
+
+# ============================================================================
 # Step 8: Authenticate remaining CLIs
 # ============================================================================
 # Vercel uses env vars automatically
