@@ -257,9 +257,6 @@ describe("add command", () => {
 						stderr: "",
 					} as never;
 				}
-				if (cmd === "vercel" && args?.includes("ls")) {
-					return { stdout: "my-project", stderr: "" } as never;
-				}
 				if (cmd === "vercel" && args?.includes("inspect")) {
 					return { stdout: "ID: prj_123", stderr: "" } as never;
 				}
@@ -338,9 +335,6 @@ describe("add command", () => {
 						stderr: "",
 					} as never;
 				}
-				if (cmd === "vercel" && args?.includes("ls")) {
-					return { stdout: "my-project", stderr: "" } as never;
-				}
 				if (cmd === "vercel" && args?.includes("inspect")) {
 					return { stdout: "ID: prj_1", stderr: "" } as never;
 				}
@@ -411,9 +405,6 @@ describe("add command", () => {
 						stderr: "",
 					} as never;
 				}
-				if (cmd === "vercel" && args?.includes("ls")) {
-					return { stdout: "my-project", stderr: "" } as never;
-				}
 				if (cmd === "vercel" && args?.includes("inspect")) {
 					return { stdout: "ID: prj_1", stderr: "" } as never;
 				}
@@ -465,9 +456,6 @@ describe("add command", () => {
 						}),
 						stderr: "",
 					} as never;
-				}
-				if (cmd === "vercel" && args?.includes("ls")) {
-					return { stdout: "my-project", stderr: "" } as never;
 				}
 				if (cmd === "vercel" && args?.includes("inspect")) {
 					return { stdout: "ID: prj_1", stderr: "" } as never;

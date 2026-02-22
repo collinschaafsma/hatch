@@ -131,54 +131,32 @@ export const addCommand = new Command()
 			let vercel: ProjectRecord["vercel"] | undefined;
 
 			try {
-				const args = ["project", "ls"];
+				const inspectArgs = ["project", "inspect", projectName];
 				if (vercelTeam) {
-					args.push("--scope", vercelTeam);
+					inspectArgs.push("--scope", vercelTeam);
+				}
+				if (config.vercel?.token) {
+					inspectArgs.push("--token", config.vercel.token);
 				}
 
-				const { stdout } = await execa("vercel", args, {
-					env: { ...process.env, VERCEL_TOKEN: config.vercel?.token },
-				});
-
-				if (stdout.includes(projectName)) {
-					try {
-						const detailArgs = ["project", "inspect", projectName];
-						if (vercelTeam) {
-							detailArgs.push("--scope", vercelTeam);
-						}
-						const { stdout: detail } = await execa("vercel", detailArgs, {
-							env: { ...process.env, VERCEL_TOKEN: config.vercel?.token },
-						});
-						const idMatch = detail.match(/ID:\s*(\S+)/);
-						if (idMatch) {
-							const result = await vercelGetProjectUrl({
-								projectId: idMatch[1],
-								projectName,
-								token: config.vercel?.token,
-							});
-							vercel = {
-								projectId: idMatch[1],
-								url: result.url,
-							};
-							vercelSpinner.succeed(`Found Vercel project: ${projectName}`);
-						}
-					} catch {
-						const result = await vercelGetProjectUrl({
-							projectId: projectName,
-							projectName,
-							token: config.vercel?.token,
-						});
-						vercel = {
-							projectId: projectName,
-							url: result.url,
-						};
-						vercelSpinner.succeed(`Found Vercel project: ${projectName}`);
-					}
+				const { stdout: detail } = await execa("vercel", inspectArgs);
+				const idMatch = detail.match(/ID:\s*(\S+)/);
+				if (idMatch) {
+					const result = await vercelGetProjectUrl({
+						projectId: idMatch[1],
+						projectName,
+						token: config.vercel?.token,
+					});
+					vercel = {
+						projectId: idMatch[1],
+						url: result.url,
+					};
+					vercelSpinner.succeed(`Found Vercel project: ${projectName}`);
 				} else {
-					vercelSpinner.warn("Vercel project not found by name");
+					vercelSpinner.warn("Could not parse Vercel project ID");
 				}
 			} catch {
-				vercelSpinner.warn("Could not query Vercel projects");
+				vercelSpinner.warn("Vercel project not found automatically");
 			}
 
 			if (!vercel) {
