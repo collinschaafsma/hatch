@@ -438,10 +438,23 @@ if PNPM_HOME="$HOME/.local/share/pnpm" pnpm add -g agent-browser 2>/dev/null; th
     PNPM_HOME="$HOME/.local/share/pnpm" pnpm approve-builds -g 2>/dev/null || true
     success "agent-browser installed"
     info "Installing Chromium browser..."
-    if agent-browser install --with-deps 2>/dev/null; then
-        success "Chromium installed for agent-browser"
+    if command -v sudo &> /dev/null; then
+        if npx playwright install chromium --with-deps 2>/dev/null; then
+            success "Chromium installed with OS dependencies"
+        else
+            warn "Could not install Chromium with deps — trying without OS deps..."
+            if npx playwright install chromium 2>/dev/null; then
+                success "Chromium installed (without OS deps — screenshots may fail)"
+            else
+                warn "Could not install Chromium — agent-browser screenshots may not work"
+            fi
+        fi
     else
-        warn "Could not install Chromium — agent-browser screenshots may not work"
+        if npx playwright install chromium 2>/dev/null; then
+            success "Chromium installed (no sudo — skipped OS deps)"
+        else
+            warn "Could not install Chromium — agent-browser screenshots may not work"
+        fi
     fi
 else
     warn "Could not install agent-browser — UI evidence capture will be skipped"
