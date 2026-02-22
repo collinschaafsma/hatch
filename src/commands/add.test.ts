@@ -13,6 +13,10 @@ vi.mock("fs-extra", () => ({
 	default: {
 		pathExists: vi.fn(),
 		readJson: vi.fn(),
+		writeJson: vi.fn(),
+		readFile: vi.fn(),
+		writeFile: vi.fn(),
+		ensureDir: vi.fn(),
 	},
 }));
 
@@ -22,6 +26,7 @@ vi.mock("execa", () => ({
 
 vi.mock("@inquirer/prompts", () => ({
 	input: vi.fn(),
+	confirm: vi.fn(),
 }));
 
 vi.mock("../utils/project-store.js", () => ({
@@ -31,6 +36,26 @@ vi.mock("../utils/project-store.js", () => ({
 
 vi.mock("../headless/cli-wrappers.js", () => ({
 	vercelGetProjectUrl: vi.fn(),
+}));
+
+vi.mock("../utils/config-resolver.js", () => ({
+	resolveConfigPath: vi.fn().mockResolvedValue("/mock/.hatch.json"),
+	getProjectConfigPath: vi
+		.fn()
+		.mockResolvedValue("/mock/.hatch/configs/my-project.json"),
+}));
+
+vi.mock("../utils/exec.js", () => ({
+	gitAdd: vi.fn().mockResolvedValue(undefined),
+	gitCheckout: vi.fn().mockResolvedValue(undefined),
+	gitCommit: vi.fn().mockResolvedValue(undefined),
+	gitPull: vi.fn().mockResolvedValue(undefined),
+	gitPush: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("../utils/harness-scaffold.js", () => ({
+	scaffoldHarness: vi.fn().mockResolvedValue({ written: [], skipped: [] }),
+	mergeHarnessPackageJsonScripts: vi.fn().mockResolvedValue(false),
 }));
 
 vi.mock("../utils/logger.js", () => ({
@@ -53,7 +78,7 @@ vi.mock("../utils/spinner.js", () => ({
 	})),
 }));
 
-import { input } from "@inquirer/prompts";
+import { confirm, input } from "@inquirer/prompts";
 import { execa } from "execa";
 import fs from "fs-extra";
 import { vercelGetProjectUrl } from "../headless/cli-wrappers.js";
@@ -62,6 +87,7 @@ import { getProject, saveProject } from "../utils/project-store.js";
 import { addCommand } from "./add.js";
 
 const mockInput = vi.mocked(input);
+const mockConfirm = vi.mocked(confirm);
 const mockExeca = vi.mocked(execa);
 const mockFs = vi.mocked(fs);
 const mockGetProject = vi.mocked(getProject);
@@ -79,6 +105,12 @@ describe("add command", () => {
 		});
 		mockFs.pathExists.mockResolvedValue(false as never);
 		mockFs.readJson.mockResolvedValue({} as never);
+		mockFs.writeJson.mockResolvedValue(undefined as never);
+		mockFs.readFile.mockResolvedValue("" as never);
+		mockFs.writeFile.mockResolvedValue(undefined as never);
+		mockFs.ensureDir.mockResolvedValue(undefined as never);
+		// Default: decline all confirm prompts
+		mockConfirm.mockResolvedValue(false);
 	});
 
 	afterEach(() => {
@@ -135,7 +167,9 @@ describe("add command", () => {
 				addCommand.parseAsync(["node", "test", "my-project"]),
 			).rejects.toThrow("process.exit called");
 
-			expect(mockLog.error).toHaveBeenCalledWith("Convex project is required.");
+			expect(mockLog.error).toHaveBeenCalledWith(
+				"Convex project is required.",
+			);
 		});
 	});
 
@@ -171,13 +205,24 @@ describe("add command", () => {
 				addCommand.parseAsync(["node", "test", "my-project"]),
 			).rejects.toThrow("process.exit called");
 
-			expect(mockLog.error).toHaveBeenCalledWith("Vercel project is required.");
+			expect(mockLog.error).toHaveBeenCalledWith(
+				"Vercel project is required.",
+			);
 		});
 
 		it("should prompt for Vercel info when not found", async () => {
 			mockGetProject.mockResolvedValue(undefined);
+			// pathExists: true for .git check, false for everything else
+			mockFs.pathExists.mockImplementation(((p: string) =>
+				Promise.resolve(p.endsWith(".git"))) as never);
 			mockExeca.mockImplementation((async (cmd: string, args?: string[]) => {
 				if (cmd === "gh") {
+					if (args?.includes("pr")) {
+						return {
+							stdout: "https://github.com/o/r/pull/1",
+							stderr: "",
+						} as never;
+					}
 					return {
 						stdout: JSON.stringify({
 							url: "https://github.com/o/r",
@@ -190,6 +235,12 @@ describe("add command", () => {
 				if (cmd === "vercel") {
 					return { stdout: "other-project", stderr: "" } as never;
 				}
+				if (cmd === "npx") {
+					return { stdout: "", stderr: "" } as never;
+				}
+				if (cmd === "git") {
+					return { stdout: "", stderr: "" } as never;
+				}
 				throw new Error("Not found");
 			}) as never);
 			// Convex slug, deployment URL, deploy key, deployment name, then Vercel project ID, Vercel URL
@@ -201,8 +252,16 @@ describe("add command", () => {
 				.mockResolvedValueOnce("manual_id")
 				.mockResolvedValueOnce("https://custom.vercel.app");
 			mockSaveProject.mockResolvedValue(undefined);
+			// Decline per-project config, decline doc population
+			mockConfirm.mockResolvedValue(false);
 
-			await addCommand.parseAsync(["node", "test", "my-project"]);
+			await addCommand.parseAsync([
+				"node",
+				"test",
+				"my-project",
+				"--path",
+				"/tmp/fake",
+			]);
 
 			expect(mockSaveProject).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -218,8 +277,17 @@ describe("add command", () => {
 	describe("save project", () => {
 		it("should save project record with all details", async () => {
 			mockGetProject.mockResolvedValue(undefined);
+			// pathExists: true for .git check, false for everything else
+			mockFs.pathExists.mockImplementation(((p: string) =>
+				Promise.resolve(p.endsWith(".git"))) as never);
 			mockExeca.mockImplementation((async (cmd: string, args?: string[]) => {
 				if (cmd === "gh") {
+					if (args?.includes("pr")) {
+						return {
+							stdout: "https://github.com/org/repo/pull/1",
+							stderr: "",
+						} as never;
+					}
 					return {
 						stdout: JSON.stringify({
 							url: "https://github.com/org/repo",
@@ -235,6 +303,12 @@ describe("add command", () => {
 				if (cmd === "vercel" && args?.includes("inspect")) {
 					return { stdout: "ID: prj_123", stderr: "" } as never;
 				}
+				if (cmd === "npx") {
+					return { stdout: "", stderr: "" } as never;
+				}
+				if (cmd === "git") {
+					return { stdout: "", stderr: "" } as never;
+				}
 				throw new Error("Not found");
 			}) as never);
 			// Convex slug, deployment URL, deploy key, deployment name prompts
@@ -248,8 +322,16 @@ describe("add command", () => {
 				hasAlias: true,
 			});
 			mockSaveProject.mockResolvedValue(undefined);
+			// Decline per-project config, decline doc population
+			mockConfirm.mockResolvedValue(false);
 
-			await addCommand.parseAsync(["node", "test", "my-project"]);
+			await addCommand.parseAsync([
+				"node",
+				"test",
+				"my-project",
+				"--path",
+				"/tmp/fake",
+			]);
 
 			expect(mockSaveProject).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -278,11 +360,232 @@ describe("add command", () => {
 		});
 	});
 
+	describe("per-project config", () => {
+		it("should write per-project config when accepted", async () => {
+			mockGetProject.mockResolvedValue(undefined);
+			// true for .git check and config file
+			mockFs.pathExists.mockImplementation(((p: string) =>
+				Promise.resolve(
+					p.endsWith(".git") || p.endsWith(".hatch.json"),
+				)) as never);
+			mockFs.readJson.mockResolvedValue({
+				github: { token: "gh_tok", org: "my-org", email: "e", name: "n" },
+				vercel: { token: "vc_tok", team: "my-team" },
+				convex: { accessToken: "cvx_tok" },
+			} as never);
+			mockExeca.mockImplementation((async (cmd: string, args?: string[]) => {
+				if (cmd === "gh") {
+					if (args?.includes("pr")) {
+						return {
+							stdout: "https://github.com/o/r/pull/1",
+							stderr: "",
+						} as never;
+					}
+					return {
+						stdout: JSON.stringify({
+							url: "https://github.com/o/r",
+							owner: { login: "o" },
+							name: "r",
+						}),
+						stderr: "",
+					} as never;
+				}
+				if (cmd === "vercel" && args?.includes("ls")) {
+					return { stdout: "my-project", stderr: "" } as never;
+				}
+				if (cmd === "vercel" && args?.includes("inspect")) {
+					return { stdout: "ID: prj_1", stderr: "" } as never;
+				}
+				if (cmd === "npx" || cmd === "git") {
+					return { stdout: "", stderr: "" } as never;
+				}
+				throw new Error("Not found");
+			}) as never);
+			mockInput
+				.mockResolvedValueOnce("slug")
+				.mockResolvedValueOnce("https://slug.convex.cloud")
+				.mockResolvedValueOnce("dk_key")
+				.mockResolvedValueOnce("slug");
+			mockVercelGetProjectUrl.mockResolvedValue({
+				url: "https://my-project.vercel.app",
+				hasAlias: true,
+			});
+			mockSaveProject.mockResolvedValue(undefined);
+			// Accept per-project config, decline doc population
+			mockConfirm
+				.mockResolvedValueOnce(true)
+				.mockResolvedValueOnce(false);
+
+			await addCommand.parseAsync([
+				"node",
+				"test",
+				"my-project",
+				"--path",
+				"/tmp/fake",
+			]);
+
+			expect(mockFs.writeJson).toHaveBeenCalledWith(
+				"/mock/.hatch/configs/my-project.json",
+				expect.objectContaining({
+					project: "my-project",
+					github: expect.objectContaining({
+						token: "gh_tok",
+						org: "my-org",
+					}),
+					vercel: expect.objectContaining({
+						token: "vc_tok",
+						team: "my-team",
+					}),
+					convex: expect.objectContaining({
+						accessToken: "cvx_tok",
+						deployKey: "dk_key",
+					}),
+				}),
+				{ spaces: 2 },
+			);
+			expect(mockLog.success).toHaveBeenCalledWith(
+				"Per-project config written to /mock/.hatch/configs/my-project.json",
+			);
+		});
+	});
+
+	describe("doc population", () => {
+		it("should run claude to populate docs when accepted", async () => {
+			mockGetProject.mockResolvedValue(undefined);
+			mockFs.pathExists.mockImplementation(((p: string) =>
+				Promise.resolve(p.endsWith(".git"))) as never);
+			mockExeca.mockImplementation((async (cmd: string, args?: string[]) => {
+				if (cmd === "gh") {
+					if (args?.includes("pr")) {
+						return {
+							stdout: "https://github.com/o/r/pull/1",
+							stderr: "",
+						} as never;
+					}
+					return {
+						stdout: JSON.stringify({
+							url: "https://github.com/o/r",
+							owner: { login: "o" },
+							name: "r",
+						}),
+						stderr: "",
+					} as never;
+				}
+				if (cmd === "vercel" && args?.includes("ls")) {
+					return { stdout: "my-project", stderr: "" } as never;
+				}
+				if (cmd === "vercel" && args?.includes("inspect")) {
+					return { stdout: "ID: prj_1", stderr: "" } as never;
+				}
+				if (cmd === "npx" || cmd === "git" || cmd === "claude") {
+					return { stdout: "", stderr: "" } as never;
+				}
+				throw new Error("Not found");
+			}) as never);
+			mockInput
+				.mockResolvedValueOnce("slug")
+				.mockResolvedValueOnce("https://slug.convex.cloud")
+				.mockResolvedValueOnce("")
+				.mockResolvedValueOnce("slug");
+			mockVercelGetProjectUrl.mockResolvedValue({
+				url: "https://my-project.vercel.app",
+				hasAlias: true,
+			});
+			mockSaveProject.mockResolvedValue(undefined);
+			// Decline per-project config, accept doc population
+			mockConfirm
+				.mockResolvedValueOnce(false)
+				.mockResolvedValueOnce(true);
+
+			await addCommand.parseAsync([
+				"node",
+				"test",
+				"my-project",
+				"--path",
+				"/tmp/fake",
+			]);
+
+			expect(mockExeca).toHaveBeenCalledWith(
+				"claude",
+				expect.arrayContaining(["-p", "--allowedTools"]),
+				expect.objectContaining({ timeout: 600_000 }),
+			);
+		});
+
+		it("should print manual command when doc population is declined", async () => {
+			mockGetProject.mockResolvedValue(undefined);
+			mockFs.pathExists.mockImplementation(((p: string) =>
+				Promise.resolve(p.endsWith(".git"))) as never);
+			mockExeca.mockImplementation((async (cmd: string, args?: string[]) => {
+				if (cmd === "gh") {
+					if (args?.includes("pr")) {
+						return {
+							stdout: "https://github.com/o/r/pull/1",
+							stderr: "",
+						} as never;
+					}
+					return {
+						stdout: JSON.stringify({
+							url: "https://github.com/o/r",
+							owner: { login: "o" },
+							name: "r",
+						}),
+						stderr: "",
+					} as never;
+				}
+				if (cmd === "vercel" && args?.includes("ls")) {
+					return { stdout: "my-project", stderr: "" } as never;
+				}
+				if (cmd === "vercel" && args?.includes("inspect")) {
+					return { stdout: "ID: prj_1", stderr: "" } as never;
+				}
+				if (cmd === "npx" || cmd === "git") {
+					return { stdout: "", stderr: "" } as never;
+				}
+				throw new Error("Not found");
+			}) as never);
+			mockInput
+				.mockResolvedValueOnce("slug")
+				.mockResolvedValueOnce("https://slug.convex.cloud")
+				.mockResolvedValueOnce("")
+				.mockResolvedValueOnce("slug");
+			mockVercelGetProjectUrl.mockResolvedValue({
+				url: "https://my-project.vercel.app",
+				hasAlias: true,
+			});
+			mockSaveProject.mockResolvedValue(undefined);
+			// Decline per-project config, decline doc population
+			mockConfirm.mockResolvedValue(false);
+
+			await addCommand.parseAsync([
+				"node",
+				"test",
+				"my-project",
+				"--path",
+				"/tmp/fake",
+			]);
+
+			expect(mockExeca).not.toHaveBeenCalledWith(
+				"claude",
+				expect.anything(),
+				expect.anything(),
+			);
+			expect(mockLog.info).toHaveBeenCalledWith(
+				"To populate docs later, run from the project directory:",
+			);
+			expect(mockLog.step).toHaveBeenCalledWith(
+				expect.stringContaining("claude -p"),
+			);
+		});
+	});
+
 	describe("user cancellation", () => {
 		it("should handle user force close gracefully", async () => {
 			mockGetProject.mockResolvedValue(undefined);
 			mockExeca.mockRejectedValue(new Error("Not found"));
-			mockInput.mockRejectedValue(new Error("User force closed the prompt"));
+			mockInput.mockRejectedValue(
+				new Error("User force closed the prompt"),
+			);
 
 			await expect(
 				addCommand.parseAsync(["node", "test", "my-project"]),
