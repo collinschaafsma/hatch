@@ -57,6 +57,11 @@ export async function scaffoldHarness(
 			executable: true,
 		},
 		{
+			relativePath: "scripts/harness/ui-post-evidence.mjs",
+			content: templates.generateUiPostEvidenceScript(),
+			executable: true,
+		},
+		{
 			relativePath: "scripts/harness/query-logs.mjs",
 			content: templates.generateQueryLogsScript(),
 			executable: true,
@@ -132,6 +137,7 @@ const HARNESS_SCRIPTS: Record<string, string> = {
 		"pnpm build && pnpm lint && pnpm typecheck && pnpm test && node scripts/harness/risk-tier.mjs",
 	"harness:ui:capture-browser-evidence": "node scripts/harness/ui-capture.mjs",
 	"harness:ui:verify-browser-evidence": "node scripts/harness/ui-verify.mjs",
+	"harness:ui:post-evidence": "node scripts/harness/ui-post-evidence.mjs",
 	"harness:logs": "node scripts/harness/query-logs.mjs",
 	"harness:logs:errors": "node scripts/harness/query-logs.mjs --level error",
 	"harness:logs:slow": "node scripts/harness/query-logs.mjs --slow 200",

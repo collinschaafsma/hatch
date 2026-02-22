@@ -46,6 +46,7 @@ Run \`pnpm harness:pre-pr\` before opening a pull request to validate all checks
 | \`pnpm harness:pre-pr\` | Full pre-PR validation (build + lint + typecheck + test + risk-tier) |
 | \`pnpm harness:ui:capture-browser-evidence\` | Capture screenshots of changed UI routes via agent-browser |
 | \`pnpm harness:ui:verify-browser-evidence\` | Verify that screenshots exist for changed UI files |
+| \`pnpm harness:ui:post-evidence\` | Commit screenshots and post to PR as a comment |
 | \`pnpm harness:logs\` | Query structured app logs (last 50 entries) |
 | \`pnpm harness:logs:errors\` | Show only error-level log entries |
 | \`pnpm harness:logs:slow\` | Show requests slower than 200ms |
@@ -60,6 +61,7 @@ When UI files are changed (\`apps/web/app/**/*.tsx\`, \`packages/ui/**/*.tsx\`),
 2. Run \`pnpm harness:ui:capture-browser-evidence\` — uses \`agent-browser\` to screenshot affected routes
 3. Screenshots are saved to \`.harness/evidence/\` (gitignored)
 4. Run \`pnpm harness:ui:verify-browser-evidence\` to check coverage
+5. Run \`pnpm harness:ui:post-evidence\` to commit screenshots and post them as a PR comment
 
 Set \`DEV_URL\` env var to override the default \`http://localhost:3000\`.
 
