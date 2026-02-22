@@ -138,7 +138,8 @@ export const addCommand = new Command()
 					inspectArgs.push("--token", config.vercel.token);
 				}
 
-				const { stdout: detail } = await execa("vercel", inspectArgs);
+				const { stdout, stderr } = await execa("vercel", inspectArgs);
+				const detail = stdout || stderr;
 				const idMatch = detail.match(/\bID\s+(prj_\S+)/);
 				if (idMatch) {
 					const result = await vercelGetProjectUrl({
