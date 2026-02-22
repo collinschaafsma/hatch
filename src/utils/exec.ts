@@ -110,3 +110,24 @@ export async function gitCurrentBranch(cwd: string): Promise<string> {
 	);
 	return stdout.trim();
 }
+
+export async function gitCheckout(
+	cwd: string,
+	branch: string,
+	create = false,
+): Promise<void> {
+	const args = create ? ["checkout", "-b", branch] : ["checkout", branch];
+	await execCommand("git", args, { cwd });
+}
+
+export async function gitPush(
+	cwd: string,
+	branch: string,
+	token?: string,
+): Promise<void> {
+	const { args, env } = gitEnvWithToken(token);
+	await execCommand("git", [...args, "push", "-u", "origin", branch], {
+		cwd,
+		env,
+	});
+}

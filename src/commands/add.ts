@@ -11,6 +11,13 @@ import {
 	resolveConfigPath,
 } from "../utils/config-resolver.js";
 import {
+	gitAdd,
+	gitCheckout,
+	gitCommit,
+	gitPull,
+	gitPush,
+} from "../utils/exec.js";
+import {
 	mergeHarnessPackageJsonScripts,
 	scaffoldHarness,
 } from "../utils/harness-scaffold.js";
@@ -20,8 +27,7 @@ import { createSpinner } from "../utils/spinner.js";
 
 interface AddOptions {
 	config?: string;
-	cwd?: string;
-	skipHarness?: boolean;
+	path?: string;
 }
 
 interface GitHubRepo {
@@ -30,25 +36,18 @@ interface GitHubRepo {
 	name: string;
 }
 
-interface VercelProject {
-	id: string;
-	name: string;
-	link?: {
-		productionBranch?: string;
-	};
-}
-
 export const addCommand = new Command()
 	.name("add")
-	.description("Add an existing project to track for feature VMs")
+	.description(
+		"Add an existing project to Hatch: scaffolds harness, commits, pushes, and opens a PR",
+	)
 	.argument("<project-name>", "Project name (matches repo name)")
 	.option(
 		"-c, --config <path>",
 		"Path to hatch.json config file",
 		path.join(os.homedir(), ".hatch.json"),
 	)
-	.option("--cwd <path>", "Local project directory", process.cwd())
-	.option("--skip-harness", "Skip harness scaffolding, only save ProjectRecord")
+	.option("--path <path>", "Path to an existing local checkout of the project")
 	.action(async (projectName: string, options: AddOptions) => {
 		try {
 			log.blank();
@@ -111,7 +110,6 @@ export const addCommand = new Command()
 					message: "GitHub repo URL (or press Enter to skip):",
 				});
 				if (url) {
-					// Parse URL like https://github.com/owner/repo
 					const match = url.match(/github\.com\/([^/]+)\/([^/]+)/);
 					if (match) {
 						github = {
@@ -135,12 +133,6 @@ export const addCommand = new Command()
 			try {
 				const convexAccessToken = config.convex?.accessToken;
 				if (convexAccessToken) {
-					const { getConvexTokenDetails } = await import(
-						"../headless/convex.js"
-					);
-					const tokenDetails = await getConvexTokenDetails(convexAccessToken);
-					// Look for a project matching the name
-					// For now, ask the user for the project slug
 					convexSpinner.warn("Convex project auto-detection not yet supported");
 				} else {
 					convexSpinner.warn("Convex access token not configured");
@@ -183,8 +175,6 @@ export const addCommand = new Command()
 			let vercel: ProjectRecord["vercel"] | undefined;
 
 			try {
-				// vercel project ls outputs JSON with --json flag (if available)
-				// Fall back to vercel projects command
 				const args = ["project", "ls"];
 				if (vercelTeam) {
 					args.push("--scope", vercelTeam);
@@ -194,10 +184,7 @@ export const addCommand = new Command()
 					env: { ...process.env, VERCEL_TOKEN: config.vercel?.token },
 				});
 
-				// Parse the output - vercel project ls outputs a table, not JSON
-				// Look for project name in the output
 				if (stdout.includes(projectName)) {
-					// Try to get project details
 					try {
 						const detailArgs = ["project", "inspect", projectName];
 						if (vercelTeam) {
@@ -206,7 +193,6 @@ export const addCommand = new Command()
 						const { stdout: detail } = await execa("vercel", detailArgs, {
 							env: { ...process.env, VERCEL_TOKEN: config.vercel?.token },
 						});
-						// Parse project ID from output
 						const idMatch = detail.match(/ID:\s*(\S+)/);
 						if (idMatch) {
 							const result = await vercelGetProjectUrl({
@@ -221,7 +207,6 @@ export const addCommand = new Command()
 							vercelSpinner.succeed(`Found Vercel project: ${projectName}`);
 						}
 					} catch {
-						// Fallback: just use the project name
 						const result = await vercelGetProjectUrl({
 							projectId: projectName,
 							projectName,
@@ -258,7 +243,7 @@ export const addCommand = new Command()
 				process.exit(1);
 			}
 
-			// Step 4: Save project
+			// Step 4: Save project record
 			const projectRecord: ProjectRecord = {
 				name: projectName,
 				createdAt: new Date().toISOString(),
@@ -269,7 +254,7 @@ export const addCommand = new Command()
 
 			await saveProject(projectRecord);
 
-			// Create per-project config if one wasn't already used
+			// Step 5: Create per-project config if one wasn't already used
 			if (!usedPerProjectConfig) {
 				log.blank();
 				const createConfig = await confirm({
@@ -302,7 +287,6 @@ export const addCommand = new Command()
 					if (config.claude) {
 						projectConfig.claude = config.claude;
 					}
-					// Include the Convex deploy key collected during add
 					if (convex.deployKey) {
 						projectConfig.convex.deployKey = convex.deployKey;
 					}
@@ -314,112 +298,174 @@ export const addCommand = new Command()
 				}
 			}
 
-			// Auto-clone repo locally for agent context
-			try {
-				const { cloneProject } = await import("./clone.js");
-				const cloneResult = await cloneProject(projectName, {
-					configPath,
-				});
-				log.step(`Cloned to ${cloneResult.path}`);
-			} catch {
-				log.warn(
-					"Could not auto-clone repo locally. Run 'hatch clone' manually.",
-				);
-			}
+			// Step 6: Resolve project directory
+			let projectPath: string;
 
-			// Step 5: Scaffold harness files
-			if (!options.skipHarness) {
-				const projectPath = path.resolve(options.cwd || process.cwd());
-
-				if (!(await fs.pathExists(projectPath))) {
-					log.warn(
-						`Directory ${projectPath} does not exist, skipping harness scaffolding.`,
+			if (options.path) {
+				projectPath = path.resolve(options.path);
+				if (!(await fs.pathExists(path.join(projectPath, ".git")))) {
+					log.error(
+						`${projectPath} is not a git repository. Provide a path to a git checkout.`,
+					);
+					process.exit(1);
+				}
+				log.step(`Using existing checkout: ${projectPath}`);
+			} else {
+				const cloneSpinner = createSpinner("Cloning repository").start();
+				try {
+					const { cloneProject } = await import("./clone.js");
+					const cloneResult = await cloneProject(projectName, {
+						configPath,
+					});
+					projectPath = cloneResult.path;
+					cloneSpinner.succeed(`Cloned to ${projectPath}`);
+				} catch (err) {
+					cloneSpinner.fail("Failed to clone repository");
+					log.error(
+						`Could not clone repo: ${err instanceof Error ? err.message : err}`,
 					);
 					log.info(
-						"Run 'hatch harden' in your project directory to set up the harness later.",
+						"Use --path to point to an existing local checkout instead.",
 					);
-				} else {
-					// Write core harness files (skip existing)
-					const harnessSpinner = createSpinner(
-						"Scaffolding agent harness",
-					).start();
-					const coreResult = await scaffoldHarness({
-						projectPath,
-						projectName,
-						skipExisting: true,
-						includeDocs: false,
-					});
-					harnessSpinner.succeed("Agent harness scaffolded");
+					process.exit(1);
+				}
+			}
 
-					// Merge harness scripts into package.json
-					const pkgPath = path.join(projectPath, "package.json");
-					const scriptsAdded = await mergeHarnessPackageJsonScripts(pkgPath);
-					if (scriptsAdded) {
-						log.step("Added harness scripts to package.json");
-					}
+			// Step 7: Create add-hatch branch
+			const branchSpinner = createSpinner("Creating add-hatch branch").start();
+			try {
+				await gitCheckout(projectPath, "main");
+				await gitPull(projectPath, config.github?.token);
+			} catch {
+				// May already be on main or remote may not be configured
+			}
+			await gitCheckout(projectPath, "add-hatch", true);
+			branchSpinner.succeed("Created branch: add-hatch");
 
-					// Apply branch protection (non-fatal)
-					try {
-						const { applyBranchProtection } = await import("./harden.js");
-						await applyBranchProtection({
-							owner: github.owner,
-							repo: github.repo,
-							branch: "main",
-							harnessPath: projectPath,
-							strict: false,
-							dryRun: false,
-							quiet: true,
-						});
-						log.step("Applied branch protection rules");
-					} catch {
-						log.warn(
-							"Could not apply branch protection. Run 'hatch harden' manually to set up branch protection.",
-						);
-					}
+			// Step 8: Scaffold harness
+			const harnessSpinner = createSpinner("Scaffolding agent harness").start();
+			const coreResult = await scaffoldHarness({
+				projectPath,
+				projectName,
+				skipExisting: true,
+				includeDocs: false,
+			});
+			harnessSpinner.succeed("Agent harness scaffolded");
 
-					// Show written/skipped files
-					if (coreResult.written.length > 0) {
-						log.blank();
-						log.info("Harness files written:");
-						for (const f of coreResult.written) {
-							log.step(f);
-						}
-					}
-					if (coreResult.skipped.length > 0) {
-						log.blank();
-						log.info("Harness files skipped (already exist):");
-						for (const f of coreResult.skipped) {
-							log.step(f);
-						}
-					}
+			// Merge harness scripts into package.json
+			const pkgPath = path.join(projectPath, "package.json");
+			const scriptsAdded = await mergeHarnessPackageJsonScripts(pkgPath);
+			if (scriptsAdded) {
+				log.step("Added harness scripts to package.json");
+			}
 
-					// Prompt for docs stubs
-					log.blank();
-					const wantDocs = await confirm({
-						message: "Generate documentation stubs?",
-						default: true,
-					});
+			// Prepend harness context to CLAUDE.md if it exists
+			const claudeMdPath = path.join(projectPath, "CLAUDE.md");
+			if (await fs.pathExists(claudeMdPath)) {
+				const existing = await fs.readFile(claudeMdPath, "utf-8");
+				const harnessBlock = [
+					"## Harness",
+					"",
+					"> Agent-agnostic instructions live in AGENTS.md. This file adds Claude Code-specific overlays.",
+					"",
+					"### Commands",
+					"- `pnpm harness:pre-pr` - Run before opening a PR",
+					"- `pnpm harness:risk-tier` - Check risk tier of current changes",
+					"- `pnpm harness:docs-drift` - Check for documentation drift",
+					"",
+				].join("\n");
+				await fs.writeFile(claudeMdPath, `${harnessBlock}\n${existing}`);
+				log.step("Added harness context to CLAUDE.md");
+			}
 
-					if (wantDocs) {
-						const docsResult = await scaffoldHarness({
-							projectPath,
-							projectName,
-							skipExisting: true,
-							includeDocs: true,
-						});
+			// Show written/skipped files
+			if (coreResult.written.length > 0) {
+				log.blank();
+				log.info("Harness files written:");
+				for (const f of coreResult.written) {
+					log.step(f);
+				}
+			}
+			if (coreResult.skipped.length > 0) {
+				log.blank();
+				log.info("Harness files skipped (already exist):");
+				for (const f of coreResult.skipped) {
+					log.step(f);
+				}
+			}
 
-						if (docsResult.written.length > 0) {
-							log.info("Documentation stubs written:");
-							for (const f of docsResult.written) {
-								log.step(f);
-							}
-							log.blank();
-							log.info(
-								"Run Claude in your project to fill in docs with project-specific content.",
-							);
-						}
+			// Prompt for docs stubs
+			log.blank();
+			const wantDocs = await confirm({
+				message: "Generate documentation stubs?",
+				default: true,
+			});
+
+			if (wantDocs) {
+				const docsResult = await scaffoldHarness({
+					projectPath,
+					projectName,
+					skipExisting: true,
+					includeDocs: true,
+				});
+
+				if (docsResult.written.length > 0) {
+					log.info("Documentation stubs written:");
+					for (const f of docsResult.written) {
+						log.step(f);
 					}
 				}
+			}
+
+			// Step 9: Commit harness files
+			const commitSpinner = createSpinner("Committing harness files").start();
+			await gitAdd(projectPath);
+			await gitCommit("feat: add hatch agent harness", projectPath);
+			commitSpinner.succeed("Committed: feat: add hatch agent harness");
+
+			// Step 10: Push branch
+			const pushSpinner = createSpinner("Pushing add-hatch branch").start();
+			await gitPush(projectPath, "add-hatch", config.github?.token);
+			pushSpinner.succeed("Pushed branch: add-hatch");
+
+			// Step 11: Open PR
+			const prSpinner = createSpinner("Opening pull request").start();
+			const { stdout: prUrl } = await execa(
+				"gh",
+				[
+					"pr",
+					"create",
+					"--title",
+					"Add Hatch agent harness",
+					"--body",
+					"Adds the Hatch agent harness for AI-assisted development with Hatch.\n\nIncludes:\n- harness.json (risk contract)\n- AGENTS.md (agent guidelines)\n- Harness scripts (risk-tier, docs-drift, pre-pr)\n- Branch protection configuration",
+					"--head",
+					"add-hatch",
+				],
+				{ cwd: projectPath },
+			);
+			prSpinner.succeed(`PR opened: ${prUrl.trim()}`);
+
+			// Step 12: Checkout main so working tree is clean
+			await gitCheckout(projectPath, "main");
+
+			// Apply branch protection (non-fatal)
+			try {
+				const { applyBranchProtection } = await import("./harden.js");
+				await applyBranchProtection({
+					owner: github.owner,
+					repo: github.repo,
+					branch: "main",
+					harnessPath: projectPath,
+					strict: false,
+					dryRun: false,
+					quiet: true,
+				});
+				log.step("Applied branch protection rules");
+			} catch {
+				log.warn(
+					"Could not apply branch protection. Run 'hatch harden' manually to set up branch protection.",
+				);
 			}
 
 			// Print summary
@@ -431,11 +477,10 @@ export const addCommand = new Command()
 			log.step(`GitHub:   ${github.url}`);
 			log.step(`Vercel:   ${vercel.url}`);
 			log.step(`Convex:   ${convex.projectSlug}`);
+			log.step(`PR:       ${prUrl.trim()}`);
 			log.blank();
 			log.info("Next steps:");
-			if (!options.skipHarness) {
-				log.step("Commit the new harness files to your repository");
-			}
+			log.step("Review and merge the PR to onboard the harness");
 			log.step(
 				`Start a feature: hatch feature <feature-name> --project ${projectName}`,
 			);
