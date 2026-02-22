@@ -37,17 +37,43 @@ function inferRoute(filePath) {
   // Extract the route path from a Next.js app directory file
   // e.g. apps/web/app/(marketing)/about/page.tsx -> /about
   const match = filePath.match(/apps\\/web\\/app\\/(.+)\\/(page|layout|loading|error|not-found)\\.tsx?$/);
-  if (!match) return null;
+  if (match) {
+    const segments = match[1].split("/").filter((s) => {
+      // Strip route groups like (marketing), (auth), (app)
+      if (s.startsWith("(") && s.endsWith(")")) return false;
+      // Strip private folders like _components
+      if (s.startsWith("_")) return false;
+      return true;
+    });
+    return "/" + segments.join("/");
+  }
 
-  const segments = match[1].split("/").filter((s) => {
-    // Strip route groups like (marketing), (auth), (app)
-    if (s.startsWith("(") && s.endsWith(")")) return false;
-    // Strip private folders like _components
-    if (s.startsWith("_")) return false;
-    return true;
-  });
+  // Fallback: for component files inside _ prefixed dirs (e.g. _components),
+  // walk up to the nearest parent that would be a route segment.
+  // e.g. apps/web/app/(app)/profile/_components/basic-info.tsx -> /profile
+  const appMatch = filePath.match(/apps\\/web\\/app\\/(.+)\\.tsx?$/);
+  if (!appMatch) return null;
 
-  return "/" + segments.join("/");
+  const parts = appMatch[1].split("/");
+  // Walk backwards, dropping the filename and any _ prefixed or route group segments
+  // until we find a regular route segment
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i];
+    // Skip filenames, _ prefixed dirs, and route groups
+    if (part.includes(".")) continue;
+    if (part.startsWith("_")) continue;
+    if (part.startsWith("(") && part.endsWith(")")) continue;
+
+    // Found a route segment — build the route from start to here
+    const routeSegments = parts.slice(0, i + 1).filter((s) => {
+      if (s.startsWith("(") && s.endsWith(")")) return false;
+      if (s.startsWith("_")) return false;
+      return true;
+    });
+    return "/" + routeSegments.join("/");
+  }
+
+  return "/";
 }
 
 function hasAgentBrowser() {
