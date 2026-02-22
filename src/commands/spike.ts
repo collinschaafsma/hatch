@@ -212,7 +212,7 @@ async function handleContinuation(
 		}
 
 		const projectPath = `~/${project.github.repo}`;
-		const envPrefix = `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.claude/local/bin:$PATH" && export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="$(grep '^CONVEX_DEPLOY_KEY=' ${projectPath}/apps/web/.env.local | cut -d= -f2-)" &&`;
+		const envPrefix = `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.claude/local/bin:$PATH" && export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="$(grep '^CONVEX_DEPLOY_KEY=' ${projectPath}/apps/web/.env.local | cut -d= -f2- | sed 's/^\"//;s/\"$//')" &&`;
 
 		// Step 6: Update VM record to running
 		const currentIteration = (vm.spikeIterations || 1) + 1;
@@ -685,7 +685,7 @@ export const spikeCommand = new Command()
 				| undefined;
 			try {
 				// Verify we have a preview deploy key — never deploy with a prod key from a feature/spike branch
-				const convexDeployCmd = `DEPLOY_KEY=$(grep '^CONVEX_DEPLOY_KEY=' .env.local | cut -d= -f2-); if [ -z "$DEPLOY_KEY" ]; then echo "ERROR: No CONVEX_DEPLOY_KEY found in .env.local" >&2; exit 1; elif echo "$DEPLOY_KEY" | grep -q '^preview:'; then npx convex deploy --preview-create ${featureName} --yes 2>&1; else echo "ERROR: CONVEX_DEPLOY_KEY is a production key. Feature/spike branches must use a preview deploy key (starts with preview:). Set a preview deploy key in Vercel env vars as CONVEX_DEPLOY_KEY for the Preview environment." >&2; exit 1; fi`;
+				const convexDeployCmd = `DEPLOY_KEY=$(grep '^CONVEX_DEPLOY_KEY=' .env.local | cut -d= -f2- | sed 's/^\"//;s/\"$//'); if [ -z "$DEPLOY_KEY" ]; then echo "ERROR: No CONVEX_DEPLOY_KEY found in .env.local" >&2; exit 1; elif echo "$DEPLOY_KEY" | grep -q '^preview:'; then npx convex deploy --preview-create ${featureName} --yes 2>&1; else echo "ERROR: CONVEX_DEPLOY_KEY is a production key. Feature/spike branches must use a preview deploy key (starts with preview:). Set a preview deploy key in Vercel env vars as CONVEX_DEPLOY_KEY for the Preview environment." >&2; exit 1; fi`;
 				const { stdout: deployOutput } = await sshExec(
 					sshHost,
 					`${envPrefix} cd ${projectPath}/apps/web && ${convexDeployCmd}`,
@@ -761,7 +761,7 @@ export const spikeCommand = new Command()
 				// Read CONVEX_DEPLOY_KEY from .env.local on the VM
 				const { stdout: deployKeyFromEnv } = await sshExec(
 					sshHost,
-					`cd ${projectPath}/apps/web && grep '^CONVEX_DEPLOY_KEY=' .env.local | cut -d= -f2-`,
+					`cd ${projectPath}/apps/web && grep '^CONVEX_DEPLOY_KEY=' .env.local | cut -d= -f2- | sed 's/^\"//;s/\"$//'`,
 				);
 				const deployKey = deployKeyFromEnv.trim();
 				const deploymentName = convexPreviewDeployment?.deploymentName || "";
@@ -876,7 +876,7 @@ export const spikeCommand = new Command()
 				.replace(/`/g, "\\`");
 
 			// Read deploy key from .env.local and export for agent
-			const convexDeployKeyExport = `export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="$(grep '^CONVEX_DEPLOY_KEY=' ${projectPath}/apps/web/.env.local | cut -d= -f2-)" &&`;
+			const convexDeployKeyExport = `export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="$(grep '^CONVEX_DEPLOY_KEY=' ${projectPath}/apps/web/.env.local | cut -d= -f2- | sed 's/^\"//;s/\"$//')" &&`;
 			const planEnv = options.plan
 				? `export HATCH_PLAN=true && export HATCH_SPIKE_NAME="${featureName}" && `
 				: "";

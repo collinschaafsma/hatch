@@ -234,7 +234,7 @@ export const featureCommand = new Command()
 				| undefined;
 			try {
 				// Verify we have a preview deploy key — never deploy with a prod key from a feature/spike branch
-				const convexDeployCmd = `DEPLOY_KEY=$(grep '^CONVEX_DEPLOY_KEY=' .env.local | cut -d= -f2-); if [ -z "$DEPLOY_KEY" ]; then echo "ERROR: No CONVEX_DEPLOY_KEY found in .env.local" >&2; exit 1; elif echo "$DEPLOY_KEY" | grep -q '^preview:'; then npx convex deploy --preview-create ${featureName} --yes 2>&1; else echo "ERROR: CONVEX_DEPLOY_KEY is a production key. Feature/spike branches must use a preview deploy key (starts with preview:). Set a preview deploy key in Vercel env vars as CONVEX_DEPLOY_KEY for the Preview environment." >&2; exit 1; fi`;
+				const convexDeployCmd = `DEPLOY_KEY=$(grep '^CONVEX_DEPLOY_KEY=' .env.local | cut -d= -f2- | sed 's/^\"//;s/\"$//'); if [ -z "$DEPLOY_KEY" ]; then echo "ERROR: No CONVEX_DEPLOY_KEY found in .env.local" >&2; exit 1; elif echo "$DEPLOY_KEY" | grep -q '^preview:'; then npx convex deploy --preview-create ${featureName} --yes 2>&1; else echo "ERROR: CONVEX_DEPLOY_KEY is a production key. Feature/spike branches must use a preview deploy key (starts with preview:). Set a preview deploy key in Vercel env vars as CONVEX_DEPLOY_KEY for the Preview environment." >&2; exit 1; fi`;
 				const { stdout: deployOutput } = await sshExec(
 					sshHost,
 					`${envPrefix} cd ${projectPath}/apps/web && ${convexDeployCmd}`,
@@ -322,7 +322,7 @@ export const featureCommand = new Command()
 				// Read CONVEX_DEPLOY_KEY from .env.local on the VM
 				const { stdout: deployKeyFromEnv } = await sshExec(
 					sshHost,
-					`cd ${projectPath}/apps/web && grep '^CONVEX_DEPLOY_KEY=' .env.local | cut -d= -f2-`,
+					`cd ${projectPath}/apps/web && grep '^CONVEX_DEPLOY_KEY=' .env.local | cut -d= -f2- | sed 's/^\"//;s/\"$//'`,
 				);
 				const deployKey = deployKeyFromEnv.trim();
 				const deploymentName = convexPreviewDeployment?.deploymentName || "";
