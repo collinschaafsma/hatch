@@ -738,13 +738,14 @@ export const spikeCommand = new Command()
 			}
 
 			// Seed the preview deployment
+			const seedFunction = config.convex?.seedFunction || "seed:seedData";
 			const seedSpinner = options.json
 				? null
 				: createSpinner("Seeding Convex preview deployment").start();
 			try {
 				await sshExec(
 					sshHost,
-					`${envPrefix} cd ${projectPath}/apps/web && npx convex run seed:seedData`,
+					`${envPrefix} cd ${projectPath}/apps/web && npx convex run --preview-name ${featureName} ${seedFunction}`,
 				);
 				seedSpinner?.succeed("Convex preview deployment seeded");
 			} catch {

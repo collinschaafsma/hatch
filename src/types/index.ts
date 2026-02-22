@@ -67,6 +67,7 @@ export interface HatchConfig {
 	convex: {
 		accessToken?: string;
 		deployKey?: string;
+		seedFunction?: string;
 	};
 	claude?: ClaudeConfig;
 	envVars?: EnvVar[];

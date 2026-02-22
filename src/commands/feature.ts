@@ -287,13 +287,14 @@ export const featureCommand = new Command()
 			}
 
 			// Seed the preview deployment
+			const seedFunction = config.convex?.seedFunction || "seed:seedData";
 			const seedSpinner = createSpinner(
 				"Seeding Convex preview deployment",
 			).start();
 			try {
 				await sshExec(
 					sshHost,
-					`${envPrefix} cd ${projectPath}/apps/web && npx convex run seed:seedData`,
+					`${envPrefix} cd ${projectPath}/apps/web && npx convex run --preview-name ${featureName} ${seedFunction}`,
 				);
 				seedSpinner.succeed("Convex preview deployment seeded");
 			} catch {
@@ -307,7 +308,7 @@ export const featureCommand = new Command()
 			try {
 				await sshExec(
 					sshHost,
-					`${envPrefix} cd ${projectPath}/apps/web && npx convex env set HATCH_DEV_MODE true`,
+					`${envPrefix} cd ${projectPath}/apps/web && npx convex env set --preview-name ${featureName} HATCH_DEV_MODE true`,
 				);
 				devModeSpinner.succeed("Dev auth mode enabled");
 			} catch {
