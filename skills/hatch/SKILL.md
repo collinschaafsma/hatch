@@ -297,50 +297,83 @@ Report costs to the user when a spike completes.
 
 ## Environment Safety
 
-Before running any destructive or provisioning command, confirm you are using the correct project environment:
+**CRITICAL: Always confirm with the human before taking action.** Never run provisioning, destructive, or deployment commands without first showing the human exactly what you plan to do and getting explicit approval.
 
-1. **Always verify the target project**: Run `hatch config check --project <name> --json` before feature/spike/destroy operations to confirm which GitHub org, Vercel team, and Convex deployment will be affected.
-2. **Never assume config**: If managing multiple projects, always pass `--project <name>` explicitly. Do not rely on the global fallback when per-project configs exist.
-3. **Validate before provisioning**: Before `hatch new` or `hatch spike`, run `hatch config list --json` to confirm which config will be used.
-4. **Cross-check project names**: The `--project` value must match both the project name in `hatch list` and the config filename in `~/.hatch/configs/`. Mismatches mean wrong credentials.
-5. **NEVER run `hatch destroy`**: This command permanently deletes Convex and Vercel projects. Only a human operator should run destroy. If a user asks you to destroy a project, tell them to run the command manually.
+### Pre-flight check (required before any provisioning command)
+
+Before running `hatch new`, `hatch feature`, `hatch spike`, `hatch clean`, or `hatch add`:
+
+1. **Gather context**: Run `hatch list --json` and `hatch config check --project <name> --json` to understand the current state.
+2. **Show the human a summary** that includes:
+   - The exact command you plan to run
+   - Which project and config will be used (`~/.hatch/configs/<name>.json` or `~/.hatch.json`)
+   - Which GitHub org, Vercel team, and Convex deployment will be affected
+   - For spikes: the full prompt text
+   - For clean: what resources will be deleted (VM name, Convex project)
+3. **Wait for explicit approval** before executing. Do not proceed on assumptions.
+
+### General rules
+
+- **Never assume config**: Always pass `--project <name>` explicitly. Do not rely on the global fallback when per-project configs exist.
+- **Cross-check project names**: The `--project` value must match both the project name in `hatch list` and the config filename in `~/.hatch/configs/`. Mismatches mean wrong credentials.
+- **NEVER run `hatch destroy`**: This command permanently deletes Convex and Vercel projects. Only a human operator should run destroy. If a user asks you to destroy a project, tell them to run the command manually.
 
 ## Workflows
 
+Every workflow follows the same pattern: **gather context → show the human → get approval → execute**.
+
 ### Create new project
 ```bash
+# 1. Check which config will be used
+cd ~/.hatch-cli && pnpm dev config list --json
+
+# 2. Show the human: "I'll create project 'my-app' using config ~/.hatch/configs/my-app.json
+#    (GitHub org: X, Vercel team: Y). This provisions a temporary VM. Proceed?"
+
+# 3. After approval:
 cd ~/.hatch-cli && pnpm dev new my-app
 ```
 Share Vercel URL when complete.
 
 ### Manual feature development
 ```bash
-# Find project name
+# 1. Gather context
 cd ~/.hatch-cli && pnpm dev list --json
+cd ~/.hatch-cli && pnpm dev config check --project my-app --json
 
-# Create feature VM
+# 2. Show the human: "I'll create feature VM 'my-feature' for project 'my-app'
+#    using config ~/.hatch/configs/my-app.json (GitHub: org/my-app, Convex: my-app).
+#    This creates a VM, git branch, and isolated Convex project. Proceed?"
+
+# 3. After approval:
 cd ~/.hatch-cli && pnpm dev feature my-feature --project my-app
 ```
 Share SSH host so user can connect with Claude Code.
 
 ### Autonomous spike
 ```bash
-# Find project name
+# 1. Gather context
 cd ~/.hatch-cli && pnpm dev list --json
+cd ~/.hatch-cli && pnpm dev config check --project my-app --json
 
-# Start spike
+# 2. Show the human: "I'll spike 'my-feature' on project 'my-app'
+#    using config ~/.hatch/configs/my-app.json.
+#    Prompt: 'Add contact form'
+#    This creates a VM, runs Claude autonomously, and opens a PR. Proceed?"
+
+# 3. After approval:
 cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "Add contact form"
 
-# Check status (VM liveness, spike progress, PR review/CI)
+# 4. Check status (VM liveness, spike progress, PR review/CI)
 cd ~/.hatch-cli && pnpm dev status --project my-app --json
 
-# Optionally monitor progress
+# 5. Optionally monitor progress
 ssh <vm>.exe.xyz 'tail -f ~/spike.log'
 
-# Check for completion
+# 6. Check for completion
 ssh <vm>.exe.xyz 'test -f ~/spike-done && cat ~/spike-result.json'
 
-# Clean up after PR is merged
+# 7. Clean up after PR is merged (confirm with human first)
 cd ~/.hatch-cli && pnpm dev clean my-feature --project my-app
 ```
 Share PR URL when complete.
