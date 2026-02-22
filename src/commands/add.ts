@@ -139,7 +139,7 @@ export const addCommand = new Command()
 				}
 
 				const { stdout: detail } = await execa("vercel", inspectArgs);
-				const idMatch = detail.match(/ID:\s*(\S+)/);
+				const idMatch = detail.match(/\bID\s+(prj_\S+)/);
 				if (idMatch) {
 					const result = await vercelGetProjectUrl({
 						projectId: idMatch[1],

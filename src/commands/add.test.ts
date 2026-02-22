@@ -258,7 +258,7 @@ describe("add command", () => {
 					} as never;
 				}
 				if (cmd === "vercel" && args?.includes("inspect")) {
-					return { stdout: "ID: prj_123", stderr: "" } as never;
+					return { stdout: "ID\t\t\t\tprj_123", stderr: "" } as never;
 				}
 				if (cmd === "npx") {
 					return { stdout: "", stderr: "" } as never;
@@ -336,7 +336,7 @@ describe("add command", () => {
 					} as never;
 				}
 				if (cmd === "vercel" && args?.includes("inspect")) {
-					return { stdout: "ID: prj_1", stderr: "" } as never;
+					return { stdout: "ID\t\t\t\tprj_1", stderr: "" } as never;
 				}
 				if (cmd === "npx" || cmd === "git") {
 					return { stdout: "", stderr: "" } as never;
@@ -406,7 +406,7 @@ describe("add command", () => {
 					} as never;
 				}
 				if (cmd === "vercel" && args?.includes("inspect")) {
-					return { stdout: "ID: prj_1", stderr: "" } as never;
+					return { stdout: "ID\t\t\t\tprj_1", stderr: "" } as never;
 				}
 				if (cmd === "npx" || cmd === "git" || cmd === "claude") {
 					return { stdout: "", stderr: "" } as never;
@@ -458,7 +458,7 @@ describe("add command", () => {
 					} as never;
 				}
 				if (cmd === "vercel" && args?.includes("inspect")) {
-					return { stdout: "ID: prj_1", stderr: "" } as never;
+					return { stdout: "ID\t\t\t\tprj_1", stderr: "" } as never;
 				}
 				if (cmd === "npx" || cmd === "git") {
 					return { stdout: "", stderr: "" } as never;
