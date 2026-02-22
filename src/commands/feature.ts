@@ -177,7 +177,7 @@ export const featureCommand = new Command()
 			const projectPath = `~/${project.github.repo}`;
 
 			// Environment setup for commands that need CLIs installed to ~/.local/bin
-			const envPrefix = `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$PATH" &&`;
+			const envPrefix = `source ~/.profile 2>/dev/null; export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$PATH" &&`;
 
 			// Step 8: Create git branch from origin/main
 			const gitSpinner = createSpinner("Creating git branch").start();

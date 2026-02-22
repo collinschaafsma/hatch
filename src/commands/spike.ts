@@ -212,7 +212,7 @@ async function handleContinuation(
 		}
 
 		const projectPath = `~/${project.github.repo}`;
-		const envPrefix = `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.claude/local/bin:$PATH" && export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="$(grep '^CONVEX_DEPLOY_KEY=' ${projectPath}/apps/web/.env.local | cut -d= -f2- | sed 's/^\"//;s/\"$//')" &&`;
+		const envPrefix = `source ~/.profile 2>/dev/null; export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.claude/local/bin:$PATH" && export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="$(grep '^CONVEX_DEPLOY_KEY=' ${projectPath}/apps/web/.env.local | cut -d= -f2- | sed 's/^\"//;s/\"$//')" &&`;
 
 		// Step 6: Update VM record to running
 		const currentIteration = (vm.spikeIterations || 1) + 1;
@@ -626,7 +626,7 @@ export const spikeCommand = new Command()
 			}
 
 			const projectPath = `~/${project.github.repo}`;
-			const envPrefix = `export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.claude/local/bin:$PATH" &&`;
+			const envPrefix = `source ~/.profile 2>/dev/null; export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.claude/local/bin:$PATH" &&`;
 
 			// Step 8: Create git branch
 			const gitSpinner = options.json

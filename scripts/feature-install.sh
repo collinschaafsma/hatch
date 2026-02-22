@@ -132,6 +132,15 @@ else
     success "pnpm installed: $(pnpm -v)"
 fi
 
+# Ensure PATH and PNPM_HOME are in .profile for non-interactive shells (Claude Agent SDK)
+if ! grep -q 'PNPM_HOME=.*\.local/share/pnpm' ~/.profile 2>/dev/null; then
+    cat >> ~/.profile << 'PROFILE_EOF'
+export PNPM_HOME="$HOME/.local/share/pnpm"
+export PATH="$PNPM_HOME:$HOME/.local/bin:$PATH"
+PROFILE_EOF
+    success "PATH exports added to .profile"
+fi
+
 # ============================================================================
 # Step 3: Check/Install git
 # ============================================================================
@@ -249,11 +258,15 @@ if [[ -n "${GITHUB_TOKEN:-}" ]]; then
         GIT_AUTH_CONFIGURED=true
     fi
 
-    # Also set GH_TOKEN in bashrc for tools that need it (like Claude Code for PRs)
+    # Set GH_TOKEN in .bashrc and .profile for tools that need it (like Claude Code for PRs)
+    # .profile is needed for non-interactive shells (Claude Agent SDK)
     if ! grep -q "export GH_TOKEN=" ~/.bashrc 2>/dev/null; then
         echo "export GH_TOKEN=\"${GITHUB_TOKEN}\"" >> ~/.bashrc
-        success "GH_TOKEN added to .bashrc for future sessions"
     fi
+    if ! grep -q "export GH_TOKEN=" ~/.profile 2>/dev/null; then
+        echo "export GH_TOKEN=\"${GITHUB_TOKEN}\"" >> ~/.profile
+    fi
+    success "GH_TOKEN added to .bashrc and .profile"
 fi
 
 # Configure git user (required for commits to match GitHub account)
