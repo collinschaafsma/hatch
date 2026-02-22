@@ -364,7 +364,7 @@ else
 fi
 
 info "Installing Hatch dependencies..."
-pnpm install
+pnpm install --dangerously-allow-all-builds
 
 info "Building Hatch..."
 pnpm build
