@@ -1,8 +1,9 @@
 export function generateUiPostEvidenceScript(): string {
 	return `#!/usr/bin/env node
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync, unlinkSync } from "fs";
 import { execSync } from "child_process";
 import { join } from "path";
+import { tmpdir } from "os";
 
 const evidenceDir = join(".harness", "evidence");
 const manifestPath = join(evidenceDir, "manifest.json");
@@ -97,23 +98,28 @@ try {
   process.exit(0);
 }
 
-// Build markdown comment
+// Build markdown comment body
 const header = "## UI Evidence Screenshots";
 let body = header + "\\n\\n";
 body += "Captured at: " + manifest.capturedAt + "\\n\\n";
 
 for (const route of manifest.routes) {
-  body += "### \`" + route.route + "\`\\n\\n";
+  body += "### \\\`" + route.route + "\\\`\\n\\n";
   if (route.status === "captured" && route.screenshot) {
+    // Use blob URL with ?raw=true — works for both public and private repos
     const imageUrl =
-      "https://raw.githubusercontent.com/" +
-      owner + "/" + repo + "/" + branch +
-      "/.harness/evidence/" + route.screenshot;
+      "https://github.com/" +
+      owner + "/" + repo + "/blob/" + branch +
+      "/.harness/evidence/" + route.screenshot + "?raw=true";
     body += "![" + route.route + "](" + imageUrl + ")\\n\\n";
   } else {
     body += "_Failed to capture: " + (route.error || "unknown error") + "_\\n\\n";
   }
 }
+
+// Write body to a temp file for gh CLI (avoids shell escaping issues with JSON.stringify)
+const tmpFile = join(tmpdir(), "pr-evidence-comment-" + Date.now() + ".md");
+writeFileSync(tmpFile, body);
 
 // Check for existing evidence comment to edit instead of creating a new one
 let existingCommentId;
@@ -139,13 +145,13 @@ try {
   if (existingCommentId) {
     execSync(
       "gh api repos/" + owner + "/" + repo + "/issues/comments/" + existingCommentId +
-        " -X PATCH -f body=" + JSON.stringify(body),
+        " -X PATCH -F body=@" + tmpFile,
       { stdio: ["pipe", "pipe", "pipe"], timeout: 15000 }
     );
     console.log("Updated existing evidence comment on PR #" + prNumber + ".");
   } else {
     execSync(
-      "gh pr comment " + prNumber + " --body " + JSON.stringify(body),
+      "gh pr comment " + prNumber + " --body-file " + tmpFile,
       { stdio: ["pipe", "pipe", "pipe"], timeout: 15000 }
     );
     console.log("Posted evidence comment on PR #" + prNumber + ".");
@@ -153,6 +159,8 @@ try {
 } catch (err) {
   console.log("Failed to post PR comment: " + (err.message || err));
   console.log("Screenshots are committed and pushed but comment was not posted.");
+} finally {
+  try { unlinkSync(tmpFile); } catch {}
 }
 `;
 }
