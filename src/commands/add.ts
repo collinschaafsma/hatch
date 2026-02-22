@@ -357,8 +357,10 @@ export const addCommand = new Command()
 					);
 					docsSpinner.succeed("Documentation populated with project content");
 				} catch {
-					docsSpinner.warn(
-						"Could not populate documentation automatically. Doc stubs were scaffolded — fill them in manually or run Claude in the project.",
+					docsSpinner.warn("Could not populate documentation automatically.");
+					log.info("Run from the project directory:");
+					log.step(
+						`cd ${projectPath} && claude -p "Read this project's codebase and populate each documentation stub in docs/ with accurate, project-specific content. Keep the existing headings and structure but replace placeholder content with real details based on what you find in the code." --allowedTools Read,Write,Edit,Glob,Grep`,
 					);
 				}
 			} else {
