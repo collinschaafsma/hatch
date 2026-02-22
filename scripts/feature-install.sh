@@ -434,7 +434,8 @@ fi
 # Step 7.5: Install agent-browser (for UI evidence capture)
 # ============================================================================
 info "Installing agent-browser..."
-if npm install -g agent-browser 2>/dev/null; then
+if PNPM_HOME="$HOME/.local/share/pnpm" pnpm add -g agent-browser 2>/dev/null; then
+    PNPM_HOME="$HOME/.local/share/pnpm" pnpm approve-builds -g 2>/dev/null || true
     success "agent-browser installed"
     info "Installing Chromium browser..."
     if agent-browser install --with-deps 2>/dev/null; then
