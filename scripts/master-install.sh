@@ -200,7 +200,7 @@ else
 fi
 
 info "Installing dependencies..."
-pnpm install --dangerously-allow-all-builds
+pnpm install
 
 info "Building hatch..."
 pnpm build

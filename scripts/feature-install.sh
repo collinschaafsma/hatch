@@ -447,7 +447,7 @@ fi
 # Step 7.5: Install agent-browser (for UI evidence capture)
 # ============================================================================
 info "Installing agent-browser..."
-if PNPM_HOME="$HOME/.local/share/pnpm" pnpm add -g --allow-build agent-browser 2>/dev/null; then
+if PNPM_HOME="$HOME/.local/share/pnpm" pnpm add -g agent-browser 2>/dev/null; then
     success "agent-browser installed"
     info "Installing Chromium browser..."
     if command -v sudo &> /dev/null; then
@@ -484,7 +484,7 @@ fi
 # Step 9: Install dependencies
 # ============================================================================
 info "Installing project dependencies..."
-pnpm install --dangerously-allow-all-builds
+pnpm install
 success "Dependencies installed"
 
 echo "" >&2
