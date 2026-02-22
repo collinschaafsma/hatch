@@ -450,7 +450,7 @@ Convex has native [preview deployments](https://docs.convex.dev/production/hosti
 | `hatch config list --json` | List configs as JSON (for automation) |
 | `hatch config-push <ssh-host>` | Push ~/.hatch.json to a remote server |
 | `hatch config-push <ssh-host> -c <path>` | Push custom config file to a remote server |
-| `hatch config-push <ssh-host> --project <name>` | Push project-specific config to remote |
+| `hatch config-push <ssh-host> --project <name>` | Sync project config and record to remote |
 
 The config command prompts to add custom environment variables that will be automatically set in Vercel during project setup.
 
