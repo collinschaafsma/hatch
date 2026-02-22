@@ -417,6 +417,34 @@ export const addCommand = new Command()
 				}
 			}
 
+			// Install/update agent-browser skill for Claude and Codex
+			const skillSpinner = createSpinner(
+				"Installing agent-browser skill",
+			).start();
+			try {
+				await execa(
+					"npx",
+					[
+						"-y",
+						"skills",
+						"add",
+						"vercel-labs/agent-browser",
+						"--skill",
+						"agent-browser",
+						"--agent",
+						"claude-code",
+						"codex",
+						"-y",
+					],
+					{ cwd: projectPath },
+				);
+				skillSpinner.succeed("agent-browser skill installed");
+			} catch {
+				skillSpinner.warn(
+					"Could not install agent-browser skill. Install manually: npx skills add vercel-labs/agent-browser --skill agent-browser --agent claude-code codex -y",
+				);
+			}
+
 			// Step 9: Commit harness files
 			const commitSpinner = createSpinner("Committing harness files").start();
 			await gitAdd(projectPath);
