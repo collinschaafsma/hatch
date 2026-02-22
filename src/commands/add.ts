@@ -87,16 +87,20 @@ export const addCommand = new Command()
 			let github: ProjectRecord["github"] | undefined;
 
 			try {
-				const repoPath = githubOrg
-					? `${githubOrg}/${projectName}`
-					: projectName;
-				const { stdout } = await execa("gh", [
-					"repo",
-					"view",
-					repoPath,
-					"--json",
-					"url,owner,name",
-				]);
+				// If --path is provided, run gh from the local checkout to read its remote
+				const ghArgs = options.path
+					? ["repo", "view", "--json", "url,owner,name"]
+					: [
+							"repo",
+							"view",
+							githubOrg ? `${githubOrg}/${projectName}` : projectName,
+							"--json",
+							"url,owner,name",
+						];
+				const ghOptions = options.path
+					? { cwd: path.resolve(options.path) }
+					: {};
+				const { stdout } = await execa("gh", ghArgs, ghOptions);
 				const repo = JSON.parse(stdout) as GitHubRepo;
 				github = {
 					url: repo.url,
