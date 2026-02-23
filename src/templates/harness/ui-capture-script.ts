@@ -197,11 +197,20 @@ for (const route of routes) {
       timeout: 30000,
     });
 
-    // Wait briefly for page to render
-    execSync("sleep 2");
+    // Set tall viewport to capture full scrollable content
+    execSync("agent-browser set viewport 1280 2400", {
+      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 10000,
+    });
 
-    // Take screenshot
-    execSync("agent-browser screenshot " + JSON.stringify(screenshotPath), {
+    // Wait for layout reflow
+    execSync("agent-browser wait 2000", {
+      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 10000,
+    });
+
+    // Take full page screenshot
+    execSync("agent-browser screenshot --full " + JSON.stringify(screenshotPath), {
       stdio: ["pipe", "pipe", "pipe"],
       timeout: 15000,
     });
