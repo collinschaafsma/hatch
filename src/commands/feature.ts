@@ -270,6 +270,10 @@ export const featureCommand = new Command()
 						sshHost,
 						`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_CONVEX_SITE_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_CONVEX_SITE_URL=.*|NEXT_PUBLIC_CONVEX_SITE_URL=${siteUrl}|' .env.local || echo 'NEXT_PUBLIC_CONVEX_SITE_URL=${siteUrl}' >> .env.local)`,
 					);
+					await sshExec(
+						sshHost,
+						`cd ${projectPath}/apps/web && (grep -q '^CONVEX_DEPLOYMENT=' .env.local && sed -i 's|^CONVEX_DEPLOYMENT=.*|CONVEX_DEPLOYMENT=${convexPreviewDeployment.deploymentName}|' .env.local || echo 'CONVEX_DEPLOYMENT=${convexPreviewDeployment.deploymentName}' >> .env.local)`,
+					);
 				}
 				await sshExec(
 					sshHost,
