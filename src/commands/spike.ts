@@ -75,22 +75,41 @@ async function handleContinuation(
 			process.exit(1);
 		}
 
-		// Validate VM state
+		// Validate VM state — auto-detect completion if status says "running"
 		if (vm.spikeStatus === "running") {
-			const result: SpikeResult = {
-				status: "failed",
-				vmName: continueVmName,
-				sshHost: vm.sshHost,
-				feature: vm.feature,
-				project: vm.project,
-				error: "Spike is still running. Wait for it to complete first.",
-			};
-			outputJson(result);
-			if (!options.json) {
-				log.error("Spike is still running. Wait for it to complete first.");
-				log.info(`Monitor with: ssh ${vm.sshHost} 'tail -f ~/spike.log'`);
+			let actuallyDone = false;
+			try {
+				const checkResult = await sshExec(
+					vm.sshHost,
+					"test -f ~/spike-done && echo done || echo running",
+					{ timeoutMs: 10_000 },
+				);
+				actuallyDone = checkResult.stdout.trim() === "done";
+			} catch {
+				// Can't reach VM — treat as still running
 			}
-			process.exit(1);
+
+			if (actuallyDone) {
+				await updateVM(continueVmName, { spikeStatus: "completed" });
+				if (!options.json) {
+					log.info("Spike completed — updating status and continuing.");
+				}
+			} else {
+				const result: SpikeResult = {
+					status: "failed",
+					vmName: continueVmName,
+					sshHost: vm.sshHost,
+					feature: vm.feature,
+					project: vm.project,
+					error: "Spike is still running. Wait for it to complete first.",
+				};
+				outputJson(result);
+				if (!options.json) {
+					log.error("Spike is still running. Wait for it to complete first.");
+					log.info(`Monitor with: ssh ${vm.sshHost} 'tail -f ~/spike.log'`);
+				}
+				process.exit(1);
+			}
 		}
 
 		if (vm.spikeStatus !== "completed") {
