@@ -99,10 +99,11 @@ cd ~/.hatch-cli && pnpm dev config
 ```
 Generates `hatch.json` config file with credentials and defaults.
 
+Hatch uses an Anthropic API key (`anthropicApiKey` in the config JSON) for spike agent authentication. The config wizard prompts for this key during setup.
+
 **Options:**
 - `--project <name>` - Create per-project config at `~/.hatch/configs/<name>.json`
-- `--refresh` - Refresh all tokens (preserves orgs/teams/env vars)
-- `--refresh-claude` - Refresh only Claude credentials (useful when Claude token expires)
+- `--refresh` - Refresh GitHub token (preserves orgs/teams/env vars; API keys don't expire)
 
 ### Per-project configuration
 Per-project configs live at `~/.hatch/configs/<project-name>.json`. Commands with `--project` auto-resolve the right config.
@@ -384,9 +385,9 @@ cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "Add cont
 ```
 Returns full result including PR URL and cost when done.
 
-## Token Auto-Refresh
+## Anthropic API Key
 
-The `feature` and `spike` commands automatically refresh Claude credentials if expired. If auto-refresh fails (e.g., Claude CLI not authenticated on the server), run `claude` interactively to re-authenticate, then retry.
+Spikes use the `anthropicApiKey` from the project config (`~/.hatch/configs/<name>.json`). The key is injected inline via the SSH command — it is not written to the VM environment, so interactive `claude` sessions on the VM use your own subscription. If the API key is invalid, update it in the config file and retry.
 
 ## Error Handling
 
@@ -398,7 +399,8 @@ If a spike fails:
 
 If the spike command itself fails (before agent starts):
 - The command automatically rolls back and deletes the VM
-- Check error message for the cause (missing config, network issues, etc.)
+- Check error message for the cause (missing config, auth failure, network issues, etc.)
+- For auth failures: update `anthropicApiKey` in the project config (`~/.hatch/configs/<name>.json`) and retry
 
 ## Important: Do Not Modify VM Code Directly
 
