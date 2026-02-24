@@ -53,7 +53,6 @@ cd ~/.hatch-cli && pnpm dev spike <name> --project <project> --prompt "<instruct
 Creates VM, runs Claude Agent SDK autonomously, creates PR when done.
 
 **Options:**
-- `--plan` - Create an execution plan before coding (see Execution Plans below)
 - `--wait` - Block until spike completes (default: return immediately)
 - `--timeout <minutes>` - Max time when using `--wait` (default: 240)
 - `--json` - Output result as JSON
@@ -135,7 +134,7 @@ Pulls latest code, reinstalls dependencies, rebuilds, and updates OpenClaw skill
 
 ## Execution Plans
 
-The `--plan` flag tells the spike agent to create a structured execution plan before writing any code.
+Spikes always create a structured execution plan before writing any code.
 
 ### How it works
 
@@ -145,17 +144,9 @@ The `--plan` flag tells the spike agent to create a structured execution plan be
 4. Executes each step in order, checking boxes and logging decisions as it goes
 5. Final commit marks the plan status as "completed"
 
-### When to use `--plan`
+### Continuing a spike
 
-Use `--plan` for complex features with multiple steps. Skip it for simple, single-task spikes.
-
-```bash
-cd ~/.hatch-cli && pnpm dev spike settings-page --project my-app --plan --prompt "Add user settings page with profile editing, notification preferences, and theme selection"
-```
-
-### Continuing a planned spike
-
-When using `--continue` on a spike that has a plan, the agent reads the existing plan and resumes from the first unchecked step.
+When using `--continue`, the agent reads the existing plan and resumes from the first unchecked step.
 
 ### Plan progress in status
 

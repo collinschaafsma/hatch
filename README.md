@@ -497,7 +497,6 @@ The config command prompts to add custom environment variables that will be auto
 | Flag | Description |
 |------|-------------|
 | `--prompt "<instructions>"` | Required. Instructions for Claude to implement |
-| `--plan` | Create an execution plan before coding (for complex features) |
 | `--wait` | Wait for spike to complete instead of returning immediately |
 | `--timeout <minutes>` | Max time in minutes when using `--wait` (default: 60) |
 | `--json` | Output result as JSON (useful for automation) |

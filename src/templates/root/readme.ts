@@ -32,7 +32,7 @@ ${projectName}/
 ├── scripts/
 │   └── harness/          # Evidence capture scripts
 ├── docs/                 # Architecture and design docs
-│   └── plans/            # Execution plans from spike --plan runs
+│   └── plans/            # Execution plans from spike runs
 ├── .github/workflows/    # CI/CD workflows
 ├── harness.json          # Risk contract and merge policies
 ├── AGENTS.md             # Agent constraints and guidelines

@@ -31,7 +31,6 @@ interface SpikeCommandOptions {
 	wait?: boolean;
 	json?: boolean;
 	continue?: string;
-	plan?: boolean;
 }
 
 /**
@@ -250,9 +249,7 @@ async function handleContinuation(
 			.replace(/`/g, "\\`");
 
 		const anthropicEnv = `export ANTHROPIC_API_KEY="${config.anthropicApiKey}" &&`;
-		const planEnv = options.plan
-			? `export HATCH_PLAN=true && export HATCH_SPIKE_NAME="${vm.feature}" && `
-			: "";
+		const planEnv = `export HATCH_PLAN=true && export HATCH_SPIKE_NAME="${vm.feature}" && `;
 		const agentCommand = `${envPrefix} ${anthropicEnv} ${planEnv}cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${vm.feature} --project ${vm.project} > /dev/null 2>&1 < /dev/null &)`;
 
 		await sshExec(vm.sshHost, agentCommand);
@@ -429,7 +426,6 @@ export const spikeCommand = new Command()
 	.option("--timeout <minutes>", "Maximum build time in minutes", "240")
 	.option("--wait", "Wait for completion instead of running in background")
 	.option("--json", "Output result as JSON")
-	.option("--plan", "Create an execution plan before coding")
 	.option(
 		"--continue <vm-name>",
 		"Continue an existing spike on the specified VM",
@@ -891,9 +887,7 @@ export const spikeCommand = new Command()
 			// Read deploy key from .env.local and export for agent
 			const convexDeployKeyExport = `export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="$(grep '^CONVEX_DEPLOY_KEY=' ${projectPath}/apps/web/.env.local | cut -d= -f2- | sed 's/^\"//;s/\"$//')" &&`;
 			const anthropicKeyExport = `export ANTHROPIC_API_KEY="${config.anthropicApiKey}" &&`;
-			const planEnv = options.plan
-				? `export HATCH_PLAN=true && export HATCH_SPIKE_NAME="${featureName}" && `
-				: "";
+			const planEnv = `export HATCH_PLAN=true && export HATCH_SPIKE_NAME="${featureName}" && `;
 			const agentCommand = `${envPrefix} ${convexDeployKeyExport} ${anthropicKeyExport} ${planEnv}cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${featureName} --project ${project.name} > /dev/null 2>&1 < /dev/null &)`;
 
 			await sshExec(sshHost, agentCommand);

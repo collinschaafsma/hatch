@@ -102,7 +102,6 @@ function loadPrUrl(): string | undefined {
 	return undefined;
 }
 
-const HATCH_PLAN = process.env.HATCH_PLAN === "true";
 const HATCH_SPIKE_NAME = process.env.HATCH_SPIKE_NAME || "";
 
 const OBSERVABILITY_INSTRUCTIONS = `
@@ -197,10 +196,9 @@ async function main(): Promise<void> {
 			)
 			.join("\n");
 
-		const planContinuation =
-			HATCH_PLAN && HATCH_SPIKE_NAME
-				? `Read docs/plans/${HATCH_SPIKE_NAME}.md for the existing execution plan. Continue from the first unchecked step.\n\n`
-				: "";
+		const planContinuation = HATCH_SPIKE_NAME
+			? `Read docs/plans/${HATCH_SPIKE_NAME}.md for the existing execution plan. Continue from the first unchecked step.\n\n`
+			: "";
 
 		fullPrompt = `${planContinuation}You are continuing work on feature "${feature}".
 
@@ -229,9 +227,8 @@ When you are done implementing your changes:
 Important: The branch already exists (${feature}). Make your changes, verify quality, commit, and push.`;
 	} else {
 		// First iteration - create PR
-		const planPreamble =
-			HATCH_PLAN && HATCH_SPIKE_NAME
-				? `PLANNING MODE: Before writing any code, create an execution plan.
+		const planPreamble = HATCH_SPIKE_NAME
+			? `PLANNING MODE: Before writing any code, create an execution plan.
 
 1. Read docs/plans/_template.md for the plan format
 2. Read docs/architecture.md and docs/patterns.md for project context
@@ -246,7 +243,7 @@ Important: The branch already exists (${feature}). Make your changes, verify qua
 
 Your task:
 `
-				: "";
+			: "";
 
 		fullPrompt = `${planPreamble}${prompt}
 
@@ -267,13 +264,8 @@ When you are done implementing your changes:
 Important: The branch is already created (${feature}). Make your changes, verify quality, then commit, push, and create the PR.`;
 	}
 
-	if (HATCH_PLAN) {
-		fullPrompt += `\n${OBSERVABILITY_INSTRUCTIONS}`;
-		fullPrompt += `\n${CONVEX_INSTRUCTIONS}`;
-	} else {
-		fullPrompt += `\n${CONVEX_INSTRUCTIONS}`;
-		fullPrompt += `\n${OBSERVABILITY_INSTRUCTIONS}`;
-	}
+	fullPrompt += `\n${OBSERVABILITY_INSTRUCTIONS}`;
+	fullPrompt += `\n${CONVEX_INSTRUCTIONS}`;
 
 	let totalInputTokens = 0;
 	let totalOutputTokens = 0;
