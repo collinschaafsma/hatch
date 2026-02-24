@@ -293,20 +293,8 @@ else
     success "Claude Code installed"
 fi
 
-# Set up Anthropic API key from config (for VMs)
-if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
-    ANTHROPIC_API_KEY=$(jq -r '.anthropicApiKey // empty' "$CONFIG_PATH" 2>/dev/null || true)
-
-    if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
-        info "Setting up Anthropic API key..."
-        # Add to .profile for non-interactive shells
-        if ! grep -q "export ANTHROPIC_API_KEY=" ~/.profile 2>/dev/null; then
-            echo "export ANTHROPIC_API_KEY=\"${ANTHROPIC_API_KEY}\"" >> ~/.profile
-        fi
-        export ANTHROPIC_API_KEY
-        success "Anthropic API key added to .profile"
-    fi
-fi
+# Note: ANTHROPIC_API_KEY is NOT written to .profile — spikes inject it inline
+# via the SSH command so it doesn't interfere with interactive claude (Max subscription)
 
 # ============================================================================
 # Step 6: Authenticate CLIs (if tokens available)

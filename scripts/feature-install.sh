@@ -375,23 +375,10 @@ else
     warn "Claude Code installation may have failed - not found in PATH"
 fi
 
-# Set up Anthropic API key from config
+# Set up Claude Code for interactive use (skip onboarding, sandbox alias)
+# Note: ANTHROPIC_API_KEY is NOT written to .profile — spikes inject it inline
+# via the SSH command so it doesn't interfere with interactive claude (Max subscription)
 if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
-    ANTHROPIC_API_KEY=$(jq -r '.anthropicApiKey // empty' "$CONFIG_PATH" 2>/dev/null || true)
-
-    if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
-        info "Setting up Anthropic API key..."
-        # Add to .profile for non-interactive shells (Claude Agent SDK)
-        if ! grep -q "export ANTHROPIC_API_KEY=" ~/.profile 2>/dev/null; then
-            echo "export ANTHROPIC_API_KEY=\"${ANTHROPIC_API_KEY}\"" >> ~/.profile
-        fi
-        export ANTHROPIC_API_KEY
-        success "Anthropic API key added to .profile"
-    else
-        warn "Anthropic API key not found in config file"
-        warn "Run 'hatch config' to set an API key"
-    fi
-
     # Write minimal ~/.claude.json to skip onboarding
     mkdir -p ~/.claude
     echo '{"hasCompletedOnboarding":true,"lastOnboardingVersion":"2.1.27"}' | jq '.' > ~/.claude.json
@@ -400,8 +387,6 @@ if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
     # Configure Claude Code to skip permissions in VM sandbox environment
     echo 'alias claude="claude --dangerously-skip-permissions"' >> ~/.bashrc
     success "Claude Code alias configured for sandbox mode"
-else
-    warn "Cannot set up Anthropic API key: CONFIG_PATH=$CONFIG_PATH, jq=$(command -v jq || echo 'not found')"
 fi
 
 # ============================================================================
