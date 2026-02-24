@@ -26,30 +26,11 @@ export interface HeadlessOptions {
 	configPath?: string;
 }
 
-export interface ClaudeOAuthAccount {
-	accountUuid: string;
-	emailAddress: string;
-	organizationUuid: string;
-	displayName?: string;
-	organizationName?: string;
-	organizationRole?: string;
-}
-
 export interface EnvVar {
 	key: string;
 	value: string;
 	environments: ("production" | "preview" | "development")[];
 	sensitive?: boolean; // default true, for display purposes
-}
-
-export interface ClaudeConfig {
-	accessToken: string;
-	refreshToken: string;
-	expiresAt: number;
-	scopes: string[];
-	subscriptionType?: string;
-	rateLimitTier?: string;
-	oauthAccount?: ClaudeOAuthAccount;
 }
 
 export interface HatchConfig {
@@ -69,7 +50,7 @@ export interface HatchConfig {
 		deployKey?: string;
 		seedFunction?: string;
 	};
-	claude?: ClaudeConfig;
+	anthropicApiKey?: string;
 	envVars?: EnvVar[];
 }
 

@@ -375,72 +375,33 @@ else
     warn "Claude Code installation may have failed - not found in PATH"
 fi
 
-# Set up Claude Code credentials from config
+# Set up Anthropic API key from config
 if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
-    info "Checking for Claude Code credentials in config..."
-    CLAUDE_ACCESS_TOKEN=$(jq -r '.claude.accessToken // empty' "$CONFIG_PATH" 2>/dev/null || true)
-    CLAUDE_REFRESH_TOKEN=$(jq -r '.claude.refreshToken // empty' "$CONFIG_PATH" 2>/dev/null || true)
-    CLAUDE_EXPIRES_AT=$(jq -r '.claude.expiresAt // empty' "$CONFIG_PATH" 2>/dev/null || true)
-    CLAUDE_SCOPES=$(jq -c '.claude.scopes // empty' "$CONFIG_PATH" 2>/dev/null || true)
-    CLAUDE_SUBSCRIPTION_TYPE=$(jq -r '.claude.subscriptionType // empty' "$CONFIG_PATH" 2>/dev/null || true)
-    CLAUDE_RATE_LIMIT_TIER=$(jq -r '.claude.rateLimitTier // empty' "$CONFIG_PATH" 2>/dev/null || true)
+    ANTHROPIC_API_KEY=$(jq -r '.anthropicApiKey // empty' "$CONFIG_PATH" 2>/dev/null || true)
 
-    # Read oauthAccount fields
-    CLAUDE_ACCOUNT_UUID=$(jq -r '.claude.oauthAccount.accountUuid // empty' "$CONFIG_PATH" 2>/dev/null || true)
-    CLAUDE_EMAIL=$(jq -r '.claude.oauthAccount.emailAddress // empty' "$CONFIG_PATH" 2>/dev/null || true)
-    CLAUDE_ORG_UUID=$(jq -r '.claude.oauthAccount.organizationUuid // empty' "$CONFIG_PATH" 2>/dev/null || true)
-    CLAUDE_DISPLAY_NAME=$(jq -r '.claude.oauthAccount.displayName // empty' "$CONFIG_PATH" 2>/dev/null || true)
-    CLAUDE_ORG_NAME=$(jq -r '.claude.oauthAccount.organizationName // empty' "$CONFIG_PATH" 2>/dev/null || true)
-    CLAUDE_ORG_ROLE=$(jq -r '.claude.oauthAccount.organizationRole // empty' "$CONFIG_PATH" 2>/dev/null || true)
-
-    # Debug: show what we found
-    info "  accessToken present: ${CLAUDE_ACCESS_TOKEN:+yes}${CLAUDE_ACCESS_TOKEN:-no}"
-    info "  refreshToken present: ${CLAUDE_REFRESH_TOKEN:+yes}${CLAUDE_REFRESH_TOKEN:-no}"
-    info "  oauthAccount present: ${CLAUDE_ACCOUNT_UUID:+yes}${CLAUDE_ACCOUNT_UUID:-no}"
-
-    if [[ -n "${CLAUDE_ACCESS_TOKEN:-}" && -n "${CLAUDE_REFRESH_TOKEN:-}" ]]; then
-        info "Setting up Claude Code credentials..."
-        mkdir -p ~/.claude
-
-        # Build the credentials JSON for ~/.claude/.credentials.json
-        CLAUDE_CREDS="{\"accessToken\":\"$CLAUDE_ACCESS_TOKEN\",\"refreshToken\":\"$CLAUDE_REFRESH_TOKEN\",\"expiresAt\":$CLAUDE_EXPIRES_AT,\"scopes\":$CLAUDE_SCOPES"
-        [[ -n "$CLAUDE_SUBSCRIPTION_TYPE" ]] && CLAUDE_CREDS="$CLAUDE_CREDS,\"subscriptionType\":\"$CLAUDE_SUBSCRIPTION_TYPE\""
-        [[ -n "$CLAUDE_RATE_LIMIT_TIER" ]] && CLAUDE_CREDS="$CLAUDE_CREDS,\"rateLimitTier\":\"$CLAUDE_RATE_LIMIT_TIER\""
-        CLAUDE_CREDS="$CLAUDE_CREDS}"
-        echo "{\"claudeAiOauth\":$CLAUDE_CREDS}" | jq '.' > ~/.claude/.credentials.json
-        chmod 600 ~/.claude/.credentials.json
-
-        # Build the main config JSON for ~/.claude.json (needed to skip onboarding)
-        CLAUDE_JSON="{\"hasCompletedOnboarding\":true,\"lastOnboardingVersion\":\"2.1.27\""
-        if [[ -n "$CLAUDE_ACCOUNT_UUID" ]]; then
-            CLAUDE_JSON="$CLAUDE_JSON,\"oauthAccount\":{\"accountUuid\":\"$CLAUDE_ACCOUNT_UUID\",\"emailAddress\":\"$CLAUDE_EMAIL\",\"organizationUuid\":\"$CLAUDE_ORG_UUID\""
-            [[ -n "$CLAUDE_DISPLAY_NAME" ]] && CLAUDE_JSON="$CLAUDE_JSON,\"displayName\":\"$CLAUDE_DISPLAY_NAME\""
-            [[ -n "$CLAUDE_ORG_NAME" ]] && CLAUDE_JSON="$CLAUDE_JSON,\"organizationName\":\"$CLAUDE_ORG_NAME\""
-            [[ -n "$CLAUDE_ORG_ROLE" ]] && CLAUDE_JSON="$CLAUDE_JSON,\"organizationRole\":\"$CLAUDE_ORG_ROLE\""
-            CLAUDE_JSON="$CLAUDE_JSON}"
+    if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+        info "Setting up Anthropic API key..."
+        # Add to .profile for non-interactive shells (Claude Agent SDK)
+        if ! grep -q "export ANTHROPIC_API_KEY=" ~/.profile 2>/dev/null; then
+            echo "export ANTHROPIC_API_KEY=\"${ANTHROPIC_API_KEY}\"" >> ~/.profile
         fi
-        CLAUDE_JSON="$CLAUDE_JSON}"
-        echo "$CLAUDE_JSON" | jq '.' > ~/.claude.json
-        chmod 600 ~/.claude.json
-
-        success "Claude Code credentials and config configured"
-        # Verify files were created
-        if [[ -f ~/.claude/.credentials.json ]]; then
-            info "  Credentials: ~/.claude/.credentials.json"
-        fi
-        if [[ -f ~/.claude.json ]]; then
-            info "  Config: ~/.claude.json"
-        fi
-
-        # Configure Claude Code to skip permissions in VM sandbox environment
-        echo 'alias claude="claude --dangerously-skip-permissions"' >> ~/.bashrc
-        success "Claude Code alias configured for sandbox mode"
+        export ANTHROPIC_API_KEY
+        success "Anthropic API key added to .profile"
     else
-        warn "Claude Code credentials not found in config file"
-        warn "Run 'hatch config --global' after logging into Claude Code locally"
+        warn "Anthropic API key not found in config file"
+        warn "Run 'hatch config' to set an API key"
     fi
+
+    # Write minimal ~/.claude.json to skip onboarding
+    mkdir -p ~/.claude
+    echo '{"hasCompletedOnboarding":true,"lastOnboardingVersion":"2.1.27"}' | jq '.' > ~/.claude.json
+    chmod 600 ~/.claude.json
+
+    # Configure Claude Code to skip permissions in VM sandbox environment
+    echo 'alias claude="claude --dangerously-skip-permissions"' >> ~/.bashrc
+    success "Claude Code alias configured for sandbox mode"
 else
-    warn "Cannot set up Claude credentials: CONFIG_PATH=$CONFIG_PATH, jq=$(command -v jq || echo 'not found')"
+    warn "Cannot set up Anthropic API key: CONFIG_PATH=$CONFIG_PATH, jq=$(command -v jq || echo 'not found')"
 fi
 
 # ============================================================================

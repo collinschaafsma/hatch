@@ -16,10 +16,7 @@ import { log } from "../utils/logger.js";
 import { getProject } from "../utils/project-store.js";
 import { createSpinner } from "../utils/spinner.js";
 import { scpToRemote, sshExec } from "../utils/ssh.js";
-import {
-	isClaudeTokenExpired,
-	refreshClaudeTokenOnly,
-} from "../utils/token-refresh.js";
+import { isAnthropicKeyMissing } from "../utils/token-refresh.js";
 import { addVM } from "../utils/vm-store.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -86,18 +83,13 @@ export const featureCommand = new Command()
 			}
 
 			// Load config to get tokens for CLI commands
-			let config = await fs.readJson(configPath);
+			const config = await fs.readJson(configPath);
 
-			// Silently auto-refresh Claude token if expired
-			if (isClaudeTokenExpired(config)) {
-				const refreshed = await refreshClaudeTokenOnly(configPath);
-				if (!refreshed) {
-					log.error("Claude token expired. Run 'claude' to re-authenticate.");
-					process.exit(1);
-				}
-				log.success("Claude token refreshed");
-				// Reload config with fresh token
-				config = await fs.readJson(configPath);
+			// Non-blocking warning if Anthropic API key is missing
+			if (isAnthropicKeyMissing(config)) {
+				log.warn(
+					"Anthropic API key not configured. Spikes will not work. Run 'hatch config' to set it.",
+				);
 			}
 
 			const vercelToken = config.vercel?.token || "";

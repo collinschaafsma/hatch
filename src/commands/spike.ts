@@ -16,10 +16,7 @@ import { log } from "../utils/logger.js";
 import { getProject } from "../utils/project-store.js";
 import { createSpinner } from "../utils/spinner.js";
 import { scpToRemote, sshExec } from "../utils/ssh.js";
-import {
-	isClaudeTokenExpired,
-	refreshClaudeTokenOnly,
-} from "../utils/token-refresh.js";
+import { isAnthropicKeyMissing } from "../utils/token-refresh.js";
 import { addVM, getVM, updateVM } from "../utils/vm-store.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -179,33 +176,29 @@ async function handleContinuation(
 			process.exit(1);
 		}
 
-		let config = await fs.readJson(configPath);
+		const config = await fs.readJson(configPath);
 
-		// Auto-refresh Claude token if expired
-		if (isClaudeTokenExpired(config)) {
-			const refreshed = await refreshClaudeTokenOnly(configPath);
-			if (!refreshed) {
-				const result: SpikeResult = {
-					status: "failed",
-					vmName: continueVmName,
-					sshHost: vm.sshHost,
-					feature: vm.feature,
-					project: vm.project,
-					error: "Claude token expired. Run 'claude' to re-authenticate.",
-				};
-				outputJson(result);
-				if (!options.json) {
-					log.error("Claude token expired. Run 'claude' to re-authenticate.");
-				}
-				process.exit(1);
-			}
+		// Check for Anthropic API key
+		if (isAnthropicKeyMissing(config)) {
+			const result: SpikeResult = {
+				status: "failed",
+				vmName: continueVmName,
+				sshHost: vm.sshHost,
+				feature: vm.feature,
+				project: vm.project,
+				error:
+					"Anthropic API key not configured. Run 'hatch config' to set it.",
+			};
+			outputJson(result);
 			if (!options.json) {
-				log.success("Claude token refreshed");
+				log.error(
+					"Anthropic API key not configured. Run 'hatch config' to set it.",
+				);
 			}
-			config = await fs.readJson(configPath);
+			process.exit(1);
 		}
 
-		// Step 4: Copy fresh config to VM (tokens may have refreshed)
+		// Step 4: Copy config to VM
 		const configSpinner = options.json
 			? null
 			: createSpinner("Copying updated config to VM").start();
@@ -256,10 +249,11 @@ async function handleContinuation(
 			.replace(/\$/g, "\\$")
 			.replace(/`/g, "\\`");
 
+		const anthropicEnv = `export ANTHROPIC_API_KEY="${config.anthropicApiKey}" &&`;
 		const planEnv = options.plan
 			? `export HATCH_PLAN=true && export HATCH_SPIKE_NAME="${vm.feature}" && `
 			: "";
-		const agentCommand = `${envPrefix} ${planEnv}cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${vm.feature} --project ${vm.project} > /dev/null 2>&1 < /dev/null &)`;
+		const agentCommand = `${envPrefix} ${anthropicEnv} ${planEnv}cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${vm.feature} --project ${vm.project} > /dev/null 2>&1 < /dev/null &)`;
 
 		await sshExec(vm.sshHost, agentCommand);
 		agentSpinner?.succeed(
@@ -539,31 +533,26 @@ export const spikeCommand = new Command()
 			}
 
 			// Load config to get tokens
-			let config = await fs.readJson(configPath);
+			const config = await fs.readJson(configPath);
 
-			// Silently auto-refresh Claude token if expired
-			if (isClaudeTokenExpired(config)) {
-				const refreshed = await refreshClaudeTokenOnly(configPath);
-				if (!refreshed) {
-					const result: SpikeResult = {
-						status: "failed",
-						vmName: "",
-						sshHost: "",
-						feature: featureName,
-						project: options.project,
-						error: "Claude token expired. Run 'claude' to re-authenticate.",
-					};
-					outputJson(result);
-					if (!options.json) {
-						log.error("Claude token expired. Run 'claude' to re-authenticate.");
-					}
-					process.exit(1);
-				}
+			// Check for Anthropic API key
+			if (isAnthropicKeyMissing(config)) {
+				const result: SpikeResult = {
+					status: "failed",
+					vmName: "",
+					sshHost: "",
+					feature: featureName,
+					project: options.project,
+					error:
+						"Anthropic API key not configured. Run 'hatch config' to set it.",
+				};
+				outputJson(result);
 				if (!options.json) {
-					log.success("Claude token refreshed");
+					log.error(
+						"Anthropic API key not configured. Run 'hatch config' to set it.",
+					);
 				}
-				// Reload config with fresh token
-				config = await fs.readJson(configPath);
+				process.exit(1);
 			}
 
 			const vercelToken = config.vercel?.token || "";
@@ -901,10 +890,11 @@ export const spikeCommand = new Command()
 
 			// Read deploy key from .env.local and export for agent
 			const convexDeployKeyExport = `export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="$(grep '^CONVEX_DEPLOY_KEY=' ${projectPath}/apps/web/.env.local | cut -d= -f2- | sed 's/^\"//;s/\"$//')" &&`;
+			const anthropicKeyExport = `export ANTHROPIC_API_KEY="${config.anthropicApiKey}" &&`;
 			const planEnv = options.plan
 				? `export HATCH_PLAN=true && export HATCH_SPIKE_NAME="${featureName}" && `
 				: "";
-			const agentCommand = `${envPrefix} ${convexDeployKeyExport} ${planEnv}cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${featureName} --project ${project.name} > /dev/null 2>&1 < /dev/null &)`;
+			const agentCommand = `${envPrefix} ${convexDeployKeyExport} ${anthropicKeyExport} ${planEnv}cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${featureName} --project ${project.name} > /dev/null 2>&1 < /dev/null &)`;
 
 			await sshExec(sshHost, agentCommand);
 			agentSpinner?.succeed("Claude agent started in background");

@@ -131,6 +131,15 @@ Do NOT skip this step — uncommitted Convex changes will not be reflected in th
 `;
 
 async function main(): Promise<void> {
+	// Pre-flight: ensure ANTHROPIC_API_KEY is set
+	if (!process.env.ANTHROPIC_API_KEY) {
+		const errorMessage =
+			"ANTHROPIC_API_KEY environment variable is not set. Run 'hatch config' to configure your API key.";
+		console.error(errorMessage);
+		writeResult({ status: "failed", error: errorMessage });
+		process.exit(1);
+	}
+
 	const { values } = parseArgs({
 		options: {
 			prompt: { type: "string" },

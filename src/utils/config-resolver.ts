@@ -59,7 +59,7 @@ export interface ProjectConfigInfo {
 	hasGithub: boolean;
 	hasVercel: boolean;
 	hasConvex: boolean;
-	hasClaude: boolean;
+	hasAnthropic: boolean;
 }
 
 /**
@@ -85,7 +85,7 @@ export async function listProjectConfigs(): Promise<ProjectConfigInfo[]> {
 				hasGithub: !!config.github?.token,
 				hasVercel: !!config.vercel?.token,
 				hasConvex: !!config.convex?.accessToken,
-				hasClaude: !!config.claude?.accessToken,
+				hasAnthropic: !!config.anthropicApiKey,
 			});
 		} catch {
 			// Skip invalid JSON files

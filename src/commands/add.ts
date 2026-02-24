@@ -217,8 +217,8 @@ export const addCommand = new Command()
 							team: config.vercel?.team,
 						};
 					}
-					if (config.claude) {
-						projectConfig.claude = config.claude;
+					if (config.anthropicApiKey) {
+						projectConfig.anthropicApiKey = config.anthropicApiKey;
 					}
 
 					await fs.writeJson(newConfigPath, projectConfig, {

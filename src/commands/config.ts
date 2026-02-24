@@ -4,12 +4,7 @@ import { checkbox, confirm, input, password, select } from "@inquirer/prompts";
 import { Command } from "commander";
 import fs from "fs-extra";
 import yaml from "yaml";
-import type {
-	ClaudeConfig,
-	ClaudeOAuthAccount,
-	EnvVar,
-	HatchConfig,
-} from "../types/index.js";
+import type { EnvVar, HatchConfig } from "../types/index.js";
 import {
 	getProjectConfigPath,
 	listProjectConfigs,
@@ -162,70 +157,6 @@ async function readGitConfig(key: string): Promise<string | null> {
 }
 
 /**
- * Read Claude Code OAuth credentials from macOS Keychain and config file
- */
-async function getClaudeCredentials(): Promise<ClaudeConfig | undefined> {
-	// Only supported on macOS
-	if (process.platform !== "darwin") {
-		return undefined;
-	}
-
-	const { execa } = await import("execa");
-
-	try {
-		// Keychain stores the full JSON blob as the password
-		const { stdout } = await execa("security", [
-			"find-generic-password",
-			"-s",
-			"Claude Code-credentials",
-			"-w",
-		]);
-		const parsed = JSON.parse(stdout.trim());
-		// The keychain stores { claudeAiOauth: { accessToken, refreshToken, expiresAt, scopes, subscriptionType, rateLimitTier } }
-		const oauth = parsed.claudeAiOauth;
-		if (oauth?.accessToken && oauth?.refreshToken) {
-			const config: ClaudeConfig = {
-				accessToken: oauth.accessToken,
-				refreshToken: oauth.refreshToken,
-				expiresAt: oauth.expiresAt,
-				scopes: oauth.scopes || [],
-			};
-			if (oauth.subscriptionType) {
-				config.subscriptionType = oauth.subscriptionType;
-			}
-			if (oauth.rateLimitTier) {
-				config.rateLimitTier = oauth.rateLimitTier;
-			}
-
-			// Also read oauthAccount from ~/.claude.json if it exists
-			const claudeJsonPath = path.join(os.homedir(), ".claude.json");
-			if (await fs.pathExists(claudeJsonPath)) {
-				try {
-					const claudeJson = await fs.readJson(claudeJsonPath);
-					if (claudeJson.oauthAccount) {
-						config.oauthAccount = {
-							accountUuid: claudeJson.oauthAccount.accountUuid,
-							emailAddress: claudeJson.oauthAccount.emailAddress,
-							organizationUuid: claudeJson.oauthAccount.organizationUuid,
-							displayName: claudeJson.oauthAccount.displayName,
-							organizationName: claudeJson.oauthAccount.organizationName,
-							organizationRole: claudeJson.oauthAccount.organizationRole,
-						};
-					}
-				} catch {
-					// Ignore errors reading claude.json
-				}
-			}
-
-			return config;
-		}
-		return undefined;
-	} catch {
-		return undefined;
-	}
-}
-
-/**
  * Get GitHub organizations using the CLI
  */
 async function getGitHubOrgs(
@@ -319,19 +250,12 @@ async function validateTokens(configPath: string): Promise<{
 		results.convex.error = "Token not configured";
 	}
 
-	// Validate Claude credentials
-	if (config.claude?.accessToken) {
-		// Check if token is expired
-		const now = Date.now();
-		if (config.claude.expiresAt && config.claude.expiresAt < now) {
-			results.claude.error = "Token expired";
-		} else {
-			// Token exists and is not expired - consider it valid
-			// (We can't easily validate Claude tokens without making an API call)
-			results.claude.valid = true;
-		}
+	// Validate Anthropic API key
+	if (config.anthropicApiKey) {
+		// API keys don't expire — presence is sufficient
+		results.claude.valid = true;
 	} else {
-		results.claude.error = "Credentials not configured";
+		results.claude.error = "API key not configured";
 	}
 
 	return results;
@@ -466,7 +390,7 @@ const listCommand = new Command()
 							hasGithub: false,
 							hasVercel: false,
 							hasConvex: false,
-							hasClaude: false,
+							hasAnthropic: false,
 						}
 					: null;
 
@@ -477,7 +401,7 @@ const listCommand = new Command()
 							globalInfo.hasGithub = !!config.github?.token;
 							globalInfo.hasVercel = !!config.vercel?.token;
 							globalInfo.hasConvex = !!config.convex?.accessToken;
-							globalInfo.hasClaude = !!config.claude?.accessToken;
+							globalInfo.hasAnthropic = !!config.anthropicApiKey;
 						}
 					} catch {
 						// Ignore parse errors
@@ -513,7 +437,7 @@ const listCommand = new Command()
 						if (config.hasGithub) tokens.push("github");
 						if (config.hasVercel) tokens.push("vercel");
 						if (config.hasConvex) tokens.push("convex");
-						if (config.hasClaude) tokens.push("claude");
+						if (config.hasAnthropic) tokens.push("anthropic");
 						log.step(
 							`${config.name}: ${tokens.length > 0 ? tokens.join(", ") : "no tokens"}`,
 						);
@@ -546,10 +470,6 @@ export const configCommand = new Command()
 		"--refresh",
 		"Refresh only tokens, preserving orgs/teams/env vars from existing config",
 	)
-	.option(
-		"--refresh-claude",
-		"Refresh only Claude Code credentials (preserves all other config)",
-	)
 	.addCommand(checkCommand)
 	.addCommand(listCommand)
 	.action(
@@ -557,7 +477,6 @@ export const configCommand = new Command()
 			output?: string;
 			project?: string;
 			refresh: boolean;
-			refreshClaude?: boolean;
 		}) => {
 			try {
 				// Determine config path
@@ -569,27 +488,6 @@ export const configCommand = new Command()
 					configPath = await getProjectConfigPath(options.project);
 				} else {
 					configPath = path.join(os.homedir(), ".hatch.json");
-				}
-
-				// Handle --refresh-claude: update only Claude credentials
-				if (options.refreshClaude) {
-					if (!(await fs.pathExists(configPath))) {
-						log.error(`Config file not found: ${configPath}`);
-						process.exit(1);
-					}
-					const { refreshClaudeTokenOnly } = await import(
-						"../utils/token-refresh.js"
-					);
-					const refreshed = await refreshClaudeTokenOnly(configPath);
-					if (refreshed) {
-						log.success("Claude Code credentials refreshed");
-					} else {
-						log.error(
-							"Could not refresh Claude credentials. Run 'claude' to re-authenticate.",
-						);
-						process.exit(1);
-					}
-					return;
 				}
 
 				// Handle --refresh: just update tokens, preserve everything else
@@ -609,7 +507,6 @@ export const configCommand = new Command()
 
 					// Read fresh tokens
 					const githubToken = await readGitHubToken();
-					const claudeCredentials = await getClaudeCredentials();
 
 					// Update tokens while preserving other settings
 					if (githubToken) {
@@ -624,13 +521,9 @@ export const configCommand = new Command()
 
 					log.info("Vercel: using existing token (update via 'hatch config')");
 					log.info("Convex: using existing token (update via 'hatch config')");
-
-					if (claudeCredentials) {
-						existingConfig.claude = claudeCredentials;
-						log.success("Claude Code credentials refreshed");
-					} else {
-						log.warn("Could not read Claude Code credentials");
-					}
+					log.info(
+						"Anthropic: API keys don't expire (update via 'hatch config')",
+					);
 
 					// Write updated config
 					await fs.writeJson(configPath, existingConfig, { spaces: 2 });
@@ -804,21 +697,22 @@ export const configCommand = new Command()
 					);
 				}
 
-				// Read Claude Code credentials (macOS only)
-				if (process.platform === "darwin") {
-					let claudeCredentials: ClaudeConfig | undefined;
-					await withSpinner("Reading Claude Code credentials", async () => {
-						claudeCredentials = await getClaudeCredentials();
-					});
+				// Anthropic API key
+				log.info(
+					"Create an API key at: https://console.anthropic.com/settings/keys",
+				);
+				const anthropicApiKey = await password({
+					message: "Anthropic API key:",
+					mask: "*",
+				});
 
-					if (claudeCredentials) {
-						log.success("Found Claude Code credentials");
-						config.claude = claudeCredentials;
-					} else {
-						log.warn(
-							"Claude Code credentials not found. Run 'claude' and log in to authenticate.",
-						);
-					}
+				if (anthropicApiKey) {
+					config.anthropicApiKey = anthropicApiKey;
+					log.success("Anthropic API key configured");
+				} else {
+					log.warn(
+						"No Anthropic API key provided. Spikes will not be able to run.",
+					);
 				}
 
 				// Custom environment variables
@@ -933,8 +827,8 @@ export const configCommand = new Command()
 				if (config.convex?.accessToken) {
 					log.step("Convex: access token configured");
 				}
-				if (config.claude?.accessToken) {
-					log.step("Claude Code: credentials configured");
+				if (config.anthropicApiKey) {
+					log.step("Anthropic: API key configured");
 				}
 				if (config.envVars && config.envVars.length > 0) {
 					log.step(`Custom env vars: ${config.envVars.length} configured`);
