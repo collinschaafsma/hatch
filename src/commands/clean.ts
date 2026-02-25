@@ -1,11 +1,10 @@
-import { confirm } from "@inquirer/prompts";
 import { Command } from "commander";
 import fs from "fs-extra";
 import { deleteConvexProject } from "../headless/convex.js";
 import { deleteVercelBranchEnvVars } from "../headless/vercel.js";
-import { exeDevRm } from "../utils/exe-dev.js";
-
 import { resolveConfigPath } from "../utils/config-resolver.js";
+import { requireConfirmation } from "../utils/confirmation.js";
+import { exeDevRm } from "../utils/exe-dev.js";
 import { log } from "../utils/logger.js";
 import { getProject } from "../utils/project-store.js";
 import { createSpinner } from "../utils/spinner.js";
@@ -14,6 +13,8 @@ import { getVMByFeature, removeVM } from "../utils/vm-store.js";
 interface CleanOptions {
 	project: string;
 	force?: boolean;
+	dryRun?: boolean;
+	confirm?: string;
 	config?: string;
 }
 
@@ -22,7 +23,9 @@ export const cleanCommand = new Command()
 	.description("Clean up a feature VM and its Convex feature project")
 	.argument("<feature-name>", "Feature name to clean up")
 	.requiredOption("--project <name>", "Project name")
-	.option("-f, --force", "Skip confirmation prompt")
+	.option("-f, --force", "Skip confirmation (interactive terminal only)")
+	.option("--dry-run", "Show what will be deleted and get a confirmation token")
+	.option("--confirm <token>", "Confirm with a token from --dry-run")
 	.option("-c, --config <path>", "Path to hatch.json config file")
 	.action(async (featureName: string, options: CleanOptions) => {
 		try {
@@ -68,35 +71,34 @@ export const cleanCommand = new Command()
 				convexPreviewDeployment,
 			} = vmRecord;
 
-			// Show what will be deleted
-			log.info(`Feature: ${featureName}`);
-			log.step(`Project: ${options.project}`);
-			log.step(`VM: ${vmName}`);
-			if (githubBranch) {
-				log.step(`Git branch: ${githubBranch}`);
-			}
-			if (convexPreviewDeployment) {
-				log.step(`Convex preview: ${convexPreviewDeployment.deploymentName}`);
-			} else if (convexFeatureProject) {
-				log.step(`Convex project: ${convexFeatureProject.projectSlug}`);
-			}
-			log.blank();
+			// Confirmation gate
+			const summary = convexFeatureProject
+				? `Delete feature VM ${vmName} and Convex project ${convexFeatureProject.projectSlug}`
+				: `Delete feature VM ${vmName}`;
 
-			// Confirm deletion
-			if (!options.force) {
-				const confirmMessage = convexFeatureProject
-					? "Are you sure you want to delete this feature VM and its Convex project?"
-					: "Are you sure you want to delete this feature VM?";
-				const confirmed = await confirm({
-					message: confirmMessage,
-					default: false,
-				});
-
-				if (!confirmed) {
-					log.info("Operation cancelled.");
-					process.exit(0);
-				}
-			}
+			await requireConfirmation({
+				command: `clean ${featureName}`,
+				args: { project: options.project },
+				summary,
+				details: () => {
+					log.info(`Feature: ${featureName}`);
+					log.step(`Project: ${options.project}`);
+					log.step(`VM: ${vmName}`);
+					if (githubBranch) {
+						log.step(`Git branch: ${githubBranch}`);
+					}
+					if (convexPreviewDeployment) {
+						log.step(
+							`Convex preview: ${convexPreviewDeployment.deploymentName}`,
+						);
+					} else if (convexFeatureProject) {
+						log.step(`Convex project: ${convexFeatureProject.projectSlug}`);
+					}
+				},
+				dryRun: options.dryRun,
+				confirmToken: options.confirm,
+				force: options.force,
+			});
 
 			log.blank();
 

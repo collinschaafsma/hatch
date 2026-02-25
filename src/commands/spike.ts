@@ -5,6 +5,7 @@ import fs from "fs-extra";
 import { parseConvexDeployUrl } from "../headless/convex.js";
 import type { SpikeResult, VMRecord } from "../types/index.js";
 import { resolveConfigPath } from "../utils/config-resolver.js";
+import { requireConfirmation } from "../utils/confirmation.js";
 import {
 	checkExeDevAccess,
 	exeDevNew,
@@ -31,6 +32,9 @@ interface SpikeCommandOptions {
 	wait?: boolean;
 	json?: boolean;
 	continue?: string;
+	force?: boolean;
+	dryRun?: boolean;
+	confirm?: string;
 }
 
 /**
@@ -531,6 +535,9 @@ export const spikeCommand = new Command()
 		"--continue <vm-name>",
 		"Continue an existing spike on the specified VM",
 	)
+	.option("-f, --force", "Skip confirmation (interactive terminal only)")
+	.option("--dry-run", "Show what will be created and get a confirmation token")
+	.option("--confirm <token>", "Confirm with a token from --dry-run")
 	.action(async (featureName: string, options: SpikeCommandOptions) => {
 		let vmName: string | undefined;
 		let sshHost: string | undefined;
@@ -543,6 +550,30 @@ export const spikeCommand = new Command()
 
 		// Handle continuation mode
 		if (options.continue) {
+			// Confirmation gate for continuation
+			const contGateOpts = {
+				command: `spike ${featureName}`,
+				args: {
+					project: options.project,
+					continue: options.continue,
+				},
+				summary: `Continue spike on VM ${options.continue} (project: ${options.project})`,
+				details: () => {
+					if (options.json) {
+						// JSON dry-run handled after gate
+					} else {
+						log.info(`Feature: ${featureName}`);
+						log.step(`Project: ${options.project}`);
+						log.step(`VM: ${options.continue}`);
+						log.step(`Prompt: "${options.prompt}"`);
+					}
+				},
+				dryRun: options.dryRun,
+				confirmToken: options.confirm,
+				force: options.force,
+			};
+			await requireConfirmation(contGateOpts);
+
 			await handleContinuation(
 				featureName,
 				options,
@@ -653,6 +684,26 @@ export const spikeCommand = new Command()
 			}
 
 			const vercelToken = config.vercel?.token || "";
+
+			// Confirmation gate (after pre-flight, before resource creation)
+			await requireConfirmation({
+				command: `spike ${featureName}`,
+				args: { project: options.project },
+				summary: `Create spike VM for ${featureName} (project: ${options.project})`,
+				details: () => {
+					if (!options.json) {
+						log.info(`Feature: ${featureName}`);
+						log.step(`Project: ${options.project}`);
+						log.step(`Prompt: "${options.prompt}"`);
+						log.step(
+							"Creates: exe.dev VM, git branch, Convex preview, runs Claude agent",
+						);
+					}
+				},
+				dryRun: options.dryRun,
+				confirmToken: options.confirm,
+				force: options.force,
+			});
 
 			// Step 3: Create new VM
 			const vmSpinner = options.json

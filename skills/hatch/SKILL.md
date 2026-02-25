@@ -34,21 +34,34 @@ Automatically detects if a "running" spike has actually completed.
 
 ### Create new project
 ```bash
-cd ~/.hatch-cli && pnpm dev new <project-name>
+cd ~/.hatch-cli && pnpm dev new <project-name> --dry-run
+cd ~/.hatch-cli && pnpm dev new <project-name> --confirm <token>
 ```
 Creates a new project with GitHub repo, Vercel deployment, and Convex backend.
 Takes 5-10 minutes. Returns Vercel URL when complete.
 
+**Options:**
+- `--dry-run` - Show what will be created and get a confirmation token
+- `--confirm <token>` - Execute with a token from `--dry-run`
+- `-f, --force` - Skip confirmation (interactive terminal only)
+
 ### Create feature VM (interactive development)
 ```bash
-cd ~/.hatch-cli && pnpm dev feature <name> --project <project>
+cd ~/.hatch-cli && pnpm dev feature <name> --project <project> --dry-run
+cd ~/.hatch-cli && pnpm dev feature <name> --project <project> --confirm <token>
 ```
 Creates isolated VM with git branch and a separate Convex project for isolation. Returns SSH host and preview URL.
 User will SSH in and drive development with Claude Code.
 
+**Options:**
+- `--dry-run` - Show what will be created and get a confirmation token
+- `--confirm <token>` - Execute with a token from `--dry-run`
+- `-f, --force` - Skip confirmation (interactive terminal only)
+
 ### Autonomous spike (fire and forget)
 ```bash
-cd ~/.hatch-cli && pnpm dev spike <name> --project <project> --prompt "<instructions>"
+cd ~/.hatch-cli && pnpm dev spike <name> --project <project> --prompt "<instructions>" --dry-run
+cd ~/.hatch-cli && pnpm dev spike <name> --project <project> --prompt "<instructions>" --confirm <token>
 ```
 Creates VM, runs Claude Agent SDK autonomously, creates PR when done.
 
@@ -56,6 +69,9 @@ Creates VM, runs Claude Agent SDK autonomously, creates PR when done.
 - `--wait` - Block until spike completes (default: return immediately)
 - `--timeout <minutes>` - Max time when using `--wait` (default: 240)
 - `--json` - Output result as JSON
+- `--dry-run` - Show what will be created and get a confirmation token
+- `--confirm <token>` - Execute with a token from `--dry-run`
+- `-f, --force` - Skip confirmation (interactive terminal only)
 
 ### Show detailed spike progress
 ```bash
@@ -70,9 +86,15 @@ Use after starting a spike to see plan step progress and recent activity without
 
 ### Clean up
 ```bash
-cd ~/.hatch-cli && pnpm dev clean <name> --project <project>
+cd ~/.hatch-cli && pnpm dev clean <name> --project <project> --dry-run
+cd ~/.hatch-cli && pnpm dev clean <name> --project <project> --confirm <token>
 ```
 Deletes VM and Convex feature project after PR is merged.
+
+**Options:**
+- `--dry-run` - Show what will be deleted and get a confirmation token
+- `--confirm <token>` - Execute with a token from `--dry-run`
+- `-f, --force` - Skip confirmation (interactive terminal only)
 
 ### Add existing project
 ```bash
@@ -130,7 +152,7 @@ cd ~/.hatch-cli && pnpm dev update
 Pulls latest code, reinstalls dependencies, rebuilds, and updates OpenClaw skills if installed.
 
 ### Destroy project (HUMAN ONLY)
-**DO NOT USE THIS COMMAND.** Project destruction must be performed manually by a human operator. If asked to destroy a project, instruct the user to run `hatch destroy <project-name>` themselves.
+**DO NOT USE THIS COMMAND.** Project destruction must be performed manually by a human operator. If asked to destroy a project, instruct the user to run `hatch destroy <project-name>` themselves. The destroy command now requires a two-step `--dry-run` → `--confirm <token>` flow as an additional safeguard.
 
 ## Execution Plans
 
@@ -291,18 +313,20 @@ Report costs to the user when a spike completes.
 
 **CRITICAL: Always confirm with the human before taking action.** Never run provisioning, destructive, or deployment commands without first showing the human exactly what you plan to do and getting explicit approval.
 
+Commands that create, modify, or destroy resources (`new`, `spike`, `feature`, `clean`, `destroy`) enforce a two-step `--dry-run` → `--confirm <token>` flow. Agents should use this instead of relying on manual approval of interactive prompts.
+
 ### Pre-flight check (required before any provisioning command)
 
 Before running `hatch new`, `hatch feature`, `hatch spike`, `hatch clean`, or `hatch add`:
 
 1. **Gather context**: Run `hatch list --json` and `hatch config check --project <name> --json` to understand the current state.
 2. **Show the human a summary** that includes:
-   - The exact command you plan to run
+   - The exact command you plan to run (with `--dry-run`)
    - Which project and config will be used (`~/.hatch/configs/<name>.json` or `~/.hatch.json`)
    - Which GitHub org, Vercel team, and Convex deployment will be affected
    - For spikes: the full prompt text
    - For clean: what resources will be deleted (VM name, Convex project)
-3. **Wait for explicit approval** before executing. Do not proceed on assumptions.
+3. **Run with `--dry-run`** to get a confirmation token, then **run with `--confirm <token>`** after human approval.
 
 ### General rules
 
@@ -322,8 +346,11 @@ cd ~/.hatch-cli && pnpm dev config list --json
 # 2. Show the human: "I'll create project 'my-app' using config ~/.hatch/configs/my-app.json
 #    (GitHub org: X, Vercel team: Y). This provisions a temporary VM. Proceed?"
 
-# 3. After approval:
-cd ~/.hatch-cli && pnpm dev new my-app
+# 3. Dry run to get a confirmation token:
+cd ~/.hatch-cli && pnpm dev new my-app --dry-run
+
+# 4. After approval, confirm with the token:
+cd ~/.hatch-cli && pnpm dev new my-app --confirm <token>
 ```
 Share Vercel URL when complete.
 
@@ -337,8 +364,11 @@ cd ~/.hatch-cli && pnpm dev config check --project my-app --json
 #    using config ~/.hatch/configs/my-app.json (GitHub: org/my-app, Convex: my-app).
 #    This creates a VM, git branch, and isolated Convex project. Proceed?"
 
-# 3. After approval:
-cd ~/.hatch-cli && pnpm dev feature my-feature --project my-app
+# 3. Dry run to get a confirmation token:
+cd ~/.hatch-cli && pnpm dev feature my-feature --project my-app --dry-run
+
+# 4. After approval, confirm with the token:
+cd ~/.hatch-cli && pnpm dev feature my-feature --project my-app --confirm <token>
 ```
 Share SSH host so user can connect with Claude Code.
 
@@ -353,20 +383,24 @@ cd ~/.hatch-cli && pnpm dev config check --project my-app --json
 #    Prompt: 'Add contact form'
 #    This creates a VM, runs Claude autonomously, and opens a PR. Proceed?"
 
-# 3. After approval:
-cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "Add contact form"
+# 3. Dry run to get a confirmation token:
+cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "Add contact form" --dry-run
 
-# 4. Check status (VM liveness, spike progress, PR review/CI)
+# 4. After approval, confirm with the token:
+cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "Add contact form" --confirm <token>
+
+# 5. Check status (VM liveness, spike progress, PR review/CI)
 cd ~/.hatch-cli && pnpm dev status --project my-app --json
 
-# 5. Optionally monitor progress
+# 6. Optionally monitor progress
 ssh <vm>.exe.xyz 'tail -f ~/spike.log'
 
-# 6. Check for completion
+# 7. Check for completion
 ssh <vm>.exe.xyz 'test -f ~/spike-done && cat ~/spike-result.json'
 
-# 7. Clean up after PR is merged (confirm with human first)
-cd ~/.hatch-cli && pnpm dev clean my-feature --project my-app
+# 8. Clean up after PR is merged (dry-run first, then confirm)
+cd ~/.hatch-cli && pnpm dev clean my-feature --project my-app --dry-run
+cd ~/.hatch-cli && pnpm dev clean my-feature --project my-app --confirm <token>
 ```
 Share PR URL when complete.
 

@@ -1,10 +1,10 @@
 import os from "node:os";
 import path from "node:path";
-import { input } from "@inquirer/prompts";
 import { Command } from "commander";
 import fs from "fs-extra";
 import { deleteConvexProjectBySlug } from "../headless/convex.js";
 import type { HatchConfig } from "../types/index.js";
+import { requireConfirmation } from "../utils/confirmation.js";
 import { log } from "../utils/logger.js";
 import { deleteProject, getProject } from "../utils/project-store.js";
 import { createSpinner } from "../utils/spinner.js";
@@ -13,6 +13,8 @@ import { listVMsByProject } from "../utils/vm-store.js";
 interface DestroyOptions {
 	config?: string;
 	force?: boolean;
+	dryRun?: boolean;
+	confirm?: string;
 }
 
 interface DestroyResult {
@@ -30,7 +32,9 @@ export const destroyCommand = new Command()
 		"Path to hatch.json config file",
 		path.join(os.homedir(), ".hatch.json"),
 	)
-	.option("-f, --force", "Skip confirmation (dangerous)")
+	.option("-f, --force", "Skip confirmation (interactive terminal only)")
+	.option("--dry-run", "Show destruction plan and get a confirmation token")
+	.option("--confirm <token>", "Confirm with a token from --dry-run")
 	.action(async (projectName: string, options: DestroyOptions) => {
 		try {
 			log.blank();
@@ -68,44 +72,43 @@ export const destroyCommand = new Command()
 				process.exit(1);
 			}
 
-			// Phase 2: Display Destruction Plan
-			log.warn("This will PERMANENTLY destroy the following resources:");
-			log.blank();
-			log.info(`Project: ${projectName}`);
-			log.blank();
+			// Phase 2: Confirmation gate
+			await requireConfirmation({
+				command: `destroy ${projectName}`,
+				args: {},
+				summary: `Permanently destroy project ${projectName} (Convex, Vercel, local tracking)`,
+				details: () => {
+					log.warn("This will PERMANENTLY destroy the following resources:");
+					log.blank();
+					log.info(`Project: ${projectName}`);
+					log.blank();
 
-			if (project.convex?.projectSlug) {
-				log.step("Convex:");
-				log.info(`    → Project: ${project.convex.projectSlug}`);
-				if (project.convex.deploymentUrl) {
-					log.info(`    → Deployment: ${project.convex.deploymentUrl}`);
-				}
-				log.blank();
-			}
+					if (project.convex?.projectSlug) {
+						log.step("Convex:");
+						log.info(`    → Project: ${project.convex.projectSlug}`);
+						if (project.convex.deploymentUrl) {
+							log.info(`    → Deployment: ${project.convex.deploymentUrl}`);
+						}
+						log.blank();
+					}
 
-			log.step("Vercel:");
-			log.info(`    → Project: ${projectName} (${project.vercel.projectId})`);
-			log.blank();
+					log.step("Vercel:");
+					log.info(
+						`    → Project: ${projectName} (${project.vercel.projectId})`,
+					);
+					log.blank();
 
-			log.step("Local:");
-			log.info("    → Project record in ~/.hatch/projects.json");
-			log.blank();
+					log.step("Local:");
+					log.info("    → Project record in ~/.hatch/projects.json");
+					log.blank();
 
-			log.step("GitHub (preserved - manual deletion required):");
-			log.info(`    → Repository: ${project.github.url}`);
-			log.blank();
-
-			// Phase 3: Type-to-Confirm
-			if (!options.force) {
-				const confirmation = await input({
-					message: `Type "${projectName}" to confirm destruction:`,
-				});
-
-				if (confirmation !== projectName) {
-					log.error("Project name does not match. Aborting.");
-					process.exit(1);
-				}
-			}
+					log.step("GitHub (preserved - manual deletion required):");
+					log.info(`    → Repository: ${project.github.url}`);
+				},
+				dryRun: options.dryRun,
+				confirmToken: options.confirm,
+				force: options.force,
+			});
 
 			log.blank();
 

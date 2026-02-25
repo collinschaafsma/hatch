@@ -23,8 +23,8 @@ vi.mock("execa", () => ({
 	execa: vi.fn(),
 }));
 
-vi.mock("@inquirer/prompts", () => ({
-	confirm: vi.fn(),
+vi.mock("../utils/confirmation.js", () => ({
+	requireConfirmation: vi.fn(),
 }));
 
 vi.mock("../utils/project-store.js", () => ({
@@ -68,18 +68,18 @@ vi.mock("../utils/spinner.js", () => ({
 	})),
 }));
 
-import { confirm } from "@inquirer/prompts";
 import { execa } from "execa";
 import fs from "fs-extra";
 import { deleteConvexProject } from "../headless/convex.js";
 import { deleteVercelBranchEnvVars } from "../headless/vercel.js";
+import { requireConfirmation } from "../utils/confirmation.js";
 import { exeDevRm } from "../utils/exe-dev.js";
 import { log } from "../utils/logger.js";
 import { getProject } from "../utils/project-store.js";
 import { getVMByFeature, removeVM } from "../utils/vm-store.js";
 import { cleanCommand } from "./clean.js";
 
-const mockConfirm = vi.mocked(confirm);
+const mockRequireConfirmation = vi.mocked(requireConfirmation);
 const mockExeca = vi.mocked(execa);
 const mockFs = vi.mocked(fs);
 const mockDeleteConvexProject = vi.mocked(deleteConvexProject);
@@ -103,6 +103,7 @@ describe("clean command", () => {
 			convex: { accessToken: "convex_token" },
 			github: { token: "gh_token" },
 		} as never);
+		mockRequireConfirmation.mockResolvedValue(undefined);
 	});
 
 	afterEach(() => {
@@ -152,7 +153,7 @@ describe("clean command", () => {
 	});
 
 	describe("cleanup with --force", () => {
-		it("should skip confirmation with --force flag", async () => {
+		it("should call requireConfirmation and proceed", async () => {
 			const project = createMockProjectRecord();
 			const vm = createMockVMRecord({
 				convexFeatureProject: undefined,
@@ -160,6 +161,7 @@ describe("clean command", () => {
 			});
 			mockGetProject.mockResolvedValue(project);
 			mockGetVMByFeature.mockResolvedValue(vm);
+			mockRequireConfirmation.mockResolvedValue(undefined);
 			mockExeDevRm.mockResolvedValue(undefined);
 			mockRemoveVM.mockResolvedValue(undefined);
 
@@ -172,7 +174,9 @@ describe("clean command", () => {
 				"--force",
 			]);
 
-			expect(mockConfirm).not.toHaveBeenCalled();
+			expect(mockRequireConfirmation).toHaveBeenCalledWith(
+				expect.objectContaining({ force: true }),
+			);
 			expect(mockLog.success).toHaveBeenCalledWith("Feature cleanup complete!");
 		});
 

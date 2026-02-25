@@ -2,6 +2,7 @@ import { Command } from "commander";
 import fs from "fs-extra";
 import type { HeadlessResult, ProjectRecord } from "../types/index.js";
 import { resolveConfigPath } from "../utils/config-resolver.js";
+import { requireConfirmation } from "../utils/confirmation.js";
 import {
 	checkExeDevAccess,
 	exeDevNew,
@@ -15,6 +16,9 @@ import { scpToRemote, sshExec } from "../utils/ssh.js";
 
 interface NewOptions {
 	config?: string;
+	force?: boolean;
+	dryRun?: boolean;
+	confirm?: string;
 }
 
 export const newCommand = new Command()
@@ -22,6 +26,9 @@ export const newCommand = new Command()
 	.description("Create a new project (VM is ephemeral, destroyed after setup)")
 	.argument("<project-name>", "Name of the project to create")
 	.option("-c, --config <path>", "Path to hatch.json config file")
+	.option("-f, --force", "Skip confirmation (interactive terminal only)")
+	.option("--dry-run", "Show what will be created and get a confirmation token")
+	.option("--confirm <token>", "Confirm with a token from --dry-run")
 	.action(async (projectName: string, options: NewOptions) => {
 		let vmName: string | undefined;
 		let sshHost: string | undefined;
@@ -50,6 +57,22 @@ export const newCommand = new Command()
 				process.exit(1);
 			}
 			accessSpinner.succeed("exe.dev SSH access confirmed");
+
+			// Confirmation gate
+			await requireConfirmation({
+				command: `new ${projectName}`,
+				args: {},
+				summary: `Create new project ${projectName} (VM, GitHub repo, Vercel, Convex)`,
+				details: () => {
+					log.info(`Project: ${projectName}`);
+					log.step(
+						"Creates: exe.dev VM, GitHub repo, Vercel project, Convex backend",
+					);
+				},
+				dryRun: options.dryRun,
+				confirmToken: options.confirm,
+				force: options.force,
+			});
 
 			// Resolve config file path
 			const configPath = await resolveConfigPath({

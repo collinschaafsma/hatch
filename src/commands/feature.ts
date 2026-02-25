@@ -5,6 +5,7 @@ import fs from "fs-extra";
 import { parseConvexDeployUrl } from "../headless/convex.js";
 import type { VMRecord } from "../types/index.js";
 import { resolveConfigPath } from "../utils/config-resolver.js";
+import { requireConfirmation } from "../utils/confirmation.js";
 import {
 	checkExeDevAccess,
 	exeDevNew,
@@ -26,6 +27,9 @@ const packageRoot = path.resolve(__dirname, "../..");
 interface FeatureOptions {
 	project: string;
 	config?: string;
+	force?: boolean;
+	dryRun?: boolean;
+	confirm?: string;
 }
 
 export const featureCommand = new Command()
@@ -36,6 +40,9 @@ export const featureCommand = new Command()
 	.argument("<feature-name>", "Name of the feature branch to create")
 	.requiredOption("--project <name>", "Project name (from hatch new)")
 	.option("-c, --config <path>", "Path to hatch.json config file")
+	.option("-f, --force", "Skip confirmation (interactive terminal only)")
+	.option("--dry-run", "Show what will be created and get a confirmation token")
+	.option("--confirm <token>", "Confirm with a token from --dry-run")
 	.action(async (featureName: string, options: FeatureOptions) => {
 		let vmName: string | undefined;
 		let sshHost: string | undefined;
@@ -54,6 +61,23 @@ export const featureCommand = new Command()
 				log.info("Run 'hatch new <project-name>' to create a new project.");
 				process.exit(1);
 			}
+
+			// Confirmation gate (before any resource creation)
+			await requireConfirmation({
+				command: `feature ${featureName}`,
+				args: { project: options.project },
+				summary: `Create feature VM ${featureName} (project: ${options.project})`,
+				details: () => {
+					log.info(`Feature: ${featureName}`);
+					log.step(`Project: ${options.project}`);
+					log.step(
+						"Creates: exe.dev VM, git branch, Convex preview deployment",
+					);
+				},
+				dryRun: options.dryRun,
+				confirmToken: options.confirm,
+				force: options.force,
+			});
 
 			// Step 2: Check exe.dev access
 			const accessSpinner = createSpinner(

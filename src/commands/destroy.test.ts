@@ -23,8 +23,8 @@ vi.mock("execa", () => ({
 	execa: vi.fn(),
 }));
 
-vi.mock("@inquirer/prompts", () => ({
-	input: vi.fn(),
+vi.mock("../utils/confirmation.js", () => ({
+	requireConfirmation: vi.fn(),
 }));
 
 vi.mock("../utils/project-store.js", () => ({
@@ -60,16 +60,16 @@ vi.mock("../utils/spinner.js", () => ({
 	})),
 }));
 
-import { input } from "@inquirer/prompts";
 import { execa } from "execa";
 import fs from "fs-extra";
 import { deleteConvexProjectBySlug } from "../headless/convex.js";
+import { requireConfirmation } from "../utils/confirmation.js";
 import { log } from "../utils/logger.js";
 import { deleteProject, getProject } from "../utils/project-store.js";
 import { listVMsByProject } from "../utils/vm-store.js";
 import { destroyCommand } from "./destroy.js";
 
-const mockInput = vi.mocked(input);
+const mockRequireConfirmation = vi.mocked(requireConfirmation);
 const mockExeca = vi.mocked(execa);
 const mockFs = vi.mocked(fs);
 const mockGetProject = vi.mocked(getProject);
@@ -91,6 +91,7 @@ describe("destroy command", () => {
 			convex: { accessToken: "convex_token" },
 			vercel: { team: "my-team" },
 		} as never);
+		mockRequireConfirmation.mockResolvedValue(undefined);
 	});
 
 	afterEach(() => {
@@ -133,28 +134,11 @@ describe("destroy command", () => {
 		});
 	});
 
-	describe("type-to-confirm", () => {
-		it("should require typing project name to confirm", async () => {
+	describe("confirmation gate", () => {
+		it("should call requireConfirmation with correct args", async () => {
 			mockGetProject.mockResolvedValue(
 				createMockProjectRecord({ name: "my-project" }),
 			);
-			mockListVMsByProject.mockResolvedValue([]);
-			mockInput.mockResolvedValue("wrong-name");
-
-			await expect(
-				destroyCommand.parseAsync(["node", "test", "my-project"]),
-			).rejects.toThrow("process.exit called");
-
-			expect(mockInput).toHaveBeenCalledWith({
-				message: 'Type "my-project" to confirm destruction:',
-			});
-			expect(mockLog.error).toHaveBeenCalledWith(
-				"Project name does not match. Aborting.",
-			);
-		});
-
-		it("should skip confirmation with --force flag", async () => {
-			mockGetProject.mockResolvedValue(createMockProjectRecord());
 			mockListVMsByProject.mockResolvedValue([]);
 			mockExeca.mockResolvedValue({ stdout: "", stderr: "" } as never);
 			mockDeleteProject.mockResolvedValue(undefined);
@@ -166,7 +150,24 @@ describe("destroy command", () => {
 				"--force",
 			]);
 
-			expect(mockInput).not.toHaveBeenCalled();
+			expect(mockRequireConfirmation).toHaveBeenCalledWith(
+				expect.objectContaining({
+					command: "destroy my-project",
+					force: true,
+				}),
+			);
+		});
+
+		it("should abort when requireConfirmation rejects", async () => {
+			mockGetProject.mockResolvedValue(createMockProjectRecord());
+			mockListVMsByProject.mockResolvedValue([]);
+			mockRequireConfirmation.mockRejectedValue(
+				new Error("process.exit called"),
+			);
+
+			await expect(
+				destroyCommand.parseAsync(["node", "test", "my-project"]),
+			).rejects.toThrow("process.exit called");
 		});
 	});
 
