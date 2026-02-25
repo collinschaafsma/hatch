@@ -225,6 +225,49 @@ async function handleContinuation(
 		const projectPath = `~/${project.github.repo}`;
 		const envPrefix = `source ~/.profile 2>/dev/null; export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.claude/local/bin:$PATH" && export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="$(grep '^CONVEX_DEPLOY_KEY=' ${projectPath}/apps/web/.env.local | cut -d= -f2- | sed 's/^\"//;s/\"$//')" &&`;
 
+		// Step 5.5: Re-push Convex functions to preview deployment
+		const convexSyncSpinner = options.json
+			? null
+			: createSpinner("Syncing Convex functions to preview deployment").start();
+		try {
+			const convexDeployCmd = `DEPLOY_KEY=$(grep '^CONVEX_DEPLOY_KEY=' .env.local | cut -d= -f2- | sed 's/^\"//;s/\"$//'); if [ -z "$DEPLOY_KEY" ]; then echo "ERROR: No CONVEX_DEPLOY_KEY found in .env.local" >&2; exit 1; elif echo "$DEPLOY_KEY" | grep -q '^preview:'; then npx convex deploy --preview-create ${vm.feature} --yes 2>&1; else echo "ERROR: CONVEX_DEPLOY_KEY is a production key." >&2; exit 1; fi`;
+			await sshExec(
+				vm.sshHost,
+				`${envPrefix} cd ${projectPath}/apps/web && ${convexDeployCmd}`,
+			);
+			convexSyncSpinner?.succeed(
+				"Convex functions synced to preview deployment",
+			);
+		} catch (error) {
+			convexSyncSpinner?.warn(
+				"Failed to sync Convex functions (continuing anyway)",
+			);
+		}
+
+		// Step 5.6: Verify Convex preview deployment is healthy
+		if (vm.convexPreviewDeployment?.deploymentUrl) {
+			const healthSpinner = options.json
+				? null
+				: createSpinner("Checking Convex preview deployment health").start();
+			try {
+				const { stdout: httpCode } = await sshExec(
+					vm.sshHost,
+					`curl -s -o /dev/null -w "%{http_code}" "${vm.convexPreviewDeployment.deploymentUrl}"`,
+				);
+				if (httpCode.trim() === "404") {
+					healthSpinner?.warn(
+						"Convex preview deployment returned 404 (continuing anyway)",
+					);
+				} else {
+					healthSpinner?.succeed("Convex preview deployment is healthy");
+				}
+			} catch {
+				healthSpinner?.warn(
+					"Could not verify Convex preview deployment health (continuing anyway)",
+				);
+			}
+		}
+
 		// Step 6: Update VM record to running
 		const currentIteration = (vm.spikeIterations || 1) + 1;
 		await updateVM(continueVmName, {
