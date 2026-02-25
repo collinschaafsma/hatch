@@ -26,7 +26,7 @@ const packageRoot = path.resolve(__dirname, "../..");
 
 interface SpikeCommandOptions {
 	project: string;
-	prompt: string;
+	prompt?: string;
 	config?: string;
 	timeout?: number;
 	wait?: boolean;
@@ -95,20 +95,47 @@ async function handleContinuation(
 					log.info("Spike completed — updating status and continuing.");
 				}
 			} else {
-				const result: SpikeResult = {
-					status: "failed",
-					vmName: continueVmName,
-					sshHost: vm.sshHost,
-					feature: vm.feature,
-					project: vm.project,
-					error: "Spike is still running. Wait for it to complete first.",
-				};
-				outputJson(result);
-				if (!options.json) {
-					log.error("Spike is still running. Wait for it to complete first.");
-					log.info(`Monitor with: ssh ${vm.sshHost} 'tail -f ~/spike.log'`);
+				// Retry up to 3 times with 10s waits
+				let retries = 3;
+				while (!actuallyDone && retries > 0) {
+					if (!options.json) {
+						log.info("Spike appears still running, waiting 10s...");
+					}
+					await new Promise((r) => setTimeout(r, 10_000));
+					try {
+						const retryResult = await sshExec(
+							vm.sshHost,
+							"test -f ~/spike-done && echo done || echo running",
+							{ timeoutMs: 10_000 },
+						);
+						actuallyDone = retryResult.stdout.trim() === "done";
+					} catch {
+						// Still can't reach VM
+					}
+					retries--;
 				}
-				process.exit(1);
+
+				if (actuallyDone) {
+					await updateVM(continueVmName, { spikeStatus: "completed" });
+					if (!options.json) {
+						log.info("Spike completed — updating status and continuing.");
+					}
+				} else {
+					const result: SpikeResult = {
+						status: "failed",
+						vmName: continueVmName,
+						sshHost: vm.sshHost,
+						feature: vm.feature,
+						project: vm.project,
+						error: "Spike is still running. Wait for it to complete first.",
+					};
+					outputJson(result);
+					if (!options.json) {
+						log.error("Spike is still running. Wait for it to complete first.");
+						log.info(`Monitor with: ssh ${vm.sshHost} 'tail -f ~/spike.log'`);
+					}
+					process.exit(1);
+				}
 			}
 		}
 
@@ -526,7 +553,7 @@ export const spikeCommand = new Command()
 	)
 	.argument("<feature-name>", "Name of the feature to build")
 	.requiredOption("--project <name>", "Project name (from hatch list)")
-	.requiredOption("--prompt <instructions>", "Instructions for Claude")
+	.option("--prompt <instructions>", "Instructions for Claude")
 	.option("-c, --config <path>", "Path to hatch.json config file")
 	.option("--timeout <minutes>", "Maximum build time in minutes", "240")
 	.option("--wait", "Wait for completion instead of running in background")
@@ -558,6 +585,7 @@ export const spikeCommand = new Command()
 					continue: options.continue,
 				},
 				summary: `Continue spike on VM ${options.continue} (project: ${options.project})`,
+				prompt: options.prompt,
 				details: () => {
 					if (options.json) {
 						// JSON dry-run handled after gate
@@ -572,7 +600,17 @@ export const spikeCommand = new Command()
 				confirmToken: options.confirm,
 				force: options.force,
 			};
-			await requireConfirmation(contGateOpts);
+			const { storedPrompt: contStoredPrompt } =
+				await requireConfirmation(contGateOpts);
+
+			const contEffectivePrompt = options.prompt || contStoredPrompt;
+			if (!contEffectivePrompt) {
+				log.error(
+					"--prompt is required (or use --confirm with a token from --dry-run).",
+				);
+				process.exit(1);
+			}
+			options.prompt = contEffectivePrompt;
 
 			await handleContinuation(
 				featureName,
@@ -700,10 +738,11 @@ export const spikeCommand = new Command()
 			}
 
 			// Confirmation gate (after pre-flight, before resource creation)
-			await requireConfirmation({
+			const { storedPrompt } = await requireConfirmation({
 				command: `spike ${featureName}`,
 				args: { project: options.project },
 				summary: `Create spike VM for ${featureName} (project: ${options.project})`,
+				prompt: options.prompt,
 				details: () => {
 					if (!options.json) {
 						log.info(`Feature: ${featureName}`);
@@ -721,6 +760,14 @@ export const spikeCommand = new Command()
 				confirmToken: options.confirm,
 				force: options.force,
 			});
+
+			const effectivePrompt = options.prompt || storedPrompt;
+			if (!effectivePrompt) {
+				log.error(
+					"--prompt is required (or use --confirm with a token from --dry-run).",
+				);
+				process.exit(1);
+			}
 
 			// Step 3: Create new VM
 			const vmSpinner = options.json
@@ -1037,7 +1084,7 @@ export const spikeCommand = new Command()
 				convexPreviewDeployment,
 				spikeStatus: "running",
 				spikeIterations: 1,
-				originalPrompt: options.prompt,
+				originalPrompt: effectivePrompt,
 			};
 			await addVM(vmRecord);
 
@@ -1047,7 +1094,7 @@ export const spikeCommand = new Command()
 				: createSpinner("Starting Claude agent").start();
 
 			// Escape the prompt for shell
-			const escapedPrompt = options.prompt
+			const escapedPrompt = effectivePrompt
 				.replace(/\\/g, "\\\\")
 				.replace(/"/g, '\\"')
 				.replace(/\$/g, "\\$")

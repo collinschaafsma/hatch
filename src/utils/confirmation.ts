@@ -17,6 +17,7 @@ interface PendingConfirmation {
 	expiresAt: string;
 	command: string;
 	summary: string;
+	prompt?: string;
 }
 
 interface ConfirmationStore {
@@ -32,6 +33,7 @@ export interface ConfirmationGateOptions {
 	dryRun?: boolean;
 	confirmToken?: string;
 	force?: boolean;
+	prompt?: string;
 }
 
 export function generateToken(): string {
@@ -81,6 +83,7 @@ export async function storeConfirmation(opts: {
 	command: string;
 	args: Record<string, string>;
 	summary: string;
+	prompt?: string;
 }): Promise<{ token: string }> {
 	const store = await loadStore();
 	const hash = computeCommandHash(opts.command, opts.args);
@@ -91,6 +94,7 @@ export async function storeConfirmation(opts: {
 		expiresAt: new Date(Date.now() + TTL_MS).toISOString(),
 		command: opts.command,
 		summary: opts.summary,
+		...(opts.prompt && { prompt: opts.prompt }),
 	};
 
 	await saveStore(store);
@@ -128,7 +132,7 @@ export async function validateAndConsumeToken(opts: {
 
 export async function requireConfirmation(
 	opts: ConfirmationGateOptions,
-): Promise<void> {
+): Promise<{ storedPrompt?: string }> {
 	const { command, args, summary, details, dryRun, confirmToken, force } = opts;
 
 	if (force) {
@@ -136,7 +140,7 @@ export async function requireConfirmation(
 			log.error("--force requires an interactive terminal.");
 			process.exit(1);
 		}
-		return;
+		return {};
 	}
 
 	if (confirmToken) {
@@ -150,12 +154,17 @@ export async function requireConfirmation(
 			log.info("Run with --dry-run to get a new token.");
 			process.exit(1);
 		}
-		return;
+		return { storedPrompt: entry?.prompt };
 	}
 
 	if (dryRun) {
 		details();
-		const { token } = await storeConfirmation({ command, args, summary });
+		const { token } = await storeConfirmation({
+			command,
+			args,
+			summary,
+			prompt: opts.prompt,
+		});
 		log.blank();
 		log.info(`Confirmation token: ${token}`);
 		log.info("Token expires in 5 minutes.");

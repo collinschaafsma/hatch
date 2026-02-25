@@ -238,6 +238,95 @@ describe("confirmation utility", () => {
 		});
 	});
 
+	describe("prompt storage", () => {
+		it("should store and return prompt with confirmation", async () => {
+			let savedStore: Record<string, unknown> = {};
+			mockFs.writeJson.mockImplementation(
+				async (_path: string, data: unknown) => {
+					savedStore = data as Record<string, unknown>;
+				},
+			);
+			mockFs.pathExists.mockResolvedValue(false as never);
+
+			const { token } = await storeConfirmation({
+				command: "spike feat",
+				args: { project: "app" },
+				summary: "Create spike VM",
+				prompt: "Build a login page",
+			});
+
+			mockFs.pathExists.mockResolvedValue(true as never);
+			mockFs.readJson.mockResolvedValue(savedStore as never);
+
+			const result = await validateAndConsumeToken({
+				command: "spike feat",
+				args: { project: "app" },
+				token,
+			});
+
+			expect(result).not.toBeNull();
+			expect(result?.prompt).toBe("Build a login page");
+		});
+
+		it("should return undefined prompt when none stored", async () => {
+			let savedStore: Record<string, unknown> = {};
+			mockFs.writeJson.mockImplementation(
+				async (_path: string, data: unknown) => {
+					savedStore = data as Record<string, unknown>;
+				},
+			);
+			mockFs.pathExists.mockResolvedValue(false as never);
+
+			const { token } = await storeConfirmation({
+				command: "spike feat",
+				args: { project: "app" },
+				summary: "Create spike VM",
+			});
+
+			mockFs.pathExists.mockResolvedValue(true as never);
+			mockFs.readJson.mockResolvedValue(savedStore as never);
+
+			const result = await validateAndConsumeToken({
+				command: "spike feat",
+				args: { project: "app" },
+				token,
+			});
+
+			expect(result).not.toBeNull();
+			expect(result?.prompt).toBeUndefined();
+		});
+
+		it("should return storedPrompt from requireConfirmation on --confirm", async () => {
+			let savedStore: Record<string, unknown> = {};
+			mockFs.writeJson.mockImplementation(
+				async (_path: string, data: unknown) => {
+					savedStore = data as Record<string, unknown>;
+				},
+			);
+			mockFs.pathExists.mockResolvedValue(false as never);
+
+			const { token } = await storeConfirmation({
+				command: "spike feat",
+				args: { project: "app" },
+				summary: "Create spike VM",
+				prompt: "Build a login page",
+			});
+
+			mockFs.pathExists.mockResolvedValue(true as never);
+			mockFs.readJson.mockResolvedValue(savedStore as never);
+
+			const result = await requireConfirmation({
+				command: "spike feat",
+				args: { project: "app" },
+				summary: "Create spike VM",
+				details: () => {},
+				confirmToken: token,
+			});
+
+			expect(result.storedPrompt).toBe("Build a login page");
+		});
+	});
+
 	describe("requireConfirmation gate", () => {
 		it("should error when no flags provided", async () => {
 			await expect(
