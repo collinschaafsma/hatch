@@ -85,6 +85,65 @@ function hasAgentBrowser() {
   }
 }
 
+function isErrorPage() {
+  try {
+    const title = execSync("agent-browser get title", {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 10000,
+    }).trim();
+
+    const errorTitles = ["Build Error", "Runtime Error", "Application error"];
+    if (errorTitles.some((t) => title.includes(t))) return true;
+
+    const bodyText = execSync('agent-browser eval "document.body.innerText"', {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 10000,
+    });
+
+    const errorTexts = [
+      "Module not found",
+      "Internal Server Error",
+      "Unhandled Runtime Error",
+      "Failed to compile",
+    ];
+    if (errorTexts.some((t) => bodyText.includes(t))) return true;
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function restartDevServer(devUrl) {
+  try {
+    execSync("rm -rf apps/web/.next", { stdio: ["pipe", "pipe", "pipe"] });
+    try {
+      execSync("pkill -f 'next dev'", { stdio: ["pipe", "pipe", "pipe"] });
+    } catch {}
+    execSync("cd apps/web && nohup pnpm dev > /dev/null 2>&1 &", {
+      stdio: ["pipe", "pipe", "pipe"],
+      shell: "/bin/sh",
+    });
+
+    // Poll until dev server is ready (up to 30s)
+    for (let i = 0; i < 15; i++) {
+      try {
+        const code = execSync(
+          'curl -s -o /dev/null -w "%{http_code}" ' + JSON.stringify(devUrl),
+          { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"], timeout: 5000 }
+        ).trim();
+        if (code === "200") return true;
+      } catch {}
+      execSync("sleep 2", { stdio: ["pipe", "pipe", "pipe"] });
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 function authenticateAgentBrowser(devUrl) {
   try {
     // Read NEXT_PUBLIC_CONVEX_SITE_URL from .env.local or environment
@@ -183,6 +242,8 @@ authenticateAgentBrowser(devUrl);
 
 console.log("Capturing browser evidence for " + routes.length + " route(s)...");
 
+let hasRestarted = false;
+
 for (const route of routes) {
   const url = devUrl + route;
   const screenshotName = "screenshot-" + route.replace(/\\//g, "-").replace(/^-/, "") + ".png";
@@ -215,6 +276,47 @@ for (const route of routes) {
       timeout: 15000,
     });
 
+    // Check if page shows an error
+    if (isErrorPage()) {
+      if (!hasRestarted) {
+        console.log("    Error page detected — clearing cache and restarting dev server...");
+        hasRestarted = true;
+        if (restartDevServer(devUrl)) {
+          // Re-navigate, re-set viewport, re-wait, re-screenshot
+          execSync("agent-browser open " + JSON.stringify(url), {
+            stdio: ["pipe", "pipe", "pipe"],
+            timeout: 30000,
+          });
+          execSync("agent-browser set viewport 1280 2400", {
+            stdio: ["pipe", "pipe", "pipe"],
+            timeout: 10000,
+          });
+          execSync("agent-browser wait 2000", {
+            stdio: ["pipe", "pipe", "pipe"],
+            timeout: 10000,
+          });
+          execSync("agent-browser screenshot --full " + JSON.stringify(screenshotPath), {
+            stdio: ["pipe", "pipe", "pipe"],
+            timeout: 15000,
+          });
+
+          if (isErrorPage()) {
+            console.log("    Still showing error after restart — marking as error.");
+            manifest.routes.push({ route, url, screenshot: screenshotName, status: "error" });
+            continue;
+          }
+        } else {
+          console.log("    Dev server restart failed — marking as error.");
+          manifest.routes.push({ route, url, screenshot: screenshotName, status: "error" });
+          continue;
+        }
+      } else {
+        console.log("    Error page detected (server already restarted) — marking as error.");
+        manifest.routes.push({ route, url, screenshot: screenshotName, status: "error" });
+        continue;
+      }
+    }
+
     manifest.routes.push({
       route,
       url,
@@ -241,11 +343,15 @@ writeFileSync(
 
 const captured = manifest.routes.filter((r) => r.status === "captured").length;
 const failed = manifest.routes.filter((r) => r.status === "failed").length;
+const errors = manifest.routes.filter((r) => r.status === "error").length;
 
 console.log("\\nEvidence capture complete:");
 console.log("  Captured: " + captured);
 if (failed > 0) {
   console.log("  Failed: " + failed);
+}
+if (errors > 0) {
+  console.log("  Errors: " + errors);
 }
 console.log("  Manifest: " + join(evidenceDir, "manifest.json"));
 `;
