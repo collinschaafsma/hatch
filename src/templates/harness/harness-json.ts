@@ -60,6 +60,7 @@ export function generateHarnessJson(name: string): string {
 						"apps/web/app/**/*.tsx",
 						"packages/ui/**/*.tsx",
 					],
+					defaultRoutes: ["/", "/login"],
 					captureScript: "pnpm harness:ui:capture-browser-evidence",
 					verifyScript: "pnpm harness:ui:verify-browser-evidence",
 				},

@@ -76,6 +76,81 @@ function inferRoute(filePath) {
   return "/";
 }
 
+function findImporters(filePath) {
+  try {
+    // Build search patterns for this file
+    const patterns = [];
+
+    // For files under apps/web/, check @/ alias imports
+    if (filePath.startsWith("apps/web/")) {
+      const aliasPath = filePath.replace(/^apps\\/web\\//, "@/").replace(/\\.(tsx?|jsx?)$/, "").replace(/\\/index$/, "");
+      patterns.push(aliasPath);
+    }
+
+    // Also try the bare filename without extension for relative imports
+    const baseName = filePath.replace(/\\.(tsx?|jsx?)$/, "").replace(/\\/index$/, "");
+    patterns.push(baseName);
+
+    if (patterns.length === 0) return [];
+
+    // Search for each import pattern using fixed-string grep
+    const allImporters = new Set();
+    for (const pattern of patterns) {
+      const result = execSync(
+        "grep -rl -F --include='*.tsx' --include='*.ts' --include='*.jsx' --include='*.js' " +
+          JSON.stringify(pattern) + " apps/web/ packages/ 2>/dev/null || true",
+        { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"], timeout: 15000 }
+      );
+      for (const f of result.trim().split("\\n").filter(Boolean)) {
+        allImporters.add(f);
+      }
+    }
+
+    const result = [...allImporters].join("\\n");
+
+    return result.trim().split("\\n").filter((f) => f && f !== filePath);
+  } catch {
+    return [];
+  }
+}
+
+function traceToRouteFiles(changedFile, depth, visited) {
+  if (depth <= 0) return [];
+  if (visited.has(changedFile)) return [];
+  visited.add(changedFile);
+
+  // If this file is itself a page or layout, return it
+  if (/\\/(page|layout)\\.(tsx?|jsx?)$/.test(changedFile)) {
+    return [changedFile];
+  }
+
+  const importers = findImporters(changedFile);
+  const routeFiles = [];
+
+  for (const importer of importers) {
+    const found = traceToRouteFiles(importer, depth - 1, visited);
+    routeFiles.push(...found);
+  }
+
+  return routeFiles;
+}
+
+function findShallowChildPage(layoutDir) {
+  try {
+    const result = execSync(
+      "find " + JSON.stringify(layoutDir) + " -name 'page.tsx' -maxdepth 3 2>/dev/null | head -5",
+      { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"], timeout: 10000 }
+    );
+    const pages = result.trim().split("\\n").filter(Boolean);
+    if (pages.length === 0) return null;
+    // Pick the shortest path (shallowest child)
+    pages.sort((a, b) => a.length - b.length);
+    return pages[0];
+  } catch {
+    return null;
+  }
+}
+
 function hasAgentBrowser() {
   try {
     execSync("which agent-browser", { stdio: ["pipe", "pipe", "pipe"] });
@@ -216,10 +291,48 @@ if (!hasAgentBrowser()) {
   process.exit(0);
 }
 
-// Infer routes from changed files
-const routes = [...new Set(
-  uiFiles.map(inferRoute).filter(Boolean)
-)];
+// Infer routes from changed files — direct match first, then import graph traversal
+const routeSet = new Set();
+
+for (const file of uiFiles) {
+  const direct = inferRoute(file);
+  if (direct) {
+    routeSet.add(direct);
+    continue;
+  }
+
+  // Trace through import graph to find page/layout files
+  const routeFiles = traceToRouteFiles(file, 5, new Set());
+  for (const rf of routeFiles) {
+    if (/\\/page\\.(tsx?|jsx?)$/.test(rf)) {
+      const route = inferRoute(rf);
+      if (route) routeSet.add(route);
+    } else if (/\\/layout\\.(tsx?|jsx?)$/.test(rf)) {
+      // For layouts, find the shallowest child page as representative
+      const layoutDir = dirname(rf);
+      const childPage = findShallowChildPage(layoutDir);
+      if (childPage) {
+        const route = inferRoute(childPage);
+        if (route) routeSet.add(route);
+      } else {
+        // Fall back to the layout's own route
+        const route = inferRoute(rf);
+        if (route) routeSet.add(route);
+      }
+    }
+  }
+}
+
+// Fallback to defaultRoutes from harness.json if no routes were inferred
+if (routeSet.size === 0) {
+  const defaultRoutes = harness.evidence?.ui?.defaultRoutes || [];
+  if (defaultRoutes.length > 0) {
+    console.log("No routes inferred from import graph — using defaultRoutes.");
+    for (const r of defaultRoutes) routeSet.add(r);
+  }
+}
+
+const routes = [...routeSet];
 
 if (routes.length === 0) {
   console.log("Changed UI files do not map to routes — skipping capture.");
