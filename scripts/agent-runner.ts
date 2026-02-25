@@ -197,7 +197,7 @@ async function main(): Promise<void> {
 			.join("\n");
 
 		const planContinuation = HATCH_SPIKE_NAME
-			? `Read docs/plans/${HATCH_SPIKE_NAME}.md for the existing execution plan. Continue from the first unchecked step.\n\n`
+			? `Read the existing execution plan at docs/plans/${HATCH_SPIKE_NAME}.md. Compare it against the current request below. If the request changes scope or direction, update the plan first — mark obsolete steps as ~struck through~, add new steps, and commit the updated plan before coding. Otherwise, continue from the first unchecked step.\n\n`
 			: "";
 
 		fullPrompt = `${planContinuation}You are continuing work on feature "${feature}".
