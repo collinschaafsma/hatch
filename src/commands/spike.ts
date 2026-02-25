@@ -685,6 +685,20 @@ export const spikeCommand = new Command()
 
 			const vercelToken = config.vercel?.token || "";
 
+			// Clone/update local repo for agent context during dry-run
+			let localRepoPath: string | undefined;
+			if (options.dryRun) {
+				try {
+					const { cloneProject } = await import("./clone.js");
+					const cloneResult = await cloneProject(options.project, {
+						configPath,
+					});
+					localRepoPath = cloneResult.path;
+				} catch {
+					// Non-fatal — mirror is a convenience
+				}
+			}
+
 			// Confirmation gate (after pre-flight, before resource creation)
 			await requireConfirmation({
 				command: `spike ${featureName}`,
@@ -698,6 +712,9 @@ export const spikeCommand = new Command()
 						log.step(
 							"Creates: exe.dev VM, git branch, Convex preview, runs Claude agent",
 						);
+						if (localRepoPath) {
+							log.step(`Local mirror: ${localRepoPath}`);
+						}
 					}
 				},
 				dryRun: options.dryRun,

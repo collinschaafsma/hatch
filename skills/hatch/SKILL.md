@@ -196,6 +196,8 @@ When using `--continue`, the agent reads the existing plan and resumes from the 
 
 **Rule of thumb:** If you can describe the task completely in 1-2 sentences, use spike. If you need to ask clarifying questions or the task has many unknowns, use feature.
 
+**Crafting better spike prompts:** When running `spike --dry-run`, the repo is automatically cloned/pulled to a local path (shown as "Local mirror" in the output). Browse the codebase — especially `docs/architecture.md`, `docs/patterns.md`, and relevant source files — to write more specific, context-aware prompts that reference actual file paths, component names, and patterns used in the project.
+
 ## Iterating on a Spike
 
 When a user wants to make changes to an existing spike (e.g., "add phone number to that form"), you can continue the spike instead of starting fresh.
@@ -336,7 +338,7 @@ Before running `hatch new`, `hatch feature`, `hatch spike`, `hatch clean`, or `h
 
 ## Workflows
 
-Every workflow follows the same pattern: **gather context → show the human → get approval → execute**.
+Every workflow follows the same pattern: **gather context → show the human → get approval → execute**. For spikes specifically: **gather context → read local repo → draft prompt → iterate with human on prompt → execute**.
 
 ### Create new project
 ```bash
@@ -383,22 +385,39 @@ cd ~/.hatch-cli && pnpm dev config check --project my-app --json
 #    Prompt: 'Add contact form'
 #    This creates a VM, runs Claude autonomously, and opens a PR. Proceed?"
 
-# 3. Dry run to get a confirmation token:
+# 3. Dry run to get a confirmation token (also clones/pulls repo locally):
 cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "Add contact form" --dry-run
+# The dry-run output includes a "Local mirror" path (e.g. ~/projects/my-app/repo/).
+# Read the local repo to understand the codebase before crafting your spike prompt.
+# Key files to check: docs/architecture.md, docs/patterns.md, CLAUDE.md, and relevant source files.
 
-# 4. After approval, confirm with the token:
-cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "Add contact form" --confirm <token>
+# 4. Draft a detailed prompt based on what you learned from the codebase, then
+#    SHOW IT TO THE HUMAN for review before executing. Example:
+#
+#    "Here's the spike prompt I'd like to run:
+#
+#    Add a contact form to the /contact page. Use the existing FormCard component
+#    from packages/ui/src/components/form-card.tsx. Fields: name, email, message.
+#    Submit via a Convex mutation in convex/contact.ts. Add success toast using
+#    the existing useToast hook.
+#
+#    Want me to adjust anything before I run it?"
+#
+# Iterate with the human until they approve the prompt.
 
-# 5. Check status (VM liveness, spike progress, PR review/CI)
+# 5. After the human approves the prompt, confirm with the token:
+cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "<final approved prompt>" --confirm <token>
+
+# 6. Check status (VM liveness, spike progress, PR review/CI)
 cd ~/.hatch-cli && pnpm dev status --project my-app --json
 
-# 6. Optionally monitor progress
+# 7. Optionally monitor progress
 ssh <vm>.exe.xyz 'tail -f ~/spike.log'
 
-# 7. Check for completion
+# 8. Check for completion
 ssh <vm>.exe.xyz 'test -f ~/spike-done && cat ~/spike-result.json'
 
-# 8. Clean up after PR is merged (dry-run first, then confirm)
+# 9. Clean up after PR is merged (dry-run first, then confirm)
 cd ~/.hatch-cli && pnpm dev clean my-feature --project my-app --dry-run
 cd ~/.hatch-cli && pnpm dev clean my-feature --project my-app --confirm <token>
 ```
