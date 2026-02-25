@@ -313,11 +313,13 @@ Important: The branch is already created (${feature}). Make your changes, verify
 
 		// Process messages to extract info
 		for await (const message of result) {
-			// Track session ID
+			// Track session ID (log only once)
 			if ("session_id" in message && message.session_id) {
-				sessionId = message.session_id as string;
-				fs.writeFileSync(SESSION_FILE, sessionId);
-				log(`Session ID: ${sessionId}`);
+				if (!sessionId) {
+					sessionId = message.session_id as string;
+					fs.writeFileSync(SESSION_FILE, sessionId);
+					log(`Session ID: ${sessionId}`);
+				}
 			}
 
 			// Track usage
@@ -330,45 +332,89 @@ Important: The branch is already created (${feature}). Make your changes, verify
 				if (usage.output_tokens) totalOutputTokens += usage.output_tokens;
 			}
 
-			// Log tool use
-			if (message.type === "tool_use") {
-				const toolName = (message as { name?: string }).name || "unknown";
-				const toolInput = ((message as { input?: unknown }).input ||
-					{}) as Record<string, unknown>;
-				const description = describeToolUse(toolName, toolInput);
-				log(description);
-				logProgress({
-					timestamp: new Date().toISOString(),
-					type: "tool_start",
-					tool: toolName,
-					description,
-					input: toolInput,
-				});
-			}
-
-			// Log tool results
-			if (message.type === "tool_result") {
+			// Log tool use summaries
+			if (message.type === "tool_use_summary") {
+				const msg = message as {
+					type: string;
+					summary?: string;
+					tool_name?: string;
+				};
+				const summary = msg.summary || "Tool completed";
+				log(summary);
 				logProgress({
 					timestamp: new Date().toISOString(),
 					type: "tool_end",
-					output:
-						typeof (message as { content?: unknown }).content === "string"
-							? (message as { content: string }).content.slice(0, 500)
-							: "[binary or complex output]",
+					tool: msg.tool_name,
+					description: summary,
 				});
 			}
 
-			// Log text messages
-			if (message.type === "text") {
-				const text = (message as { text?: string }).text || "";
-				if (text.trim()) {
-					log(`Claude: ${text.slice(0, 500)}${text.length > 500 ? "..." : ""}`);
-					logProgress({
-						timestamp: new Date().toISOString(),
-						type: "message",
-						message: text,
-					});
+			// Log tool progress
+			if (message.type === "tool_progress") {
+				const msg = message as {
+					type: string;
+					tool_name?: string;
+					elapsed_time_seconds?: number;
+				};
+				if (msg.tool_name) {
+					log(
+						`Running ${msg.tool_name}...${msg.elapsed_time_seconds ? ` (${msg.elapsed_time_seconds}s)` : ""}`,
+					);
 				}
+			}
+
+			// Log assistant messages (contains tool_use content blocks)
+			if (message.type === "assistant") {
+				const msg = message as {
+					type: string;
+					message?: {
+						content?: Array<{
+							type: string;
+							name?: string;
+							input?: Record<string, unknown>;
+							text?: string;
+						}>;
+					};
+				};
+				const content = msg.message?.content;
+				if (Array.isArray(content)) {
+					for (const block of content) {
+						if (block.type === "tool_use" && block.name) {
+							const description = describeToolUse(
+								block.name,
+								block.input || {},
+							);
+							log(description);
+							logProgress({
+								timestamp: new Date().toISOString(),
+								type: "tool_start",
+								tool: block.name,
+								description,
+								input: block.input,
+							});
+						}
+						if (block.type === "text" && block.text?.trim()) {
+							log(
+								`Claude: ${block.text.slice(0, 500)}${block.text.length > 500 ? "..." : ""}`,
+							);
+							logProgress({
+								timestamp: new Date().toISOString(),
+								type: "message",
+								message: block.text,
+							});
+						}
+					}
+				}
+			}
+
+			// Log result
+			if (message.type === "result") {
+				log("Agent completed");
+				logProgress({
+					timestamp: new Date().toISOString(),
+					type: "message",
+					message: "Agent run completed",
+				});
 			}
 		}
 
