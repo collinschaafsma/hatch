@@ -229,12 +229,16 @@ async function handleContinuation(
 		const convexSyncSpinner = options.json
 			? null
 			: createSpinner("Syncing Convex functions to preview deployment").start();
+		let newConvexDeployment:
+			| { deploymentUrl: string; deploymentName: string }
+			| undefined;
 		try {
 			const convexDeployCmd = `DEPLOY_KEY=$(grep '^CONVEX_DEPLOY_KEY=' .env.local | cut -d= -f2- | sed 's/^\"//;s/\"$//'); if [ -z "$DEPLOY_KEY" ]; then echo "ERROR: No CONVEX_DEPLOY_KEY found in .env.local" >&2; exit 1; elif echo "$DEPLOY_KEY" | grep -q '^preview:'; then npx convex deploy --preview-create ${vm.feature} --yes 2>&1; else echo "ERROR: CONVEX_DEPLOY_KEY is a production key." >&2; exit 1; fi`;
-			await sshExec(
+			const { stdout: deployOutput } = await sshExec(
 				vm.sshHost,
 				`${envPrefix} cd ${projectPath}/apps/web && ${convexDeployCmd}`,
 			);
+			newConvexDeployment = parseConvexDeployUrl(deployOutput);
 			convexSyncSpinner?.succeed(
 				"Convex functions synced to preview deployment",
 			);
@@ -244,26 +248,77 @@ async function handleContinuation(
 			);
 		}
 
-		// Step 5.6: Verify Convex preview deployment is healthy
-		if (vm.convexPreviewDeployment?.deploymentUrl) {
-			const healthSpinner = options.json
+		// Step 5.6: Update .env.local and MCP config if deployment changed
+		const oldDeploymentName = vm.convexPreviewDeployment?.deploymentName || "";
+		if (
+			newConvexDeployment &&
+			newConvexDeployment.deploymentName !== oldDeploymentName
+		) {
+			const envUpdateSpinner = options.json
 				? null
-				: createSpinner("Checking Convex preview deployment health").start();
+				: createSpinner(
+						"Updating Convex deployment references in .env.local",
+					).start();
 			try {
-				const { stdout: httpCode } = await sshExec(
-					vm.sshHost,
-					`curl -s -o /dev/null -w "%{http_code}" "${vm.convexPreviewDeployment.deploymentUrl}"`,
+				const siteUrl = newConvexDeployment.deploymentUrl.replace(
+					".convex.cloud",
+					".convex.site",
 				);
-				if (httpCode.trim() === "404") {
-					healthSpinner?.warn(
-						"Convex preview deployment returned 404 (continuing anyway)",
-					);
-				} else {
-					healthSpinner?.succeed("Convex preview deployment is healthy");
-				}
+				await sshExec(
+					vm.sshHost,
+					`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_CONVEX_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_CONVEX_URL=.*|NEXT_PUBLIC_CONVEX_URL=${newConvexDeployment.deploymentUrl}|' .env.local || echo 'NEXT_PUBLIC_CONVEX_URL=${newConvexDeployment.deploymentUrl}' >> .env.local)`,
+				);
+				await sshExec(
+					vm.sshHost,
+					`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_CONVEX_SITE_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_CONVEX_SITE_URL=.*|NEXT_PUBLIC_CONVEX_SITE_URL=${siteUrl}|' .env.local || echo 'NEXT_PUBLIC_CONVEX_SITE_URL=${siteUrl}' >> .env.local)`,
+				);
+				await sshExec(
+					vm.sshHost,
+					`cd ${projectPath}/apps/web && (grep -q '^CONVEX_DEPLOYMENT=' .env.local && sed -i 's|^CONVEX_DEPLOYMENT=.*|CONVEX_DEPLOYMENT=${newConvexDeployment.deploymentName}|' .env.local || echo 'CONVEX_DEPLOYMENT=${newConvexDeployment.deploymentName}' >> .env.local)`,
+				);
+				envUpdateSpinner?.succeed(
+					`Convex deployment updated: ${newConvexDeployment.deploymentName}`,
+				);
 			} catch {
-				healthSpinner?.warn(
-					"Could not verify Convex preview deployment health (continuing anyway)",
+				envUpdateSpinner?.warn(
+					"Could not update Convex env vars in .env.local (continuing anyway)",
+				);
+			}
+
+			// Update MCP server config with new deployment name
+			const mcpSpinner = options.json
+				? null
+				: createSpinner("Updating Convex MCP server config").start();
+			try {
+				const { stdout: deployKeyFromEnv } = await sshExec(
+					vm.sshHost,
+					`cd ${projectPath}/apps/web && grep '^CONVEX_DEPLOY_KEY=' .env.local | cut -d= -f2- | sed 's/^"//;s/"$//'`,
+				);
+				const deployKey = deployKeyFromEnv.trim();
+				const mcpConfig = JSON.stringify(
+					{
+						mcpServers: {
+							"convex-mcp": {
+								command: "npx",
+								args: ["-y", "@convex-dev/mcp-server"],
+								env: {
+									CONVEX_DEPLOYMENT: newConvexDeployment.deploymentName,
+									CONVEX_DEPLOY_KEY: deployKey,
+								},
+							},
+						},
+					},
+					null,
+					2,
+				);
+				await sshExec(
+					vm.sshHost,
+					`mkdir -p ${projectPath}/.claude && cat > ${projectPath}/.claude/settings.local.json << 'MCPEOF'\n${mcpConfig}\nMCPEOF`,
+				);
+				mcpSpinner?.succeed("Convex MCP server config updated");
+			} catch {
+				mcpSpinner?.warn(
+					"Could not update Convex MCP server config (continuing anyway)",
 				);
 			}
 		}
@@ -273,6 +328,9 @@ async function handleContinuation(
 		await updateVM(continueVmName, {
 			spikeStatus: "running",
 			spikeIterations: currentIteration,
+			...(newConvexDeployment
+				? { convexPreviewDeployment: newConvexDeployment }
+				: {}),
 		});
 
 		// Step 7: Clear the done file so we can track new completion
