@@ -50,9 +50,31 @@ interface ProgressEvent {
 	timestamp: string;
 	type: "tool_start" | "tool_end" | "message" | "error";
 	tool?: string;
+	description?: string;
 	input?: unknown;
 	output?: unknown;
 	message?: string;
+}
+
+function describeToolUse(name: string, input: Record<string, unknown>): string {
+	switch (name) {
+		case "Read":
+			return `Reading ${input.file_path || "file"}`;
+		case "Edit":
+			return `Editing ${input.file_path || "file"}`;
+		case "Write":
+			return `Writing ${input.file_path || "file"}`;
+		case "Bash": {
+			const cmd = String(input.command || "");
+			return `Running: ${cmd.slice(0, 80)}${cmd.length > 80 ? "..." : ""}`;
+		}
+		case "Glob":
+			return `Searching for ${input.pattern || "files"}`;
+		case "Grep":
+			return `Searching for "${input.pattern || "pattern"}"`;
+		default:
+			return `Using ${name}`;
+	}
 }
 
 function log(message: string): void {
@@ -311,12 +333,16 @@ Important: The branch is already created (${feature}). Make your changes, verify
 			// Log tool use
 			if (message.type === "tool_use") {
 				const toolName = (message as { name?: string }).name || "unknown";
-				log(`Tool: ${toolName}`);
+				const toolInput = ((message as { input?: unknown }).input ||
+					{}) as Record<string, unknown>;
+				const description = describeToolUse(toolName, toolInput);
+				log(description);
 				logProgress({
 					timestamp: new Date().toISOString(),
 					type: "tool_start",
 					tool: toolName,
-					input: (message as { input?: unknown }).input,
+					description,
+					input: toolInput,
 				});
 			}
 
@@ -336,7 +362,7 @@ Important: The branch is already created (${feature}). Make your changes, verify
 			if (message.type === "text") {
 				const text = (message as { text?: string }).text || "";
 				if (text.trim()) {
-					log(`Claude: ${text.slice(0, 200)}${text.length > 200 ? "..." : ""}`);
+					log(`Claude: ${text.slice(0, 500)}${text.length > 500 ? "..." : ""}`);
 					logProgress({
 						timestamp: new Date().toISOString(),
 						type: "message",
