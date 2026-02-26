@@ -748,7 +748,17 @@ Spikes run on remote VMs, and by default you monitor them by SSHing in and taili
 
 ### Enabling Remote Monitoring
 
-Add a `monitor` block to your hatch config (`~/.hatch.json` or per-project config):
+Add a `monitor` block to your hatch config. This works in both the global config and per-project configs:
+
+```bash
+# Global — applies to all projects
+pnpm dev config
+# Then add "monitor" to ~/.hatch.json
+
+# Per-project — only applies to spikes for this project
+pnpm dev config --project my-app
+# Then add "monitor" to ~/.hatch/configs/my-app.json
+```
 
 ```json
 {
@@ -767,6 +777,8 @@ Add a `monitor` block to your hatch config (`~/.hatch.json` or per-project confi
 |-------|-------------|
 | `convexSiteUrl` | The HTTP endpoint that receives spike events |
 | `token` | Bearer token sent in the `Authorization` header |
+
+The `monitor` block follows the same [config resolution order](#per-project-configuration) as everything else — per-project configs override the global config. This means you can enable monitoring globally or only for specific projects.
 
 When `monitor` is set, `hatch spike` passes additional environment variables to the VM so the agent-runner knows where to push events. Without it, everything works exactly as before — local logs only.
 
