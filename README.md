@@ -770,6 +770,8 @@ Add a `monitor` block to your hatch config (`~/.hatch.json` or per-project confi
 
 When `monitor` is set, `hatch spike` passes additional environment variables to the VM so the agent-runner knows where to push events. Without it, everything works exactly as before — local logs only.
 
+For the full endpoint specifications (request/response schemas, error handling, and dashboard data mapping), see the [Monitor API Contract](docs/monitor-api.md).
+
 ### What Gets Pushed
 
 The agent-runner makes three types of HTTP calls:
