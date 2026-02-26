@@ -382,7 +382,31 @@ async function handleContinuation(
 
 		const anthropicEnv = `export ANTHROPIC_API_KEY="${config.anthropicApiKey}" &&`;
 		const planEnv = `export HATCH_PLAN=true && export HATCH_SPIKE_NAME="${vm.feature}" && `;
-		const agentCommand = `${envPrefix} ${anthropicEnv} ${planEnv}cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${vm.feature} --project ${vm.project} > /dev/null 2>&1 < /dev/null &)`;
+
+		let monitorEnv = "";
+		if (config.monitor) {
+			const contPreview = newConvexDeployment || vm.convexPreviewDeployment;
+			monitorEnv = `${[
+				`export HATCH_MONITOR_URL="${config.monitor.convexSiteUrl}"`,
+				`export HATCH_MONITOR_TOKEN="${config.monitor.token}"`,
+				`export HATCH_VM_NAME="${vm.name}"`,
+				`export HATCH_SSH_HOST="${vm.sshHost}"`,
+				`export HATCH_GITHUB_REPO_URL="${project.github.url}"`,
+				`export HATCH_GITHUB_OWNER="${project.github.owner}"`,
+				`export HATCH_GITHUB_REPO="${project.github.repo}"`,
+				`export HATCH_VERCEL_URL="${project.vercel.url}"`,
+				contPreview
+					? `export HATCH_CONVEX_PREVIEW_URL="${contPreview.deploymentUrl}"`
+					: "",
+				contPreview
+					? `export HATCH_CONVEX_PREVIEW_NAME="${contPreview.deploymentName}"`
+					: "",
+			]
+				.filter(Boolean)
+				.join(" && ")} && `;
+		}
+
+		const agentCommand = `${envPrefix} ${anthropicEnv} ${planEnv}${monitorEnv}cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${vm.feature} --project ${vm.project} > /dev/null 2>&1 < /dev/null &)`;
 
 		await sshExec(vm.sshHost, agentCommand);
 		agentSpinner?.succeed(
@@ -1104,7 +1128,30 @@ export const spikeCommand = new Command()
 			const convexDeployKeyExport = `export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="$(grep '^CONVEX_DEPLOY_KEY=' ${projectPath}/apps/web/.env.local | cut -d= -f2- | sed 's/^\"//;s/\"$//')" &&`;
 			const anthropicKeyExport = `export ANTHROPIC_API_KEY="${config.anthropicApiKey}" &&`;
 			const planEnv = `export HATCH_PLAN=true && export HATCH_SPIKE_NAME="${featureName}" && `;
-			const agentCommand = `${envPrefix} ${convexDeployKeyExport} ${anthropicKeyExport} ${planEnv}cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${featureName} --project ${project.name} > /dev/null 2>&1 < /dev/null &)`;
+
+			let monitorEnv = "";
+			if (config.monitor) {
+				monitorEnv = `${[
+					`export HATCH_MONITOR_URL="${config.monitor.convexSiteUrl}"`,
+					`export HATCH_MONITOR_TOKEN="${config.monitor.token}"`,
+					`export HATCH_VM_NAME="${vmName}"`,
+					`export HATCH_SSH_HOST="${sshHost}"`,
+					`export HATCH_GITHUB_REPO_URL="${project.github.url}"`,
+					`export HATCH_GITHUB_OWNER="${project.github.owner}"`,
+					`export HATCH_GITHUB_REPO="${project.github.repo}"`,
+					`export HATCH_VERCEL_URL="${project.vercel.url}"`,
+					convexPreviewDeployment
+						? `export HATCH_CONVEX_PREVIEW_URL="${convexPreviewDeployment.deploymentUrl}"`
+						: "",
+					convexPreviewDeployment
+						? `export HATCH_CONVEX_PREVIEW_NAME="${convexPreviewDeployment.deploymentName}"`
+						: "",
+				]
+					.filter(Boolean)
+					.join(" && ")} && `;
+			}
+
+			const agentCommand = `${envPrefix} ${convexDeployKeyExport} ${anthropicKeyExport} ${planEnv}${monitorEnv}cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${featureName} --project ${project.name} > /dev/null 2>&1 < /dev/null &)`;
 
 			await sshExec(sshHost, agentCommand);
 			agentSpinner?.succeed("Claude agent started in background");

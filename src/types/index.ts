@@ -52,6 +52,10 @@ export interface HatchConfig {
 	};
 	anthropicApiKey?: string;
 	envVars?: EnvVar[];
+	monitor?: {
+		convexSiteUrl: string;
+		token: string;
+	};
 }
 
 export interface HeadlessResult {

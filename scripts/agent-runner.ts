@@ -56,6 +56,162 @@ interface ProgressEvent {
 	message?: string;
 }
 
+interface CostSnapshot {
+	inputTokens: number;
+	outputTokens: number;
+	totalUsd: number;
+}
+
+interface EventPayload {
+	seq: number;
+	timestamp: string;
+	type: "tool_start" | "tool_end" | "message" | "error";
+	tool?: string;
+	description?: string;
+	message?: string;
+	costSnapshot?: CostSnapshot;
+}
+
+interface StartRunPayload {
+	vmName: string;
+	sshHost: string;
+	feature: string;
+	project: string;
+	prompt: string;
+	iteration: number;
+	github: {
+		repoUrl: string;
+		owner: string;
+		repo: string;
+		branch: string;
+	};
+	vercelUrl: string | null;
+	convexPreviewDeployment: {
+		deploymentUrl: string;
+		deploymentName: string;
+	} | null;
+	previousIterations: SpikeIteration[];
+}
+
+interface CompleteRunPayload {
+	status: "completed" | "failed";
+	cost: CostSnapshot;
+	sessionId?: string;
+	error?: string;
+	pr?: {
+		url: string;
+		number?: number;
+		title?: string;
+		state?: string;
+		reviewDecision?: string | null;
+		mergeable?: string | null;
+		checksStatus?: string;
+		additions?: number;
+		deletions?: number;
+		changedFiles?: number;
+	};
+	planProgress?: { completed: number; total: number };
+	durationMs: number;
+}
+
+class RemoteLogger {
+	private buffer: EventPayload[] = [];
+	private flushTimer: NodeJS.Timeout | null = null;
+	private consecutiveFailures = 0;
+	private disabled = false;
+	private seq = 0;
+	private runId: string | null = null;
+	readonly startTime = Date.now();
+
+	constructor(
+		private endpoint: string,
+		private token: string,
+	) {}
+
+	async startRun(meta: StartRunPayload): Promise<void> {
+		try {
+			const res = await this.post("/api/runs/start", meta);
+			this.runId = res.runId;
+		} catch {
+			this.disabled = true;
+			log(
+				"Warning: Remote monitoring unavailable, continuing with local logs only",
+			);
+		}
+	}
+
+	push(event: ProgressEvent, costSnapshot: CostSnapshot): void {
+		if (this.disabled || !this.runId) return;
+
+		this.buffer.push({
+			seq: this.seq++,
+			timestamp: event.timestamp,
+			type: event.type,
+			tool: event.tool,
+			description: event.description,
+			message: event.message?.slice(0, 500),
+			costSnapshot,
+		});
+
+		const isHighPriority = event.type === "error";
+		if (isHighPriority || this.buffer.length >= 20) {
+			this.flush();
+		} else if (!this.flushTimer) {
+			this.flushTimer = setTimeout(() => this.flush(), 3000);
+		}
+	}
+
+	async flush(): Promise<void> {
+		if (this.flushTimer) {
+			clearTimeout(this.flushTimer);
+			this.flushTimer = null;
+		}
+		if (this.buffer.length === 0 || this.disabled || !this.runId) return;
+
+		const events = [...this.buffer];
+		this.buffer = [];
+
+		try {
+			await this.post("/api/runs/events", { runId: this.runId, events });
+			this.consecutiveFailures = 0;
+		} catch {
+			this.consecutiveFailures++;
+			this.buffer = [...events, ...this.buffer];
+			if (this.consecutiveFailures >= 3) {
+				this.disabled = true;
+				this.buffer = [];
+				log("Warning: Remote monitoring disabled after 3 failures");
+			}
+		}
+	}
+
+	async completeRun(payload: CompleteRunPayload): Promise<void> {
+		await this.flush();
+		if (this.disabled || !this.runId) return;
+
+		try {
+			await this.post("/api/runs/complete", { runId: this.runId, ...payload });
+		} catch {
+			log("Warning: Failed to send completion to remote monitor");
+		}
+	}
+
+	// biome-ignore lint/suspicious/noExplicitAny: HTTP response shape varies per endpoint
+	private async post(path: string, body: unknown): Promise<any> {
+		const res = await fetch(`${this.endpoint}${path}`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${this.token}`,
+			},
+			body: JSON.stringify(body),
+			signal: AbortSignal.timeout(10_000),
+		});
+		if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		return res.json();
+	}
+}
+
 function describeToolUse(name: string, input: Record<string, unknown>): string {
 	switch (name) {
 		case "Read":
@@ -84,8 +240,24 @@ function log(message: string): void {
 	console.log(message);
 }
 
+// Initialized in main() if HATCH_MONITOR_URL is set
+let remoteLogger: RemoteLogger | null = null;
+let totalInputTokens = 0;
+let totalOutputTokens = 0;
+
+function currentCostUsd(): number {
+	const inputCost = (totalInputTokens / 1_000_000) * 3;
+	const outputCost = (totalOutputTokens / 1_000_000) * 15;
+	return inputCost + outputCost;
+}
+
 function logProgress(event: ProgressEvent): void {
 	fs.appendFileSync(PROGRESS_FILE, `${JSON.stringify(event)}\n`);
+	remoteLogger?.push(event, {
+		inputTokens: totalInputTokens,
+		outputTokens: totalOutputTokens,
+		totalUsd: currentCostUsd(),
+	});
 }
 
 function writeResult(result: {
@@ -206,6 +378,36 @@ async function main(): Promise<void> {
 		log(`Resuming session: ${resumeSessionId}`);
 	}
 
+	// Initialize remote logger if configured
+	if (process.env.HATCH_MONITOR_URL && process.env.HATCH_MONITOR_TOKEN) {
+		remoteLogger = new RemoteLogger(
+			process.env.HATCH_MONITOR_URL,
+			process.env.HATCH_MONITOR_TOKEN,
+		);
+		await remoteLogger.startRun({
+			vmName: process.env.HATCH_VM_NAME || "unknown",
+			sshHost: process.env.HATCH_SSH_HOST || "unknown",
+			feature,
+			project,
+			prompt,
+			iteration: existingContext ? existingContext.iterations.length + 1 : 1,
+			github: {
+				repoUrl: process.env.HATCH_GITHUB_REPO_URL || "",
+				owner: process.env.HATCH_GITHUB_OWNER || "",
+				repo: process.env.HATCH_GITHUB_REPO || "",
+				branch: feature,
+			},
+			vercelUrl: process.env.HATCH_VERCEL_URL || null,
+			convexPreviewDeployment: process.env.HATCH_CONVEX_PREVIEW_URL
+				? {
+						deploymentUrl: process.env.HATCH_CONVEX_PREVIEW_URL,
+						deploymentName: process.env.HATCH_CONVEX_PREVIEW_NAME || "",
+					}
+				: null,
+			previousIterations: existingContext?.iterations || [],
+		});
+	}
+
 	// Build the full prompt with instructions
 	let fullPrompt: string;
 
@@ -295,8 +497,9 @@ Important: The branch is already created (${feature}). Make your changes, verify
 	fullPrompt += `\n${OBSERVABILITY_INSTRUCTIONS}`;
 	fullPrompt += `\n${CONVEX_INSTRUCTIONS}`;
 
-	let totalInputTokens = 0;
-	let totalOutputTokens = 0;
+	// Reset module-level counters for this run
+	totalInputTokens = 0;
+	totalOutputTokens = 0;
 	let sessionId: string | undefined;
 
 	try {
@@ -463,6 +666,66 @@ Important: The branch is already created (${feature}). Make your changes, verify
 			sessionId,
 			cost: currentCost,
 		});
+
+		// Send completion to remote monitor
+		if (remoteLogger) {
+			const prUrl = loadPrUrl();
+			let prData: CompleteRunPayload["pr"] = undefined;
+			if (prUrl) {
+				try {
+					const { execaCommand } = await import("execa");
+					const { stdout } = await execaCommand(
+						`gh pr view ${prUrl} --json number,title,state,reviewDecision,mergeable,statusCheckRollup,additions,deletions,changedFiles`,
+					);
+					const ghData = JSON.parse(stdout);
+					const checksRollup = ghData.statusCheckRollup as
+						| Array<{ conclusion?: string; status?: string }>
+						| undefined;
+					let checksStatus: string | undefined;
+					if (checksRollup && checksRollup.length > 0) {
+						const hasFail = checksRollup.some(
+							(c) => c.conclusion === "FAILURE" || c.conclusion === "ERROR",
+						);
+						const hasPending = checksRollup.some(
+							(c) => c.status === "IN_PROGRESS" || c.status === "QUEUED",
+						);
+						checksStatus = hasFail ? "fail" : hasPending ? "pending" : "pass";
+					}
+					prData = {
+						url: prUrl,
+						number: ghData.number,
+						title: ghData.title,
+						state: ghData.state,
+						reviewDecision: ghData.reviewDecision || null,
+						mergeable: ghData.mergeable || null,
+						checksStatus,
+						additions: ghData.additions,
+						deletions: ghData.deletions,
+						changedFiles: ghData.changedFiles,
+					};
+				} catch {
+					prData = { url: prUrl };
+				}
+			}
+
+			let planProgress: CompleteRunPayload["planProgress"] = undefined;
+			const planPath = path.join(projectPath, `docs/plans/${feature}.md`);
+			if (fs.existsSync(planPath)) {
+				const planContent = fs.readFileSync(planPath, "utf-8");
+				const completed = (planContent.match(/- \[x\]/gi) || []).length;
+				const total = completed + (planContent.match(/- \[ \]/g) || []).length;
+				planProgress = { completed, total };
+			}
+
+			await remoteLogger.completeRun({
+				status: "completed",
+				cost: currentCost,
+				sessionId,
+				pr: prData,
+				planProgress,
+				durationMs: Date.now() - remoteLogger.startTime,
+			});
+		}
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
 		log(`Error: ${errorMessage}`);
@@ -472,21 +735,28 @@ Important: The branch is already created (${feature}). Make your changes, verify
 			message: errorMessage,
 		});
 
+		const failCost = {
+			totalUsd: currentCostUsd(),
+			inputTokens: totalInputTokens,
+			outputTokens: totalOutputTokens,
+		};
+
 		writeResult({
 			status: "failed",
 			sessionId,
 			error: errorMessage,
-			cost:
-				totalInputTokens > 0
-					? {
-							totalUsd:
-								(totalInputTokens / 1_000_000) * 3 +
-								(totalOutputTokens / 1_000_000) * 15,
-							inputTokens: totalInputTokens,
-							outputTokens: totalOutputTokens,
-						}
-					: undefined,
+			cost: totalInputTokens > 0 ? failCost : undefined,
 		});
+
+		if (remoteLogger) {
+			await remoteLogger.completeRun({
+				status: "failed",
+				cost: failCost,
+				sessionId,
+				error: errorMessage,
+				durationMs: Date.now() - remoteLogger.startTime,
+			});
+		}
 
 		process.exit(1);
 	}
