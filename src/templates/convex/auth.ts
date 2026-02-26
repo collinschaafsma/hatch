@@ -100,7 +100,7 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) => {
 		secret: process.env.BETTER_AUTH_SECRET,
 		database: authComponent.adapter(ctx),
 		trustedOrigins: [
-			process.env.SITE_URL || "",
+			...(process.env.SITE_URL ? [process.env.SITE_URL] : []),
 			// Allow exe.dev VMs and Vercel preview deployments
 			"https://*.exe.xyz",
 			"https://*.vercel.app",
