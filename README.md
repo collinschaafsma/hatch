@@ -334,6 +334,8 @@ ssh <vm>.exe.xyz 'cat ~/pr-url.txt'               # Get PR URL
 }
 ```
 
+**Remote monitoring:** Spikes can push real-time events to an HTTP endpoint for a future dashboard. See [Remote Spike Monitoring](#remote-spike-monitoring) for setup.
+
 ### Adding Existing Projects
 
 Have a project already set up with GitHub, Vercel, and Convex? `hatch add` onboards it by creating a branch, scaffolding the agent harness, and opening a PR — so you just review and merge.
@@ -737,6 +739,72 @@ Now you can tell your assistant things like:
 - "Create a new hatch project called my-app"
 - "Add a contact form feature to my-app"
 - "Spike a user settings page for my-app"
+
+---
+
+## Remote Spike Monitoring
+
+Spikes run on remote VMs, and by default you monitor them by SSHing in and tailing log files. With remote monitoring enabled, the agent-runner pushes structured events to an HTTP endpoint in real time, enabling a centralized dashboard across all your spike runs.
+
+### Enabling Remote Monitoring
+
+Add a `monitor` block to your hatch config (`~/.hatch.json` or per-project config):
+
+```json
+{
+  "github": { ... },
+  "vercel": { ... },
+  "convex": { ... },
+  "anthropicApiKey": "sk-ant-...",
+  "monitor": {
+    "convexSiteUrl": "https://your-dashboard.convex.site",
+    "token": "your-bearer-token"
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `convexSiteUrl` | The HTTP endpoint that receives spike events |
+| `token` | Bearer token sent in the `Authorization` header |
+
+When `monitor` is set, `hatch spike` passes additional environment variables to the VM so the agent-runner knows where to push events. Without it, everything works exactly as before — local logs only.
+
+### What Gets Pushed
+
+The agent-runner makes three types of HTTP calls:
+
+**`POST /api/runs/start`** — Called once at startup. Registers the run with project metadata (VM name, GitHub repo, Vercel URL, Convex preview deployment, prompt, iteration count). Returns a `runId` used in subsequent calls.
+
+**`POST /api/runs/events`** — Called periodically (every 3s, or when the buffer hits 20 events, or immediately on errors). Each event includes a sequence number, event type (`tool_start`, `tool_end`, `message`, `error`), a human-readable description, and a cumulative cost snapshot.
+
+**`POST /api/runs/complete`** — Called once when the agent finishes. Includes final cost, duration, session ID, plan progress (parsed from the markdown plan), and GitHub PR metadata (fetched via `gh pr view` on the VM).
+
+### Resilience
+
+Remote monitoring is designed to never interfere with the spike itself:
+
+- If the endpoint is unreachable at startup, monitoring is silently disabled
+- Failed event pushes are retried by re-buffering; after 3 consecutive failures, monitoring is disabled
+- Each HTTP request has a 10-second timeout
+- All warnings are logged to `spike.log` so you can see if monitoring degraded
+
+### Environment Variables
+
+When `config.monitor` is set, these env vars are passed to the VM:
+
+| Variable | Source |
+|----------|--------|
+| `HATCH_MONITOR_URL` | `config.monitor.convexSiteUrl` |
+| `HATCH_MONITOR_TOKEN` | `config.monitor.token` |
+| `HATCH_VM_NAME` | VM name (e.g. `peaceful-duckling`) |
+| `HATCH_SSH_HOST` | SSH host (e.g. `peaceful-duckling.exe.xyz`) |
+| `HATCH_GITHUB_REPO_URL` | GitHub repo URL |
+| `HATCH_GITHUB_OWNER` | GitHub org/owner |
+| `HATCH_GITHUB_REPO` | GitHub repo name |
+| `HATCH_VERCEL_URL` | Vercel deployment URL |
+| `HATCH_CONVEX_PREVIEW_URL` | Convex preview deployment URL (if applicable) |
+| `HATCH_CONVEX_PREVIEW_NAME` | Convex preview deployment name (if applicable) |
 
 ---
 
