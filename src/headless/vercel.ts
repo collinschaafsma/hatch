@@ -2,12 +2,7 @@ import crypto from "node:crypto";
 import type { EnvVar, ResolvedHeadlessConfig } from "../types/index.js";
 import { log } from "../utils/logger.js";
 import { withSpinner } from "../utils/spinner.js";
-import {
-	vercelEnvAdd,
-	vercelEnvPull,
-	vercelGitConnect,
-	vercelLink,
-} from "./cli-wrappers.js";
+import { vercelEnvPull, vercelGitConnect, vercelLink } from "./cli-wrappers.js";
 import type { ConvexSetupResult } from "./convex.js";
 
 export interface VercelSetupResult {
@@ -83,6 +78,44 @@ export async function setVercelBranchEnvVars(
 	if (!response.ok) {
 		const error = await response.text();
 		throw new Error(`Failed to set per-branch Vercel env vars: ${error}`);
+	}
+}
+
+/**
+ * Set environment variables on a Vercel project across specified target environments.
+ * Uses upsert to make it idempotent (safe to re-run).
+ */
+export async function setVercelEnvVars(
+	projectId: string,
+	envVars: Array<{
+		key: string;
+		value: string;
+		environments: ("production" | "preview" | "development")[];
+	}>,
+	token: string,
+): Promise<void> {
+	const response = await fetch(
+		`https://api.vercel.com/v10/projects/${projectId}/env?upsert=true`,
+		{
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${token}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(
+				envVars.map((v) => ({
+					key: v.key,
+					value: v.value,
+					type: "encrypted",
+					target: v.environments,
+				})),
+			),
+		},
+	);
+
+	if (!response.ok) {
+		const error = await response.text();
+		throw new Error(`Failed to set Vercel env vars: ${error}`);
 	}
 }
 
@@ -307,56 +340,18 @@ export async function setupVercel(
 		environments: ["production", "preview", "development"],
 	});
 
-	// Set env vars
+	// Combine built-in and custom env vars
+	const allEnvVars = customEnvVars?.length
+		? [...envVars, ...customEnvVars]
+		: envVars;
+
+	// Set env vars via API
 	if (!config.quiet) {
 		await withSpinner("Setting Vercel environment variables", async () => {
-			for (const env of envVars) {
-				await vercelEnvAdd({
-					key: env.key,
-					value: env.value,
-					environments: env.environments,
-					cwd: webPath,
-					token,
-				});
-			}
+			await setVercelEnvVars(projectId, allEnvVars, token);
 		});
 	} else {
-		for (const env of envVars) {
-			await vercelEnvAdd({
-				key: env.key,
-				value: env.value,
-				environments: env.environments,
-				cwd: webPath,
-				token,
-			});
-		}
-	}
-
-	// Set custom env vars from hatch.json
-	if (customEnvVars?.length) {
-		if (!config.quiet) {
-			await withSpinner("Setting custom environment variables", async () => {
-				for (const env of customEnvVars) {
-					await vercelEnvAdd({
-						key: env.key,
-						value: env.value,
-						environments: env.environments,
-						cwd: webPath,
-						token,
-					});
-				}
-			});
-		} else {
-			for (const env of customEnvVars) {
-				await vercelEnvAdd({
-					key: env.key,
-					value: env.value,
-					environments: env.environments,
-					cwd: webPath,
-					token,
-				});
-			}
-		}
+		await setVercelEnvVars(projectId, allEnvVars, token);
 	}
 
 	// Pull env vars to .env.local
