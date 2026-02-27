@@ -52,28 +52,6 @@ export function CreateButton() {
 }
 \`\`\`
 
-## Convex Workflows
-
-Use \`@convex-dev/workflow\` for long-running, multi-step operations. Workflows are durable and can survive server restarts.
-
-\`\`\`typescript
-import { WorkflowManager } from "@convex-dev/workflow";
-import { components, internal } from "./_generated/api";
-
-export const workflow = new WorkflowManager(components.workflow);
-
-export const myWorkflow = workflow.define({
-  args: { input: v.string() },
-  handler: async (ctx, args) => {
-    // Each step is tracked and retried automatically
-    const result = await ctx.runAction(internal.myModule.doWork, {
-      input: args.input,
-    });
-    return result;
-  },
-});
-\`\`\`
-
 ## Convex Conventions
 
 - **Queries** for reads — reactive by default, automatically re-run when data changes
@@ -90,7 +68,7 @@ export const myWorkflow = workflow.define({
 ## Import Structure
 
 - \`@/*\` — App root imports (e.g., \`@/components/header\`)
-- \`@workspace/ui\` — Shared UI components from the \`packages/ui\` workspace
+- \`@/components/ui\` — shadcn/ui components
 
 ## Testing Patterns
 

@@ -22,7 +22,6 @@ export function generateWebTsconfig(): string {
 				],
 				paths: {
 					"@/*": ["./*"],
-					"@workspace/ui/*": ["../../packages/ui/src/*"],
 				},
 			},
 			include: [

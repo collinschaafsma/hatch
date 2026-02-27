@@ -24,11 +24,6 @@ export function generateNextSteps(result: HeadlessResult): string[] {
 	// Better Auth env vars
 	steps.push("Add RESEND_API_KEY to Vercel env vars (from resend.com)");
 
-	// AI Gateway
-	steps.push(
-		"Add AI_GATEWAY_API_KEY to Vercel env vars (from Vercel AI Gateway)",
-	);
-
 	// PostHog (optional)
 	steps.push(
 		"(Optional) Add NEXT_PUBLIC_POSTHOG_KEY and NEXT_PUBLIC_POSTHOG_HOST for analytics",

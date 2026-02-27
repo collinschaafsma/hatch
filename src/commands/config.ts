@@ -722,7 +722,6 @@ export const configCommand = new Command()
 					"EMAIL_FROM - Sender email address (e.g., noreply@yourdomain.com)",
 				);
 				log.step("RESEND_API_KEY - Resend API key for sending emails");
-				log.step("AI_GATEWAY_API_KEY - AI gateway API key for LLM requests");
 				log.blank();
 				const addEnvVars = await confirm({
 					message: "Would you like to add custom environment variables?",

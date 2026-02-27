@@ -11,9 +11,6 @@ BETTER_AUTH_URL=http://localhost:3000
 # Resend (for email OTP)
 RESEND_API_KEY=
 
-# Vercel AI Gateway (https://vercel.com/docs/ai-gateway)
-AI_GATEWAY_API_KEY=
-
 # PostHog Analytics
 NEXT_PUBLIC_POSTHOG_KEY=  # PostHog project API key
 NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com  # or https://eu.i.posthog.com

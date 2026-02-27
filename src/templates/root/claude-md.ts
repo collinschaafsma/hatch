@@ -33,10 +33,6 @@ Always confirm before running destructive or shared-branch git commands:
 ### Harness
 - \`pnpm harness:pre-pr\` - Run before opening a PR
 
-## Convex Workflows
-
-This project uses \`@convex-dev/workflow\` for durable, multi-step operations. Workflows are defined in \`convex/workflows.ts\` and started via mutations. Progress is tracked reactively via \`useQuery\`.
-
 ## Browser Automation
 
 Use \`agent-browser\` for web automation. Run \`agent-browser --help\` for all commands.

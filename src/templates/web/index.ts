@@ -10,3 +10,4 @@ export { generateEnvExample } from "./env-example.js";
 export { generateVercelJson } from "./vercel-json.js";
 export { generateWebGitignore } from "./gitignore.js";
 export { generateWebComponentsJson } from "./components-json.js";
+export { generateWebLibUtils } from "./lib-utils.js";

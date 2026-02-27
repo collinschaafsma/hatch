@@ -1,4 +1,4 @@
-export function generateUILibUtils(): string {
+export function generateWebLibUtils(): string {
 	return `import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 

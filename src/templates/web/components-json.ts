@@ -2,13 +2,13 @@ export function generateWebComponentsJson(): string {
 	return `${JSON.stringify(
 		{
 			$schema: "https://ui.shadcn.com/schema.json",
-			style: "default",
+			style: "new-york",
 			rsc: true,
 			tsx: true,
 			tailwind: {
 				config: "",
 				css: "app/globals.css",
-				baseColor: "slate",
+				baseColor: "neutral",
 				cssVariables: true,
 			},
 			iconLibrary: "lucide",
@@ -16,8 +16,8 @@ export function generateWebComponentsJson(): string {
 				components: "@/components",
 				hooks: "@/hooks",
 				lib: "@/lib",
-				utils: "@workspace/ui/lib/utils",
-				ui: "@workspace/ui/components",
+				utils: "@/lib/utils",
+				ui: "@/components/ui",
 			},
 		},
 		null,

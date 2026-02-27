@@ -2,10 +2,8 @@ export function generateNextConfig(): string {
 	return `import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@workspace/ui"],
   experimental: {
     optimizePackageImports: ["lucide-react"],
-    useCache: true,
   },
   // Expose Vercel URLs to client-side for deployment URL detection
   env: {

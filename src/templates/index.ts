@@ -22,9 +22,6 @@ export * from "./marketing/index.js";
 // App layout templates
 export * from "./app/index.js";
 
-// UI package templates
-export * from "./ui/index.js";
-
 // Test templates
 export * from "./test/index.js";
 

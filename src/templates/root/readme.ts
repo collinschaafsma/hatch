@@ -24,11 +24,9 @@ ${projectName}/
 │   └── web/              # Next.js application
 │       ├── app/          # App router pages
 │       ├── components/   # React components
-│       ├── convex/       # Convex schema, functions, workflows, and seed
+│       ├── convex/       # Convex schema, functions, and seed
 │       ├── lib/          # Utilities and auth
 │       └── __tests__/    # Vitest tests
-├── packages/
-│   └── ui/               # Shared UI components
 ├── scripts/
 │   └── harness/          # Evidence capture scripts
 ├── docs/                 # Architecture and design docs
@@ -132,8 +130,6 @@ Convex functions deploy automatically during the build via \`vercel.json\`. See 
 	const techStack = `- **Framework:** [Next.js 16](https://nextjs.org/) with React 19
 - **Backend:** [Convex](https://www.convex.dev/) (real-time database + serverless functions)
 - **Auth:** [Better Auth](https://www.better-auth.com/) via [@convex-dev/better-auth](https://github.com/get-convex/convex-better-auth)
-- **AI:** [Vercel AI SDK](https://sdk.vercel.ai/) with OpenAI
-- **Workflows:** [Convex Workflows](https://github.com/get-convex/workflow) (\`@convex-dev/workflow\`)
 - **Styling:** [Tailwind CSS 4](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/)
 - **Testing:** [Vitest](https://vitest.dev/)
 - **Monorepo:** [Turborepo](https://turbo.build/repo)
@@ -213,9 +209,6 @@ Copy \`apps/web/.env.local.example\` to \`apps/web/.env.local\` and configure:
 ${envVarsBackend}
 
 ${envVarsAuth}
-
-### AI
-- \`AI_GATEWAY_API_KEY\` - Vercel AI Gateway key (get your key at [vercel.com/ai-gateway](https://vercel.com/dashboard/~/ai))
 
 ### Analytics
 - \`NEXT_PUBLIC_POSTHOG_KEY\` - PostHog public key
@@ -299,29 +292,6 @@ Branch protection is auto-applied during project setup. By default, admins can b
    pnpm harness:ui:capture-browser-evidence
    pnpm harness:ui:verify-browser-evidence
    \`\`\`
-
----
-
-## Workflows
-
-This project uses [Convex Workflows](https://github.com/get-convex/workflow) (\`@convex-dev/workflow\`) for durable, multi-step operations.
-
-### Example Workflow
-
-The included example workflow (\`convex/workflows.ts\`) demonstrates:
-- Multi-step AI processing with OpenAI via Vercel AI SDK
-- Reactive progress tracking via \`useQuery\`
-- Durable execution with automatic retries
-
-### How It Works
-
-\`\`\`
-Button click → useMutation(startRun) → Convex workflow → step mutations → useQuery(getRun) reactively updates UI
-\`\`\`
-
-Key files:
-- \`convex/workflows.ts\` - Workflow definition, mutations, and queries
-- \`app/(app)/dashboard/_components/ai-trigger.tsx\` - UI component with reactive progress
 
 ---
 

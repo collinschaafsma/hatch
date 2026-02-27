@@ -14,10 +14,8 @@ ${name}/
 │   │   ├── (app)/               # Authenticated user pages
 │   │   └── api/                 # API routes
 │   ├── components/              # React components
-│   ├── convex/                  # Convex schema, functions, workflows, and seed
+│   ├── convex/                  # Convex schema, functions, and seed
 │   └── lib/                     # Shared utilities
-├── packages/
-│   └── ui/                      # Shared UI components (shadcn/ui)
 ├── scripts/                     # Setup and harness scripts
 └── docs/                        # Project documentation
 \`\`\`
@@ -37,14 +35,6 @@ Browser → Better Auth client → /api/auth/[...all] proxy → Convex HTTP acti
 \`\`\`
 
 Better Auth runs inside Convex as the \`@convex-dev/better-auth\` component. The Next.js API route at \`/api/auth/[...all]\` proxies requests to the Convex HTTP action, which delegates to the Better Auth component for session management, OTP verification, and user creation.
-
-## Workflow Flow
-
-\`\`\`
-Button click → useMutation(startRun) → Convex workflow → step mutations → useQuery(getRun) reactively updates UI
-\`\`\`
-
-Convex Workflows (\`@convex-dev/workflow\`) handle long-running operations. A workflow is started via a mutation, updates progress by patching a \`workflowRuns\` document, and the UI reactively displays progress via \`useQuery\`.
 
 ## Key Invariants
 

@@ -1,12 +1,11 @@
 export function generateDashboardPage(): string {
 	return `import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { AITriggerButton } from "./_components/ai-trigger";
 import { SignOutButton } from "./_components/sign-out-button";
 import { DashboardSkeleton } from "./_components/skeleton";
-import { Avatar, AvatarFallback, AvatarImage } from "@workspace/ui/components/avatar";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@workspace/ui/components/card";
-import { Separator } from "@workspace/ui/components/separator";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { getSession } from "@/lib/auth";
 
 async function DashboardContent() {
@@ -48,19 +47,6 @@ async function DashboardContent() {
 			<Separator className="mb-8" />
 
 			<div className="grid gap-6">
-				<Card className="defer-render">
-					<CardHeader>
-						<CardTitle>AI Workflow Demo</CardTitle>
-						<CardDescription>
-							Click the button below to trigger an AI workflow that processes
-							your request using Convex Workflows.
-						</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<AITriggerButton />
-					</CardContent>
-				</Card>
-
 				<Card className="defer-render">
 					<CardHeader>
 						<CardTitle>User Info</CardTitle>

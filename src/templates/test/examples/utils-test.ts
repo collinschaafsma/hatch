@@ -1,6 +1,6 @@
 export function generateUtilsTest(): string {
 	return `import { describe, it, expect } from "vitest";
-import { cn } from "@workspace/ui/lib/utils";
+import { cn } from "@/lib/utils";
 
 describe("cn utility", () => {
 	it("merges class names correctly", () => {

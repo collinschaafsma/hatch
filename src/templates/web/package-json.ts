@@ -1,17 +1,14 @@
 export function generateWebPackageJson(): string {
 	// Build dependencies object with Convex + Better Auth packages, alphabetically sorted
 	const dependencies: Record<string, string> = {
-		"@ai-sdk/openai": "^3.0.29",
-		"@ai-sdk/react": "^3.0.89",
 		"@convex-dev/better-auth": "^0.10.10",
-		"@convex-dev/workpool": "^0.3.1",
-		"@convex-dev/workflow": "^0.3.4",
 		"@posthog/ai": "^7.8.11",
-		"@workspace/ui": "workspace:*",
-		ai: "^6.0.87",
 		"better-auth": "1.4.9",
+		"class-variance-authority": "^0.7.1",
+		clsx: "^2.1.1",
 		convex: "^1.31.7",
 		"convex-helpers": "^0.1.112",
+		"lucide-react": "^0.511.0",
 		next: "^16.1.6",
 		"posthog-js": "^1.347.2",
 		"posthog-node": "^5.24.15",
@@ -19,6 +16,7 @@ export function generateWebPackageJson(): string {
 		"react-dom": "^19.2.4",
 		resend: "^6.9.2",
 		"server-only": "^0.0.1",
+		"tailwind-merge": "^3.3.0",
 		"tw-animate-css": "^1.4.0",
 		zod: "^4.3.6",
 	};
@@ -60,6 +58,7 @@ export function generateWebPackageJson(): string {
 		dotenv: "^17.3.1",
 		jsdom: "^28.1.0",
 		postcss: "^8.5.6",
+		shadcn: "^2.5.0",
 		tailwindcss: "^4.1.18",
 		typescript: "^5.9.3",
 		"vite-tsconfig-paths": "^6.1.1",

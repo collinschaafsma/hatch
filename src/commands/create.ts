@@ -141,7 +141,6 @@ export const createCommand = new Command()
 				await withSpinner("Creating project structure", async () => {
 					await ensureDir(projectPath);
 					await ensureDir(path.join(projectPath, "apps"));
-					await ensureDir(path.join(projectPath, "packages"));
 				});
 
 				// Generate root configuration files
@@ -340,16 +339,12 @@ export const createCommand = new Command()
 							skills: ["frontend-design"],
 						},
 						{
-							repo: "https://github.com/vercel/ai",
-							skills: ["ai-sdk"],
-						},
-						{
 							repo: "https://github.com/benjitaylor/agentation",
 							skills: ["agentation"],
 						},
 						{
 							repo: "https://github.com/vercel-labs/next-skills",
-							skills: ["next-cache-components", "next-best-practices"],
+							skills: ["next-best-practices"],
 						},
 						{
 							repo: "https://github.com/vercel-labs/agent-browser",
@@ -451,6 +446,10 @@ export const createCommand = new Command()
 						path.join(webPath, "components.json"),
 						templates.generateWebComponentsJson(),
 					);
+					await writeFile(
+						path.join(webPath, "lib", "utils.ts"),
+						templates.generateWebLibUtils(),
+					);
 
 					// App files
 					await writeFile(
@@ -549,15 +548,6 @@ export const createCommand = new Command()
 					);
 				});
 
-				// Generate Convex workflow files
-				await withSpinner("Setting up Convex workflows", async () => {
-					const convexDir = path.join(webPath, "convex");
-					await writeFile(
-						path.join(convexDir, "workflows.ts"),
-						templates.generateConvexWorkflows(),
-					);
-				});
-
 				// Generate analytics files
 				await withSpinner("Setting up PostHog analytics", async () => {
 					await writeFile(
@@ -575,17 +565,6 @@ export const createCommand = new Command()
 					await writeFile(
 						path.join(webPath, "app", "(app)", "dashboard", "page.tsx"),
 						templates.generateDashboardPage(),
-					);
-					await writeFile(
-						path.join(
-							webPath,
-							"app",
-							"(app)",
-							"dashboard",
-							"_components",
-							"ai-trigger.tsx",
-						),
-						templates.generateAITriggerButton(),
 					);
 					await writeFile(
 						path.join(
@@ -661,16 +640,6 @@ export const createCommand = new Command()
 						path.join(webPath, "__tests__", "unit", "utils.test.ts"),
 						templates.generateUtilsTest(),
 					);
-					await writeFile(
-						path.join(
-							webPath,
-							"__tests__",
-							"components",
-							"ai-trigger.test.tsx",
-						),
-						templates.generateAiTriggerTest(),
-					);
-
 					// Convex function integration tests
 					await writeFile(
 						path.join(webPath, "__tests__", "convex", "db.test.ts"),
@@ -693,37 +662,6 @@ export const createCommand = new Command()
 					);
 				});
 
-				// Create packages/ui structure
-				const uiPath = path.join(projectPath, "packages", "ui");
-
-				await withSpinner("Setting up UI package", async () => {
-					await ensureDir(path.join(uiPath, "src"));
-					await ensureDir(path.join(uiPath, "src", "components"));
-					await ensureDir(path.join(uiPath, "src", "lib"));
-					await ensureDir(path.join(uiPath, "src", "hooks"));
-
-					await writeFile(
-						path.join(uiPath, "package.json"),
-						templates.generateUIPackageJson(),
-					);
-					await writeFile(
-						path.join(uiPath, "tsconfig.json"),
-						templates.generateUITsconfig(),
-					);
-					await writeFile(
-						path.join(uiPath, "src", "index.ts"),
-						templates.generateUIIndex(),
-					);
-					await writeFile(
-						path.join(uiPath, "components.json"),
-						templates.generateUIComponentsJson(),
-					);
-					await writeFile(
-						path.join(uiPath, "src", "lib", "utils.ts"),
-						templates.generateUILibUtils(),
-					);
-				});
-
 				// Install dependencies
 				await withSpinner(
 					"Installing dependencies (this may take a while)",
@@ -732,17 +670,17 @@ export const createCommand = new Command()
 					},
 				);
 
-				// Initialize shadcn in packages/ui
+				// Initialize shadcn in apps/web
 				await withSpinner("Initializing shadcn/ui", async () => {
 					try {
-						await pnpmDlx("shadcn@latest", ["init", "-y"], uiPath);
+						await pnpmDlx("shadcn@latest", ["init", "-y"], webPath);
 					} catch (error) {
 						// shadcn init might fail if components.json already exists, that's ok
 						log.warn("shadcn init skipped (components.json already exists)");
 					}
 				});
 
-				// Add shadcn components to packages/ui
+				// Add shadcn components to apps/web
 				await withSpinner("Adding shadcn components", async () => {
 					const components = [
 						"button",
@@ -758,7 +696,7 @@ export const createCommand = new Command()
 						await pnpmDlx(
 							"shadcn@latest",
 							["add", ...components, "-y"],
-							uiPath,
+							webPath,
 						);
 					} catch (error) {
 						log.warn(
@@ -869,7 +807,6 @@ export const createCommand = new Command()
 
 				log.info("Required environment variables:");
 				log.step("RESEND_API_KEY        # From resend.com (for email OTP)");
-				log.step("AI_GATEWAY_API_KEY    # From Vercel AI Gateway");
 				log.blank();
 			} catch (error) {
 				if (options.headless && options.json) {

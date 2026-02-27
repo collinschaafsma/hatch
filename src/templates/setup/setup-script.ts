@@ -480,7 +480,6 @@ print_summary() {
   echo ""
   echo "  1. Review apps/web/.env.local and fill in any missing values:"
   echo "     - RESEND_API_KEY (for email authentication)"
-  echo "     - OPENAI_API_KEY or AI_GATEWAY_API_KEY"
   echo "     - NEXT_PUBLIC_POSTHOG_KEY (optional)"
   echo ""
   echo "  2. Start the Convex dev server:"

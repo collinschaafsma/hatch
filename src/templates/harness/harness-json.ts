@@ -58,7 +58,7 @@ export function generateHarnessJson(name: string): string {
 				ui: {
 					requiredForPatterns: [
 						"apps/web/app/**/*.tsx",
-						"packages/ui/**/*.tsx",
+						"apps/web/components/**/*.tsx",
 					],
 					defaultRoutes: ["/", "/login"],
 					captureScript: "pnpm harness:ui:capture-browser-evidence",
