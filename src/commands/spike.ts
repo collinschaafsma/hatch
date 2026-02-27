@@ -382,6 +382,9 @@ async function handleContinuation(
 			.replace(/`/g, "\\`");
 
 		const anthropicEnv = `export ANTHROPIC_API_KEY="${config.anthropicApiKey}" &&`;
+		const ghTokenEnv = config.github?.token
+			? `export GH_TOKEN="${config.github.token}" &&`
+			: "";
 		const planEnv = `export HATCH_PLAN=true && export HATCH_SPIKE_NAME="${vm.feature}" && `;
 
 		let monitorEnv = "";
@@ -407,7 +410,7 @@ async function handleContinuation(
 				.join(" && ")} && `;
 		}
 
-		const agentCommand = `${envPrefix} ${anthropicEnv} ${planEnv}${monitorEnv}cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${vm.feature} --project ${vm.project} > /dev/null 2>&1 < /dev/null &)`;
+		const agentCommand = `${envPrefix} ${anthropicEnv} ${ghTokenEnv} ${planEnv}${monitorEnv}cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${vm.feature} --project ${vm.project} > /dev/null 2>&1 < /dev/null &)`;
 
 		await sshExec(vm.sshHost, agentCommand);
 		agentSpinner?.succeed(
@@ -1128,6 +1131,9 @@ export const spikeCommand = new Command()
 			// Read deploy key from .env.local and export for agent
 			const convexDeployKeyExport = `export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="$(grep '^CONVEX_DEPLOY_KEY=' ${projectPath}/apps/web/.env.local | cut -d= -f2- | sed 's/^\"//;s/\"$//')" &&`;
 			const anthropicKeyExport = `export ANTHROPIC_API_KEY="${config.anthropicApiKey}" &&`;
+			const ghTokenExport = config.github?.token
+				? `export GH_TOKEN="${config.github.token}" &&`
+				: "";
 			const planEnv = `export HATCH_PLAN=true && export HATCH_SPIKE_NAME="${featureName}" && `;
 
 			let monitorEnv = "";
@@ -1152,7 +1158,7 @@ export const spikeCommand = new Command()
 					.join(" && ")} && `;
 			}
 
-			const agentCommand = `${envPrefix} ${convexDeployKeyExport} ${anthropicKeyExport} ${planEnv}${monitorEnv}cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${featureName} --project ${project.name} > /dev/null 2>&1 < /dev/null &)`;
+			const agentCommand = `${envPrefix} ${convexDeployKeyExport} ${anthropicKeyExport} ${ghTokenExport} ${planEnv}${monitorEnv}cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${featureName} --project ${project.name} > /dev/null 2>&1 < /dev/null &)`;
 
 			await sshExec(sshHost, agentCommand);
 			agentSpinner?.succeed("Claude agent started in background");

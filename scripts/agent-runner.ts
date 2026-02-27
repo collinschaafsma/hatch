@@ -676,6 +676,14 @@ Important: The branch is already created (${feature}). Make your changes, verify
 					const { execaCommand } = await import("execa");
 					const { stdout } = await execaCommand(
 						`gh pr view ${prUrl} --json number,title,state,reviewDecision,mergeable,statusCheckRollup,additions,deletions,changedFiles`,
+						{
+							env: {
+								...process.env,
+								...(process.env.GH_TOKEN
+									? { GH_TOKEN: process.env.GH_TOKEN }
+									: {}),
+							},
+						},
 					);
 					const ghData = JSON.parse(stdout);
 					const checksRollup = ghData.statusCheckRollup as
