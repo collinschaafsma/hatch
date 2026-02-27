@@ -103,7 +103,7 @@ describe("clean command", () => {
 			convex: { accessToken: "convex_token" },
 			github: { token: "gh_token" },
 		} as never);
-		mockRequireConfirmation.mockResolvedValue(undefined);
+		mockRequireConfirmation.mockResolvedValue({});
 	});
 
 	afterEach(() => {
@@ -161,7 +161,7 @@ describe("clean command", () => {
 			});
 			mockGetProject.mockResolvedValue(project);
 			mockGetVMByFeature.mockResolvedValue(vm);
-			mockRequireConfirmation.mockResolvedValue(undefined);
+			mockRequireConfirmation.mockResolvedValue({});
 			mockExeDevRm.mockResolvedValue(undefined);
 			mockRemoveVM.mockResolvedValue(undefined);
 

@@ -91,7 +91,7 @@ describe("destroy command", () => {
 			convex: { accessToken: "convex_token" },
 			vercel: { team: "my-team" },
 		} as never);
-		mockRequireConfirmation.mockResolvedValue(undefined);
+		mockRequireConfirmation.mockResolvedValue({});
 	});
 
 	afterEach(() => {

@@ -111,11 +111,9 @@ describe("confirmation utility", () => {
 	describe("storeConfirmation + validateAndConsumeToken lifecycle", () => {
 		it("should store and validate a token", async () => {
 			let savedStore: Record<string, unknown> = {};
-			mockFs.writeJson.mockImplementation(
-				async (_path: string, data: unknown) => {
-					savedStore = data as Record<string, unknown>;
-				},
-			);
+			mockFs.writeJson.mockImplementation(async (_path, data) => {
+				savedStore = data as Record<string, unknown>;
+			});
 			mockFs.pathExists.mockResolvedValue(false as never);
 
 			const { token } = await storeConfirmation({
@@ -144,11 +142,9 @@ describe("confirmation utility", () => {
 
 		it("should return null for wrong token", async () => {
 			let savedStore: Record<string, unknown> = {};
-			mockFs.writeJson.mockImplementation(
-				async (_path: string, data: unknown) => {
-					savedStore = data as Record<string, unknown>;
-				},
-			);
+			mockFs.writeJson.mockImplementation(async (_path, data) => {
+				savedStore = data as Record<string, unknown>;
+			});
 			mockFs.pathExists.mockResolvedValue(false as never);
 
 			await storeConfirmation({
@@ -173,11 +169,9 @@ describe("confirmation utility", () => {
 			vi.useFakeTimers();
 
 			let savedStore: Record<string, unknown> = {};
-			mockFs.writeJson.mockImplementation(
-				async (_path: string, data: unknown) => {
-					savedStore = data as Record<string, unknown>;
-				},
-			);
+			mockFs.writeJson.mockImplementation(async (_path, data) => {
+				savedStore = data as Record<string, unknown>;
+			});
 			mockFs.pathExists.mockResolvedValue(false as never);
 
 			const { token } = await storeConfirmation({
@@ -203,11 +197,9 @@ describe("confirmation utility", () => {
 
 		it("should consume token (one-time use)", async () => {
 			let savedStore: Record<string, unknown> = {};
-			mockFs.writeJson.mockImplementation(
-				async (_path: string, data: unknown) => {
-					savedStore = data as Record<string, unknown>;
-				},
-			);
+			mockFs.writeJson.mockImplementation(async (_path, data) => {
+				savedStore = data as Record<string, unknown>;
+			});
 			mockFs.pathExists.mockResolvedValue(false as never);
 
 			const { token } = await storeConfirmation({
@@ -241,11 +233,9 @@ describe("confirmation utility", () => {
 	describe("prompt storage", () => {
 		it("should store and return prompt with confirmation", async () => {
 			let savedStore: Record<string, unknown> = {};
-			mockFs.writeJson.mockImplementation(
-				async (_path: string, data: unknown) => {
-					savedStore = data as Record<string, unknown>;
-				},
-			);
+			mockFs.writeJson.mockImplementation(async (_path, data) => {
+				savedStore = data as Record<string, unknown>;
+			});
 			mockFs.pathExists.mockResolvedValue(false as never);
 
 			const { token } = await storeConfirmation({
@@ -270,11 +260,9 @@ describe("confirmation utility", () => {
 
 		it("should return undefined prompt when none stored", async () => {
 			let savedStore: Record<string, unknown> = {};
-			mockFs.writeJson.mockImplementation(
-				async (_path: string, data: unknown) => {
-					savedStore = data as Record<string, unknown>;
-				},
-			);
+			mockFs.writeJson.mockImplementation(async (_path, data) => {
+				savedStore = data as Record<string, unknown>;
+			});
 			mockFs.pathExists.mockResolvedValue(false as never);
 
 			const { token } = await storeConfirmation({
@@ -298,11 +286,9 @@ describe("confirmation utility", () => {
 
 		it("should return storedPrompt from requireConfirmation on --confirm", async () => {
 			let savedStore: Record<string, unknown> = {};
-			mockFs.writeJson.mockImplementation(
-				async (_path: string, data: unknown) => {
-					savedStore = data as Record<string, unknown>;
-				},
-			);
+			mockFs.writeJson.mockImplementation(async (_path, data) => {
+				savedStore = data as Record<string, unknown>;
+			});
 			mockFs.pathExists.mockResolvedValue(false as never);
 
 			const { token } = await storeConfirmation({
@@ -365,11 +351,9 @@ describe("confirmation utility", () => {
 
 		it("should proceed on valid --confirm token", async () => {
 			let savedStore: Record<string, unknown> = {};
-			mockFs.writeJson.mockImplementation(
-				async (_path: string, data: unknown) => {
-					savedStore = data as Record<string, unknown>;
-				},
-			);
+			mockFs.writeJson.mockImplementation(async (_path, data) => {
+				savedStore = data as Record<string, unknown>;
+			});
 			mockFs.pathExists.mockResolvedValue(false as never);
 
 			const { token } = await storeConfirmation({

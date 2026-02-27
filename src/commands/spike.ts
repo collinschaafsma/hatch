@@ -374,7 +374,8 @@ async function handleContinuation(
 					`Starting Claude agent (iteration ${currentIteration})`,
 				).start();
 
-		const escapedPrompt = options.prompt
+		const prompt = options.prompt ?? "";
+		const escapedPrompt = prompt
 			.replace(/\\/g, "\\\\")
 			.replace(/"/g, '\\"')
 			.replace(/\$/g, "\\$")
