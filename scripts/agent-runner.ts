@@ -509,7 +509,7 @@ Important: The branch is already created (${feature}). Make your changes, verify
 			options: {
 				cwd: projectPath,
 				allowedTools: ["Bash", "Read", "Write", "Edit", "Glob", "Grep"],
-				maxTurns: 100,
+				maxTurns: 10000,
 			},
 			abortController: new AbortController(),
 		});
