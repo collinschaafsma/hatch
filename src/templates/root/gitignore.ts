@@ -39,6 +39,7 @@ coverage/
 # Claude Code
 .claude/settings.local.json
 .claude/settings.json
+CLAUDE.local.md
 
 # Hatch spike agent runner
 agent-runner.ts

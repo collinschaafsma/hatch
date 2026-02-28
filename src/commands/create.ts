@@ -389,6 +389,37 @@ export const createCommand = new Command()
 					}
 				});
 
+				// Write Claude Code rules
+				await withSpinner("Setting up Claude Code rules", async () => {
+					const rulesDir = path.join(projectPath, ".claude", "rules");
+					await ensureDir(rulesDir);
+
+					await writeFile(
+						path.join(rulesDir, "git-safety.md"),
+						templates.generateGitSafetyRule(),
+					);
+					await writeFile(
+						path.join(rulesDir, "convex.md"),
+						templates.generateConvexRule(),
+					);
+					await writeFile(
+						path.join(rulesDir, "testing.md"),
+						templates.generateTestingRule(),
+					);
+					await writeFile(
+						path.join(rulesDir, "nextjs-app-router.md"),
+						templates.generateNextjsAppRouterRule(),
+					);
+					await writeFile(
+						path.join(rulesDir, "biome.md"),
+						templates.generateBiomeRule(),
+					);
+					await writeFile(
+						path.join(rulesDir, "risk-policy.md"),
+						templates.generateRiskPolicyRule(),
+					);
+				});
+
 				// Create apps/web structure
 				const webPath = path.join(projectPath, "apps", "web");
 
@@ -547,6 +578,12 @@ export const createCommand = new Command()
 						templates.generateConvexProvider(),
 					);
 				});
+
+				// Write nested CLAUDE.md for web app
+				await writeFile(
+					path.join(webPath, "CLAUDE.md"),
+					templates.generateWebClaudeMd(),
+				);
 
 				// Generate analytics files
 				await withSpinner("Setting up PostHog analytics", async () => {

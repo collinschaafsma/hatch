@@ -4,6 +4,7 @@ import { Command } from "commander";
 import { execa } from "execa";
 import fs from "fs-extra";
 import { vercelGetProjectUrl } from "../headless/cli-wrappers.js";
+import * as templates from "../templates/index.js";
 import type { HatchConfig, ProjectRecord } from "../types/index.js";
 import {
 	getProjectConfigPath,
@@ -289,6 +290,57 @@ export const addCommand = new Command()
 				includeDocs: true,
 			});
 			harnessSpinner.succeed("Agent harness scaffolded");
+
+			// Write Claude Code rules (skipExisting to preserve customizations)
+			const rulesSpinner = createSpinner(
+				"Setting up Claude Code rules",
+			).start();
+			const rulesDir = path.join(projectPath, ".claude", "rules");
+			await fs.ensureDir(rulesDir);
+
+			const ruleFiles: Array<{ name: string; generate: () => string }> = [
+				{ name: "git-safety.md", generate: templates.generateGitSafetyRule },
+				{ name: "convex.md", generate: templates.generateConvexRule },
+				{ name: "testing.md", generate: templates.generateTestingRule },
+				{
+					name: "nextjs-app-router.md",
+					generate: templates.generateNextjsAppRouterRule,
+				},
+				{ name: "biome.md", generate: templates.generateBiomeRule },
+				{ name: "risk-policy.md", generate: templates.generateRiskPolicyRule },
+			];
+
+			const rulesWritten: string[] = [];
+			const rulesSkipped: string[] = [];
+
+			for (const rule of ruleFiles) {
+				const rulePath = path.join(rulesDir, rule.name);
+				if (await fs.pathExists(rulePath)) {
+					rulesSkipped.push(rule.name);
+				} else {
+					await fs.writeFile(rulePath, rule.generate());
+					rulesWritten.push(rule.name);
+				}
+			}
+
+			// Write apps/web/CLAUDE.md if it doesn't exist
+			const webClaudeMdPath = path.join(
+				projectPath,
+				"apps",
+				"web",
+				"CLAUDE.md",
+			);
+			if (
+				(await fs.pathExists(path.join(projectPath, "apps", "web"))) &&
+				!(await fs.pathExists(webClaudeMdPath))
+			) {
+				await fs.writeFile(webClaudeMdPath, templates.generateWebClaudeMd());
+				rulesWritten.push("apps/web/CLAUDE.md");
+			}
+
+			rulesSpinner.succeed(
+				`Claude Code rules: ${rulesWritten.length} written, ${rulesSkipped.length} skipped`,
+			);
 
 			// Merge harness scripts into package.json
 			const pkgPath = path.join(projectPath, "package.json");
