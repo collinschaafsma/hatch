@@ -185,6 +185,21 @@ class RemoteLogger {
 		}
 	}
 
+	async updateProgress(planProgress: {
+		completed: number;
+		total: number;
+	}): Promise<void> {
+		if (this.disabled || !this.runId) return;
+		try {
+			await this.post("/api/runs/progress", {
+				runId: this.runId,
+				planProgress,
+			});
+		} catch {
+			// Non-critical — don't disable remote logger for progress failures
+		}
+	}
+
 	async completeRun(payload: CompleteRunPayload): Promise<void> {
 		await this.flush();
 		if (this.disabled || !this.runId) return;
@@ -322,6 +337,19 @@ This pushes your schema/function changes to the running Convex backend and regen
 
 Do NOT skip this step — uncommitted Convex changes will not be reflected in the backend until you run this command.
 `;
+
+function readPlanProgress(
+	projectPath: string,
+	feature: string,
+): { completed: number; total: number } | null {
+	const planPath = path.join(projectPath, `docs/plans/${feature}.md`);
+	if (!fs.existsSync(planPath)) return null;
+	const planContent = fs.readFileSync(planPath, "utf-8");
+	const completed = (planContent.match(/- \[x\]/gi) || []).length;
+	const total = completed + (planContent.match(/- \[ \]/g) || []).length;
+	if (total === 0) return null;
+	return { completed, total };
+}
 
 async function main(): Promise<void> {
 	// Pre-flight: ensure ANTHROPIC_API_KEY is set
@@ -501,6 +529,8 @@ Important: The branch is already created (${feature}). Make your changes, verify
 	totalInputTokens = 0;
 	totalOutputTokens = 0;
 	let sessionId: string | undefined;
+	let lastProgressCheck = 0;
+	let lastProgressCompleted = -1;
 
 	try {
 		// Run the agent
@@ -550,6 +580,23 @@ Important: The branch is already created (${feature}). Make your changes, verify
 					tool: msg.tool_name,
 					description: summary,
 				});
+			}
+
+			// Check plan progress periodically
+			if (
+				message.type === "tool_use_summary" ||
+				Date.now() - lastProgressCheck > 30_000
+			) {
+				const progress = readPlanProgress(projectPath, feature);
+				if (
+					progress &&
+					remoteLogger &&
+					progress.completed !== lastProgressCompleted
+				) {
+					await remoteLogger.updateProgress(progress);
+					lastProgressCompleted = progress.completed;
+				}
+				lastProgressCheck = Date.now();
 			}
 
 			// Log tool progress
@@ -716,14 +763,7 @@ Important: The branch is already created (${feature}). Make your changes, verify
 				}
 			}
 
-			let planProgress: CompleteRunPayload["planProgress"] = undefined;
-			const planPath = path.join(projectPath, `docs/plans/${feature}.md`);
-			if (fs.existsSync(planPath)) {
-				const planContent = fs.readFileSync(planPath, "utf-8");
-				const completed = (planContent.match(/- \[x\]/gi) || []).length;
-				const total = completed + (planContent.match(/- \[ \]/g) || []).length;
-				planProgress = { completed, total };
-			}
+			const planProgress = readPlanProgress(projectPath, feature) ?? undefined;
 
 			await remoteLogger.completeRun({
 				status: "completed",
