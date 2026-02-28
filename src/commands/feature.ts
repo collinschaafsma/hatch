@@ -14,6 +14,7 @@ import {
 	waitForVMReady,
 } from "../utils/exe-dev.js";
 import { log } from "../utils/logger.js";
+import { postMonitorEvent } from "../utils/monitor.js";
 import { getProject } from "../utils/project-store.js";
 import { createSpinner } from "../utils/spinner.js";
 import { scpToRemote, sshExec } from "../utils/ssh.js";
@@ -398,6 +399,29 @@ export const featureCommand = new Command()
 				convexPreviewDeployment,
 			};
 			await addVM(vmRecord);
+
+			// Post feature creation event to monitor (non-fatal)
+			if (config.monitor) {
+				try {
+					await postMonitorEvent(config.monitor, "/api/runs/start", {
+						type: "feature",
+						vmName,
+						sshHost,
+						feature: featureName,
+						project: project.name,
+						github: {
+							repoUrl: project.github.url,
+							owner: project.github.owner,
+							repo: project.github.repo,
+							branch: featureName,
+						},
+						vercelUrl: project.vercel.url,
+						convexPreviewDeployment: convexPreviewDeployment || null,
+					});
+				} catch {
+					log.warn("Could not send feature creation event to monitor");
+				}
+			}
 
 			// Print summary
 			log.blank();
