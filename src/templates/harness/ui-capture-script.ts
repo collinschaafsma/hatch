@@ -252,7 +252,7 @@ function authenticateAgentBrowser(devUrl) {
     const token = cookieMatch[1];
 
     // Inject cookie into agent-browser
-    execSync("agent-browser cookies set better-auth.session_token " + JSON.stringify(token), {
+    execSync("agent-browser cookies set better-auth.session_token " + JSON.stringify(token) + " --url " + JSON.stringify(devUrl), {
       stdio: ["pipe", "pipe", "pipe"],
       timeout: 10000,
     });

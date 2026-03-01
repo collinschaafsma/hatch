@@ -6,7 +6,8 @@
  */
 export function generateConvexDevAuth(): string {
 	return `import { httpActionGeneric } from "convex/server";
-import { authComponent, createAuth } from "./betterAuth/auth";
+import { components } from "./_generated/api";
+import { createAuth } from "./betterAuth/auth";
 
 const DEV_EMAIL = "dev@test.local";
 
@@ -34,11 +35,9 @@ const devAuth = httpActionGeneric(async (ctx: any) => {
 		});
 
 		// Step 2: Read the OTP from the verification table
-		// biome-ignore lint/suspicious/noExplicitAny: adapter returns AdapterFactory, findOne exists at runtime
-		const adapter: any = authComponent.adapter(ctx);
-		const verification = await adapter.findOne({
+		const verification = await ctx.runQuery(components.betterAuth.adapter.findOne, {
 			model: "verification",
-			where: [{ field: "identifier", value: DEV_EMAIL }],
+			where: [{ field: "identifier", value: \`sign-in-otp-\${DEV_EMAIL}\` }],
 		});
 
 		if (!verification?.value) {
@@ -48,9 +47,12 @@ const devAuth = httpActionGeneric(async (ctx: any) => {
 			);
 		}
 
-		// Step 3: Verify OTP — BetterAuth creates the session and returns Set-Cookie header
+		// Step 3: Strip attempt counter suffix (Better Auth stores as "otp:attempts")
+		const otp = String(verification.value).split(":").slice(0, -1).join(":") || String(verification.value);
+
+		// Step 4: Verify OTP — BetterAuth creates the session and returns Set-Cookie header
 		const response = await auth.api.signInEmailOTP({
-			body: { email: DEV_EMAIL, otp: verification.value },
+			body: { email: DEV_EMAIL, otp },
 			asResponse: true,
 		});
 
