@@ -11,9 +11,11 @@ const STORE_PATH = path.join(
 );
 
 const TTL_MS = 5 * 60 * 1000; // 5 minutes
+const MIN_AGE_MS = 10 * 1000; // 10 seconds
 
 interface PendingConfirmation {
 	token: string;
+	createdAt: string;
 	expiresAt: string;
 	command: string;
 	summary: string;
@@ -91,6 +93,7 @@ export async function storeConfirmation(opts: {
 
 	store.confirmations[hash] = {
 		token,
+		createdAt: new Date(Date.now()).toISOString(),
 		expiresAt: new Date(Date.now() + TTL_MS).toISOString(),
 		command: opts.command,
 		summary: opts.summary,
@@ -105,7 +108,7 @@ export async function validateAndConsumeToken(opts: {
 	command: string;
 	args: Record<string, string>;
 	token: string;
-}): Promise<PendingConfirmation | null> {
+}): Promise<PendingConfirmation | "too_young" | null> {
 	const store = await loadStore();
 	const hash = computeCommandHash(opts.command, opts.args);
 	const entry = store.confirmations[hash];
@@ -122,6 +125,11 @@ export async function validateAndConsumeToken(opts: {
 
 	if (entry.token !== opts.token) {
 		return null;
+	}
+
+	// Enforce minimum age to prevent automated agents from bypassing human review
+	if (Date.now() - new Date(entry.createdAt).getTime() < MIN_AGE_MS) {
+		return "too_young";
 	}
 
 	// Consume the token
@@ -149,12 +157,18 @@ export async function requireConfirmation(
 			args,
 			token: confirmToken,
 		});
+		if (entry === "too_young") {
+			log.error(
+				"Confirmation token must be at least 10 seconds old. This prevents automated agents from bypassing human review. Please wait and try again.",
+			);
+			process.exit(1);
+		}
 		if (!entry) {
 			log.error("Invalid or expired confirmation token.");
 			log.info("Run with --dry-run to get a new token.");
 			process.exit(1);
 		}
-		return { storedPrompt: entry?.prompt };
+		return { storedPrompt: entry.prompt };
 	}
 
 	if (dryRun) {

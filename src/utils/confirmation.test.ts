@@ -110,6 +110,8 @@ describe("confirmation utility", () => {
 
 	describe("storeConfirmation + validateAndConsumeToken lifecycle", () => {
 		it("should store and validate a token", async () => {
+			vi.useFakeTimers();
+
 			let savedStore: Record<string, unknown> = {};
 			mockFs.writeJson.mockImplementation(async (_path, data) => {
 				savedStore = data as Record<string, unknown>;
@@ -125,6 +127,9 @@ describe("confirmation utility", () => {
 			expect(token).toMatch(/^[0-9a-f]{8}$/);
 			expect(mockFs.writeJson).toHaveBeenCalled();
 
+			// Advance past minimum age
+			vi.advanceTimersByTime(11 * 1000);
+
 			// Now simulate loading the saved store
 			mockFs.pathExists.mockResolvedValue(true as never);
 			mockFs.readJson.mockResolvedValue(savedStore as never);
@@ -136,8 +141,11 @@ describe("confirmation utility", () => {
 			});
 
 			expect(result).not.toBeNull();
-			expect(result?.token).toBe(token);
-			expect(result?.command).toBe("clean feat");
+			expect(result).not.toBe("too_young");
+			if (result && result !== "too_young") {
+				expect(result.token).toBe(token);
+				expect(result.command).toBe("clean feat");
+			}
 		});
 
 		it("should return null for wrong token", async () => {
@@ -196,6 +204,8 @@ describe("confirmation utility", () => {
 		});
 
 		it("should consume token (one-time use)", async () => {
+			vi.useFakeTimers();
+
 			let savedStore: Record<string, unknown> = {};
 			mockFs.writeJson.mockImplementation(async (_path, data) => {
 				savedStore = data as Record<string, unknown>;
@@ -208,6 +218,9 @@ describe("confirmation utility", () => {
 				summary: "Delete feature VM",
 			});
 
+			// Advance past minimum age
+			vi.advanceTimersByTime(11 * 1000);
+
 			mockFs.pathExists.mockResolvedValue(true as never);
 			mockFs.readJson.mockResolvedValue(savedStore as never);
 
@@ -218,6 +231,7 @@ describe("confirmation utility", () => {
 				token,
 			});
 			expect(result1).not.toBeNull();
+			expect(result1).not.toBe("too_young");
 
 			// Second validation should fail (consumed)
 			mockFs.readJson.mockResolvedValue(savedStore as never);
@@ -228,10 +242,73 @@ describe("confirmation utility", () => {
 			});
 			expect(result2).toBeNull();
 		});
+
+		it("should reject token used before minimum age", async () => {
+			vi.useFakeTimers();
+
+			let savedStore: Record<string, unknown> = {};
+			mockFs.writeJson.mockImplementation(async (_path, data) => {
+				savedStore = data as Record<string, unknown>;
+			});
+			mockFs.pathExists.mockResolvedValue(false as never);
+
+			const { token } = await storeConfirmation({
+				command: "clean feat",
+				args: { project: "app" },
+				summary: "Delete feature VM",
+			});
+
+			// Only advance 5 seconds (less than 10s minimum)
+			vi.advanceTimersByTime(5 * 1000);
+
+			mockFs.pathExists.mockResolvedValue(true as never);
+			mockFs.readJson.mockResolvedValue(savedStore as never);
+
+			const result = await validateAndConsumeToken({
+				command: "clean feat",
+				args: { project: "app" },
+				token,
+			});
+
+			expect(result).toBe("too_young");
+		});
+
+		it("should accept token after minimum age", async () => {
+			vi.useFakeTimers();
+
+			let savedStore: Record<string, unknown> = {};
+			mockFs.writeJson.mockImplementation(async (_path, data) => {
+				savedStore = data as Record<string, unknown>;
+			});
+			mockFs.pathExists.mockResolvedValue(false as never);
+
+			const { token } = await storeConfirmation({
+				command: "clean feat",
+				args: { project: "app" },
+				summary: "Delete feature VM",
+			});
+
+			// Advance exactly 10 seconds
+			vi.advanceTimersByTime(10 * 1000);
+
+			mockFs.pathExists.mockResolvedValue(true as never);
+			mockFs.readJson.mockResolvedValue(savedStore as never);
+
+			const result = await validateAndConsumeToken({
+				command: "clean feat",
+				args: { project: "app" },
+				token,
+			});
+
+			expect(result).not.toBeNull();
+			expect(result).not.toBe("too_young");
+		});
 	});
 
 	describe("prompt storage", () => {
 		it("should store and return prompt with confirmation", async () => {
+			vi.useFakeTimers();
+
 			let savedStore: Record<string, unknown> = {};
 			mockFs.writeJson.mockImplementation(async (_path, data) => {
 				savedStore = data as Record<string, unknown>;
@@ -245,6 +322,8 @@ describe("confirmation utility", () => {
 				prompt: "Build a login page",
 			});
 
+			vi.advanceTimersByTime(11 * 1000);
+
 			mockFs.pathExists.mockResolvedValue(true as never);
 			mockFs.readJson.mockResolvedValue(savedStore as never);
 
@@ -255,10 +334,15 @@ describe("confirmation utility", () => {
 			});
 
 			expect(result).not.toBeNull();
-			expect(result?.prompt).toBe("Build a login page");
+			expect(result).not.toBe("too_young");
+			if (result && result !== "too_young") {
+				expect(result.prompt).toBe("Build a login page");
+			}
 		});
 
 		it("should return undefined prompt when none stored", async () => {
+			vi.useFakeTimers();
+
 			let savedStore: Record<string, unknown> = {};
 			mockFs.writeJson.mockImplementation(async (_path, data) => {
 				savedStore = data as Record<string, unknown>;
@@ -271,6 +355,8 @@ describe("confirmation utility", () => {
 				summary: "Create spike VM",
 			});
 
+			vi.advanceTimersByTime(11 * 1000);
+
 			mockFs.pathExists.mockResolvedValue(true as never);
 			mockFs.readJson.mockResolvedValue(savedStore as never);
 
@@ -281,10 +367,15 @@ describe("confirmation utility", () => {
 			});
 
 			expect(result).not.toBeNull();
-			expect(result?.prompt).toBeUndefined();
+			expect(result).not.toBe("too_young");
+			if (result && result !== "too_young") {
+				expect(result.prompt).toBeUndefined();
+			}
 		});
 
 		it("should return storedPrompt from requireConfirmation on --confirm", async () => {
+			vi.useFakeTimers();
+
 			let savedStore: Record<string, unknown> = {};
 			mockFs.writeJson.mockImplementation(async (_path, data) => {
 				savedStore = data as Record<string, unknown>;
@@ -297,6 +388,8 @@ describe("confirmation utility", () => {
 				summary: "Create spike VM",
 				prompt: "Build a login page",
 			});
+
+			vi.advanceTimersByTime(11 * 1000);
 
 			mockFs.pathExists.mockResolvedValue(true as never);
 			mockFs.readJson.mockResolvedValue(savedStore as never);
@@ -350,6 +443,8 @@ describe("confirmation utility", () => {
 		});
 
 		it("should proceed on valid --confirm token", async () => {
+			vi.useFakeTimers();
+
 			let savedStore: Record<string, unknown> = {};
 			mockFs.writeJson.mockImplementation(async (_path, data) => {
 				savedStore = data as Record<string, unknown>;
@@ -362,6 +457,8 @@ describe("confirmation utility", () => {
 				summary: "Delete VM",
 			});
 
+			vi.advanceTimersByTime(11 * 1000);
+
 			mockFs.pathExists.mockResolvedValue(true as never);
 			mockFs.readJson.mockResolvedValue(savedStore as never);
 
@@ -373,6 +470,42 @@ describe("confirmation utility", () => {
 				details: () => {},
 				confirmToken: token,
 			});
+		});
+
+		it("should show age error when token is too young", async () => {
+			vi.useFakeTimers();
+
+			let savedStore: Record<string, unknown> = {};
+			mockFs.writeJson.mockImplementation(async (_path, data) => {
+				savedStore = data as Record<string, unknown>;
+			});
+			mockFs.pathExists.mockResolvedValue(false as never);
+
+			const { token } = await storeConfirmation({
+				command: "clean feat",
+				args: { project: "app" },
+				summary: "Delete VM",
+			});
+
+			// Only 5 seconds — too young
+			vi.advanceTimersByTime(5 * 1000);
+
+			mockFs.pathExists.mockResolvedValue(true as never);
+			mockFs.readJson.mockResolvedValue(savedStore as never);
+
+			await expect(
+				requireConfirmation({
+					command: "clean feat",
+					args: { project: "app" },
+					summary: "Delete VM",
+					details: () => {},
+					confirmToken: token,
+				}),
+			).rejects.toThrow("process.exit called");
+
+			expect(mockLog.error).toHaveBeenCalledWith(
+				"Confirmation token must be at least 10 seconds old. This prevents automated agents from bypassing human review. Please wait and try again.",
+			);
 		});
 
 		it("should error on invalid --confirm token", async () => {
