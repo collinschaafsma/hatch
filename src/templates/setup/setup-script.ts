@@ -510,6 +510,43 @@ install_skills() {
   else
     print_warning "Could not install agent-browser skill"
   fi
+
+  # Install agent-browser CLI globally (needed by ui-capture harness)
+  print_step "Installing agent-browser CLI..."
+  export PNPM_HOME="\$HOME/.local/share/pnpm"
+  export PATH="\$PNPM_HOME:\$PATH"
+  if PNPM_HOME="\$HOME/.local/share/pnpm" pnpm add -g agent-browser 2>/dev/null; then
+    print_success "agent-browser CLI installed"
+    print_step "Installing Chromium browser..."
+    if command -v sudo &> /dev/null; then
+      if npx playwright install chromium --with-deps 2>/dev/null; then
+        print_success "Chromium installed with OS dependencies"
+      else
+        if npx playwright install chromium 2>/dev/null; then
+          print_success "Chromium installed (without OS deps)"
+        else
+          print_warning "Could not install Chromium — screenshots may not work"
+        fi
+      fi
+    else
+      if npx playwright install chromium 2>/dev/null; then
+        print_success "Chromium installed (no sudo — skipped OS deps)"
+      else
+        print_warning "Could not install Chromium — screenshots may not work"
+      fi
+    fi
+  else
+    print_warning "Could not install agent-browser CLI"
+  fi
+
+  # Persist PNPM_HOME to .profile for non-interactive shells
+  if ! grep -q 'PNPM_HOME=.*\\.local/share/pnpm' ~/.profile 2>/dev/null; then
+    cat >> ~/.profile << 'PROFILE_EOF'
+export PNPM_HOME="\$HOME/.local/share/pnpm"
+export PATH="\$PNPM_HOME:\$HOME/.local/bin:\$PATH"
+PROFILE_EOF
+    print_success "PATH exports added to .profile"
+  fi
 }
 
 # =============================================================================
