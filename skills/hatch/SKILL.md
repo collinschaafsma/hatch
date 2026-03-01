@@ -429,6 +429,50 @@ cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "Add cont
 ```
 Returns full result including PR URL and cost when done.
 
+## Non-Blocking Execution (Sub-Agent Pattern)
+
+Long-running commands (`spike`, `feature`, `clean`) can block the main session for minutes. Use `sessions_spawn` to delegate execution to a sub-agent so the main session stays responsive.
+
+### Pattern
+
+1. **Main session**: Run `--dry-run`, show the plan to the human, get approval
+2. **Main session**: Spawn a sub-agent with `sessions_spawn` to run the `--confirm <token>` command
+3. **Sub-agent**: Executes the command, monitors until completion, then announces the result (PR URL, cost, etc.)
+4. **Main session**: Stays free to handle other requests while the sub-agent works
+
+### Example: Non-blocking spike
+
+```bash
+# 1. Main session: dry-run + human approval (same as before)
+cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "Add contact form" --dry-run
+# Show plan to human, iterate on prompt, get approval...
+
+# 2. Main session: spawn sub-agent to run the confirmed command
+```
+
+After the human approves, use `sessions_spawn` with a task like:
+
+```
+Run this hatch spike command and monitor it to completion:
+
+cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "<approved prompt>" --confirm <token>
+
+After the command finishes:
+1. Parse the JSON output for the PR URL, cost, and status
+2. Announce the results to the user: PR URL, total cost, and whether it succeeded
+3. If it failed, include the error details so the user can decide next steps
+```
+
+### Applies to all long-running commands
+
+| Command | Dry-run | Confirm | What to announce |
+|---------|---------|---------|-----------------|
+| `spike` | `--dry-run` | `--confirm <token>` | PR URL, cost, status |
+| `feature` | `--dry-run` | `--confirm <token>` | SSH host, branch name |
+| `clean` | `--dry-run` | `--confirm <token>` | Cleaned resources |
+
+The `--dry-run` step is always fast and should stay in the main session. Only delegate the `--confirm` step to the sub-agent.
+
 ## Anthropic API Key
 
 Spikes use the `anthropicApiKey` from the project config (`~/.hatch/configs/<name>.json`). The key is injected inline via the SSH command — it is not written to the VM environment, so interactive `claude` sessions on the VM use your own subscription. If the API key is invalid, update it in the config file and retry.
