@@ -25,6 +25,13 @@ export function generateRootPackageJson(projectName: string): string {
 					"node scripts/harness/ui-capture.mjs",
 				"harness:ui:verify-browser-evidence":
 					"node scripts/harness/ui-verify.mjs",
+				"harness:ui:post-evidence": "node scripts/harness/ui-post-evidence.mjs",
+				"harness:logs": "node scripts/harness/query-logs.mjs",
+				"harness:logs:errors":
+					"node scripts/harness/query-logs.mjs --level error",
+				"harness:logs:slow": "node scripts/harness/query-logs.mjs --slow 200",
+				"harness:logs:summary": "node scripts/harness/query-logs.mjs --summary",
+				"harness:logs:clear": "node scripts/harness/query-logs.mjs --clear",
 			},
 			devDependencies: {
 				"@biomejs/biome": "^2.4.3",
