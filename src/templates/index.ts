@@ -4,9 +4,6 @@ export * from "./root/index.js";
 // Web app templates
 export * from "./web/index.js";
 
-// Database templates
-export * from "./db/index.js";
-
 // Better Auth templates
 export * from "./auth/better-auth/index.js";
 

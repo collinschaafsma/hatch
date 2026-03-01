@@ -28,10 +28,6 @@ pnpm --filter web typecheck
 
 ## Common Type Patterns
 
-### Drizzle ORM Types
-- Use \`typeof schema.tableName.$inferSelect\` for select types
-- Use \`typeof schema.tableName.$inferInsert\` for insert types
-
 ### Next.js App Router
 - Server Components are async by default
 - Client Components must have \`"use client"\` directive

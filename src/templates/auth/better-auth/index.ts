@@ -1,4 +1,3 @@
-export { generateBetterAuthConfig } from "./auth-config.js";
 export { generateBetterAuthClient } from "./auth-client.js";
 export { generateBetterAuthRouteHandler } from "./route-handler.js";
 export { generateLoginPage } from "./login-page.js";

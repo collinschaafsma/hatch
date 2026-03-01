@@ -275,9 +275,6 @@ export const createCommand = new Command()
 						path.join(projectPath, ".claude", "skills", "typecheck"),
 					);
 					await ensureDir(path.join(projectPath, ".claude", "skills", "test"));
-					await ensureDir(
-						path.join(projectPath, ".claude", "skills", "db-migrate"),
-					);
 
 					await writeFile(
 						path.join(
@@ -292,16 +289,6 @@ export const createCommand = new Command()
 					await writeFile(
 						path.join(projectPath, ".claude", "skills", "test", "SKILL.md"),
 						templates.generateTestSkill(),
-					);
-					await writeFile(
-						path.join(
-							projectPath,
-							".claude",
-							"skills",
-							"db-migrate",
-							"SKILL.md",
-						),
-						templates.generateDbMigrateSkill(),
 					);
 					await writeFile(
 						path.join(
