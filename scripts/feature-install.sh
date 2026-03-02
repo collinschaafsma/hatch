@@ -387,6 +387,9 @@ if [[ -n "$CONFIG_PATH" ]] && command -v jq &> /dev/null; then
     # Configure Claude Code to skip permissions in VM sandbox environment
     echo 'alias claude="claude --dangerously-skip-permissions"' >> ~/.bashrc
     success "Claude Code alias configured for sandbox mode"
+
+    # Alias p → pnpm for convenience
+    echo 'alias p="pnpm"' >> ~/.bashrc
 fi
 
 # ============================================================================
