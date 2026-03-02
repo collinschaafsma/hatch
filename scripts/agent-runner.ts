@@ -509,11 +509,8 @@ When you are done implementing your changes:
    b. Run \`pnpm harness:ui:capture-browser-evidence\` to screenshot affected routes
    c. Stop the dev server: \`kill %1\`
 5. Commit all changes with a descriptive message
-6. If you captured evidence in step 4, commit the screenshots in a separate commit:
-   a. Run: \`git add -f .harness/evidence/ && git commit -m "chore: add UI evidence screenshots"\`
-   b. Verify the commit contains evidence files: \`git show --stat HEAD\` — you must see .harness/evidence/ files listed. If not, the evidence was not committed and you need to fix it before proceeding.
-7. Push the branch to origin (the PR will update automatically)
-8. If you captured evidence in step 4, post it as a PR comment: \`pnpm harness:ui:post-evidence\`
+6. Push the branch to origin (the PR will update automatically)
+7. If you captured evidence in step 4, post it as a PR comment: \`pnpm harness:ui:post-evidence\`
 
 Important: The branch already exists (${feature}). Make your changes, verify quality, commit, and push.`;
 	} else {
@@ -547,13 +544,10 @@ When you are done implementing your changes:
    b. Run \`pnpm harness:ui:capture-browser-evidence\` to screenshot affected routes
    c. Stop the dev server: \`kill %1\`
 5. Commit all changes with a descriptive message
-6. If you captured evidence in step 4, commit the screenshots in a separate commit:
-   a. Run: \`git add -f .harness/evidence/ && git commit -m "chore: add UI evidence screenshots"\`
-   b. Verify the commit contains evidence files: \`git show --stat HEAD\` — you must see .harness/evidence/ files listed. If not, the evidence was not committed and you need to fix it before proceeding.
-7. Push the branch to origin
-8. Create a pull request using 'gh pr create'
-9. Write the PR URL to ~/pr-url.txt (just the URL, nothing else)
-10. If you captured evidence in step 4, post it as a PR comment: \`pnpm harness:ui:post-evidence\`
+6. Push the branch to origin
+7. Create a pull request using 'gh pr create'
+8. Write the PR URL to ~/pr-url.txt (just the URL, nothing else)
+9. If you captured evidence in step 4, post it as a PR comment: \`pnpm harness:ui:post-evidence\`
 
 Important: The branch is already created (${feature}). Make your changes, verify quality, then commit, push, and create the PR.`;
 	}

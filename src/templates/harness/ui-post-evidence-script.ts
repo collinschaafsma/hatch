@@ -66,35 +66,27 @@ try {
   process.exit(0);
 }
 
-// Force-add evidence files and commit
-try {
-  execSync("git add -f .harness/evidence/", {
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-  execSync('git commit -m "chore: add UI evidence screenshots"', {
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-  console.log("Committed evidence screenshots.");
-} catch (err) {
-  // If nothing to commit, that's fine — files may already be committed
-  const msg = err.message || String(err);
-  if (msg.includes("nothing to commit")) {
-    console.log("Evidence already committed.");
-  } else {
-    console.log("Git commit note: " + msg);
-  }
-}
+// Upload evidence files to a gist
+const filesToUpload = captured
+  .filter(r => r.screenshot)
+  .map(r => join(evidenceDir, r.screenshot));
+filesToUpload.push(manifestPath);
 
-// Push
+let gistUrl, gistId, gistOwner;
 try {
-  execSync("git push", {
-    stdio: ["pipe", "pipe", "pipe"],
-    timeout: 30000,
-  });
-  console.log("Pushed to " + branch + ".");
+  const result = execSync(
+    "gh gist create --public " + filesToUpload.join(" "),
+    { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }
+  ).trim();
+  // result is the gist URL like https://gist.github.com/user/abc123
+  gistUrl = result;
+  const parts = new URL(result).pathname.split("/").filter(Boolean);
+  gistOwner = parts[0];
+  gistId = parts[1];
+  console.log("Uploaded evidence to gist: " + gistUrl);
 } catch (err) {
-  console.log("Push failed: " + (err.message || err));
-  console.log("Screenshots are committed locally but not pushed.");
+  console.log("Failed to create gist: " + (err.message || err));
+  console.log("Evidence captured locally but not posted.");
   process.exit(0);
 }
 
@@ -108,9 +100,8 @@ for (const route of manifest.routes) {
   if (route.status === "captured" && route.screenshot) {
     // Use blob URL with ?raw=true — works for both public and private repos
     const imageUrl =
-      "https://github.com/" +
-      owner + "/" + repo + "/blob/" + branch +
-      "/.harness/evidence/" + route.screenshot + "?raw=true";
+      "https://gist.githubusercontent.com/" +
+      gistOwner + "/" + gistId + "/raw/" + route.screenshot;
     body += "![" + route.route + "](" + imageUrl + ")\\n\\n";
   } else {
     body += "_Failed to capture: " + (route.error || "unknown error") + "_\\n\\n";
@@ -158,7 +149,7 @@ try {
   }
 } catch (err) {
   console.log("Failed to post PR comment: " + (err.message || err));
-  console.log("Screenshots are committed and pushed but comment was not posted.");
+  console.log("Screenshots were uploaded to gist but PR comment was not posted.");
 } finally {
   try { unlinkSync(tmpFile); } catch {}
 }
