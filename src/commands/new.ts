@@ -11,6 +11,7 @@ import {
 } from "../utils/exe-dev.js";
 import { log } from "../utils/logger.js";
 import { saveProject } from "../utils/project-store.js";
+import { reportError } from "../utils/report-error.js";
 import { createSpinner } from "../utils/spinner.js";
 import { scpToRemote, sshExec } from "../utils/ssh.js";
 
@@ -32,6 +33,7 @@ export const newCommand = new Command()
 	.action(async (projectName: string, options: NewOptions) => {
 		let vmName: string | undefined;
 		let sshHost: string | undefined;
+		let monitor: { convexSiteUrl: string; token: string } | undefined;
 
 		try {
 			log.blank();
@@ -84,6 +86,14 @@ export const newCommand = new Command()
 				log.info("Run 'hatch config' to create a config file.");
 				log.blank();
 				process.exit(1);
+			}
+
+			// Load config to extract monitor settings
+			try {
+				const config = await fs.readJson(configPath);
+				monitor = config.monitor;
+			} catch {
+				// Config will be copied to VM regardless
 			}
 
 			// Step 2: Create temporary VM
@@ -247,6 +257,16 @@ export const newCommand = new Command()
 			);
 			log.blank();
 		} catch (error) {
+			reportError(
+				{
+					project: projectName,
+					feature: "initial-setup",
+					vmName,
+					sshHost,
+					monitor,
+				},
+				{ source: "cli", command: "new", error },
+			);
 			log.blank();
 			log.error(
 				`Failed to create project: ${error instanceof Error ? error.message : error}`,

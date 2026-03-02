@@ -16,6 +16,7 @@ import {
 import { log } from "../utils/logger.js";
 import { postMonitorEvent } from "../utils/monitor.js";
 import { getProject } from "../utils/project-store.js";
+import { reportError } from "../utils/report-error.js";
 import { createSpinner } from "../utils/spinner.js";
 import { scpToRemote, sshExec } from "../utils/ssh.js";
 import { isAnthropicKeyMissing } from "../utils/token-refresh.js";
@@ -47,6 +48,8 @@ export const featureCommand = new Command()
 	.action(async (featureName: string, options: FeatureOptions) => {
 		let vmName: string | undefined;
 		let sshHost: string | undefined;
+		// biome-ignore lint/suspicious/noExplicitAny: config shape varies
+		let config: any;
 
 		try {
 			log.blank();
@@ -108,7 +111,7 @@ export const featureCommand = new Command()
 			}
 
 			// Load config to get tokens for CLI commands
-			const config = await fs.readJson(configPath);
+			config = await fs.readJson(configPath);
 
 			// Non-blocking warning if Anthropic API key is missing
 			if (isAnthropicKeyMissing(config)) {
@@ -181,6 +184,16 @@ export const featureCommand = new Command()
 				log.success("Feature VM setup complete");
 			} catch (error) {
 				installSpinner.fail("Failed to set up feature VM");
+				reportError(
+					{
+						project: project.name,
+						feature: featureName,
+						vmName,
+						sshHost,
+						monitor: config?.monitor,
+					},
+					{ source: "cli", command: "feature", step: "ssh-install", error },
+				);
 				if (error instanceof Error && "stderr" in error) {
 					const stderr = (error as { stderr?: string }).stderr;
 					if (stderr) {
@@ -266,6 +279,16 @@ export const featureCommand = new Command()
 				}
 			} catch (error) {
 				deploySpinner.fail("Failed to create Convex preview deployment");
+				reportError(
+					{
+						project: project.name,
+						feature: featureName,
+						vmName,
+						sshHost,
+						monitor: config?.monitor,
+					},
+					{ source: "cli", command: "feature", step: "convex-preview", error },
+				);
 				throw error;
 			}
 
@@ -460,6 +483,16 @@ export const featureCommand = new Command()
 				log.blank();
 				log.info("Operation cancelled.");
 			} else {
+				reportError(
+					{
+						project: options.project,
+						feature: featureName,
+						vmName,
+						sshHost,
+						monitor: config?.monitor,
+					},
+					{ source: "cli", command: "feature", error },
+				);
 				log.blank();
 				log.error(
 					`Failed to create feature VM: ${error instanceof Error ? error.message : error}`,

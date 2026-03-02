@@ -203,9 +203,67 @@ The runner reads `docs/plans/{feature}.md` and counts markdown checkboxes:
 
 ---
 
+## POST `/api/errors`
+
+Called from CLI commands, the agent-runner, and harness scripts to report errors to a dedicated queryable table. This is separate from the `/api/runs/events` error events — those are ephemeral log entries, while `/api/errors` provides a persistent, indexed error store.
+
+### Sources
+
+- **CLI** (`source: "cli"`): Errors from `hatch feature`, `hatch spike`, `hatch clean`, `hatch new`
+- **Agent** (`source: "agent"`): Top-level agent-runner crashes
+- **Harness** (`source: "harness"`): UI capture failures read from `.harness/evidence/manifest.json` after agent completion
+
+### Request Body
+
+```typescript
+{
+  // Identity — which feature/project this error belongs to
+  project: string;           // "my-app"
+  feature: string;           // "add-dark-mode" or "initial-setup" (for hatch new)
+
+  // Optional context
+  vmName?: string;           // "peaceful-duckling"
+  sshHost?: string;          // "peaceful-duckling.exe.xyz"
+  runId?: string;            // Links to a run from /api/runs/start (agent-runner only)
+
+  // Error classification
+  source: "cli" | "agent" | "harness";
+  command?: string;          // "feature", "spike", "clean", "new", "ui-capture"
+  step?: string;             // "ssh-install", "convex-preview", "continuation", route path
+  message: string;           // Human-readable error message
+  stack?: string;            // Stack trace (when available)
+  severity: "error" | "warning";
+  timestamp: string;         // ISO 8601
+
+  // Arbitrary extra data
+  metadata?: Record<string, unknown>;  // e.g. { url, screenshot } for UI capture errors
+}
+```
+
+### Response
+
+```typescript
+{ ok: true }
+```
+
+### Error Handling
+
+All callers treat `/api/errors` failures as non-fatal:
+- CLI commands use fire-and-forget (`.catch(() => {})`)
+- Agent-runner wraps in a try/catch that silently swallows failures
+- Errors are always logged locally regardless of whether the POST succeeds
+
+### Design Notes
+
+- **Indexed by `(project, feature)`** — the dashboard can show all errors for a given spike
+- **`runId`** links back to the run timeline when the error comes from the agent-runner
+- **UI capture errors** are surfaced here because the capture script itself doesn't have monitor credentials — the agent-runner reads the manifest post-run and reports on its behalf
+
+---
+
 ## Dashboard Data Mapping
 
-With these three endpoints, a dashboard can power:
+With these four endpoints, a dashboard can power:
 
 | Panel | Data Source |
 |-------|-------------|
@@ -219,3 +277,4 @@ With these three endpoints, a dashboard can power:
 | Deployment Links | `vercelUrl`, `convexPreviewDeployment` — preview links |
 | History | Completed runs with cost, duration, PR links |
 | Iteration Timeline | `previousIterations` — how a feature evolved |
+| Error Log | `/api/errors` — filterable by project, feature, source |

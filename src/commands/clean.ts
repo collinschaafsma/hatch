@@ -7,6 +7,7 @@ import { requireConfirmation } from "../utils/confirmation.js";
 import { exeDevRm } from "../utils/exe-dev.js";
 import { log } from "../utils/logger.js";
 import { getProject } from "../utils/project-store.js";
+import { reportError } from "../utils/report-error.js";
 import { createSpinner } from "../utils/spinner.js";
 import { getVMByFeature, removeVM } from "../utils/vm-store.js";
 
@@ -28,6 +29,8 @@ export const cleanCommand = new Command()
 	.option("--confirm <token>", "Confirm with a token from --dry-run")
 	.option("-c, --config <path>", "Path to hatch.json config file")
 	.action(async (featureName: string, options: CleanOptions) => {
+		let monitor: { convexSiteUrl: string; token: string } | undefined;
+
 		try {
 			log.blank();
 
@@ -62,6 +65,7 @@ export const cleanCommand = new Command()
 				githubToken = config.github?.token || "";
 				convexAccessToken = config.convex?.accessToken || "";
 				vercelToken = config.vercel?.token || "";
+				monitor = config.monitor;
 			}
 
 			const {
@@ -222,6 +226,10 @@ export const cleanCommand = new Command()
 				log.info("Operation cancelled.");
 				process.exit(0);
 			}
+			reportError(
+				{ project: options.project, feature: featureName, monitor },
+				{ source: "cli", command: "clean", error },
+			);
 			log.blank();
 			log.error(
 				`Failed to clean feature: ${error instanceof Error ? error.message : error}`,

@@ -219,6 +219,22 @@ export interface StatusResult {
 	vms: VMStatus[];
 }
 
+export interface ErrorReport {
+	project: string;
+	feature: string;
+	vmName?: string;
+	sshHost?: string;
+	runId?: string;
+	source: "cli" | "agent" | "harness";
+	command?: string;
+	step?: string;
+	message: string;
+	stack?: string;
+	severity: "error" | "warning";
+	timestamp: string;
+	metadata?: Record<string, unknown>;
+}
+
 export interface SpikeResult {
 	status: "started" | "completed" | "failed";
 	vmName: string;

@@ -15,6 +15,7 @@ import {
 } from "../utils/exe-dev.js";
 import { log } from "../utils/logger.js";
 import { getProject } from "../utils/project-store.js";
+import { reportError } from "../utils/report-error.js";
 import { createSpinner } from "../utils/spinner.js";
 import { scpToRemote, sshExec } from "../utils/ssh.js";
 import { isAnthropicKeyMissing } from "../utils/token-refresh.js";
@@ -47,6 +48,9 @@ async function handleContinuation(
 	continueVmName: string,
 	outputJson: (result: SpikeResult) => void,
 ): Promise<void> {
+	// biome-ignore lint/suspicious/noExplicitAny: config shape varies
+	let config: any;
+
 	try {
 		if (!options.json) {
 			log.blank();
@@ -206,7 +210,7 @@ async function handleContinuation(
 			process.exit(1);
 		}
 
-		const config = await fs.readJson(configPath);
+		config = await fs.readJson(configPath);
 
 		// Check for Anthropic API key
 		if (isAnthropicKeyMissing(config)) {
@@ -553,6 +557,15 @@ async function handleContinuation(
 				log.info("Operation cancelled.");
 			}
 		} else {
+			reportError(
+				{
+					project: options.project,
+					feature: featureName,
+					vmName: continueVmName,
+					monitor: config?.monitor,
+				},
+				{ source: "cli", command: "spike", step: "continuation", error },
+			);
 			const result: SpikeResult = {
 				status: "failed",
 				vmName: continueVmName,
@@ -596,6 +609,8 @@ export const spikeCommand = new Command()
 	.action(async (featureName: string, options: SpikeCommandOptions) => {
 		let vmName: string | undefined;
 		let sshHost: string | undefined;
+		// biome-ignore lint/suspicious/noExplicitAny: config shape varies
+		let config: any;
 
 		const outputJson = (result: SpikeResult) => {
 			if (options.json) {
@@ -727,7 +742,7 @@ export const spikeCommand = new Command()
 			}
 
 			// Load config to get tokens
-			const config = await fs.readJson(configPath);
+			config = await fs.readJson(configPath);
 
 			// Check for Anthropic API key
 			if (isAnthropicKeyMissing(config)) {
@@ -870,6 +885,16 @@ export const spikeCommand = new Command()
 				}
 			} catch (error) {
 				installSpinner?.fail("Failed to set up feature VM");
+				reportError(
+					{
+						project: project.name,
+						feature: featureName,
+						vmName,
+						sshHost,
+						monitor: config?.monitor,
+					},
+					{ source: "cli", command: "spike", step: "ssh-install", error },
+				);
 				throw error;
 			}
 
@@ -948,6 +973,16 @@ export const spikeCommand = new Command()
 				}
 			} catch (error) {
 				deploySpinner?.fail("Failed to create Convex preview deployment");
+				reportError(
+					{
+						project: project.name,
+						feature: featureName,
+						vmName,
+						sshHost,
+						monitor: config?.monitor,
+					},
+					{ source: "cli", command: "spike", step: "convex-preview", error },
+				);
 				throw error;
 			}
 
@@ -1291,6 +1326,16 @@ export const spikeCommand = new Command()
 					log.info("Operation cancelled.");
 				}
 			} else {
+				reportError(
+					{
+						project: options.project,
+						feature: featureName,
+						vmName,
+						sshHost,
+						monitor: config?.monitor,
+					},
+					{ source: "cli", command: "spike", error },
+				);
 				const result: SpikeResult = {
 					status: "failed",
 					vmName: vmName || "",

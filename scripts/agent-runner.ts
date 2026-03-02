@@ -120,7 +120,7 @@ class RemoteLogger {
 	private consecutiveFailures = 0;
 	private disabled = false;
 	private seq = 0;
-	private runId: string | null = null;
+	runId: string | null = null;
 	readonly startTime = Date.now();
 
 	constructor(
@@ -312,6 +312,42 @@ function loadPrUrl(): string | undefined {
 }
 
 const HATCH_SPIKE_NAME = process.env.HATCH_SPIKE_NAME || "";
+
+interface ErrorReport {
+	project: string;
+	feature: string;
+	vmName?: string;
+	sshHost?: string;
+	runId?: string;
+	source: "cli" | "agent" | "harness";
+	command?: string;
+	step?: string;
+	message: string;
+	stack?: string;
+	severity: "error" | "warning";
+	timestamp: string;
+	metadata?: Record<string, unknown>;
+}
+
+async function postErrorReport(
+	endpoint: string,
+	token: string,
+	report: ErrorReport,
+): Promise<void> {
+	try {
+		await fetch(`${endpoint}/api/errors`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify(report),
+			signal: AbortSignal.timeout(10_000),
+		});
+	} catch {
+		// Fire-and-forget — don't disrupt the main flow
+	}
+}
 
 const OBSERVABILITY_INSTRUCTIONS = `
 ## Observability
@@ -774,6 +810,56 @@ Important: The branch is already created (${feature}). Make your changes, verify
 				durationMs: Date.now() - remoteLogger.startTime,
 			});
 		}
+
+		// Read UI capture manifest and report any failed routes as errors
+		if (process.env.HATCH_MONITOR_URL && process.env.HATCH_MONITOR_TOKEN) {
+			try {
+				const manifestPath = path.join(
+					projectPath,
+					".harness/evidence/manifest.json",
+				);
+				if (fs.existsSync(manifestPath)) {
+					const manifest = JSON.parse(
+						fs.readFileSync(manifestPath, "utf-8"),
+					) as Array<{
+						route?: string;
+						url?: string;
+						screenshot?: string;
+						status?: string;
+						error?: string;
+					}>;
+					for (const entry of manifest) {
+						if (entry.status === "error" || entry.status === "failed") {
+							await postErrorReport(
+								process.env.HATCH_MONITOR_URL,
+								process.env.HATCH_MONITOR_TOKEN,
+								{
+									project,
+									feature,
+									vmName: process.env.HATCH_VM_NAME,
+									sshHost: process.env.HATCH_SSH_HOST,
+									runId: remoteLogger?.runId ?? undefined,
+									source: "harness",
+									command: "ui-capture",
+									step: entry.route || entry.url || "unknown",
+									message:
+										entry.error ||
+										`UI capture ${entry.status} for ${entry.route || entry.url}`,
+									severity: "error",
+									timestamp: new Date().toISOString(),
+									metadata: {
+										url: entry.url,
+										screenshot: entry.screenshot,
+									},
+								},
+							);
+						}
+					}
+				}
+			} catch {
+				log("Warning: Could not read UI capture manifest");
+			}
+		}
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error);
 		log(`Error: ${errorMessage}`);
@@ -804,6 +890,27 @@ Important: The branch is already created (${feature}). Make your changes, verify
 				error: errorMessage,
 				durationMs: Date.now() - remoteLogger.startTime,
 			});
+		}
+
+		// Post to /api/errors for dedicated error querying
+		if (process.env.HATCH_MONITOR_URL && process.env.HATCH_MONITOR_TOKEN) {
+			await postErrorReport(
+				process.env.HATCH_MONITOR_URL,
+				process.env.HATCH_MONITOR_TOKEN,
+				{
+					project,
+					feature,
+					vmName: process.env.HATCH_VM_NAME,
+					sshHost: process.env.HATCH_SSH_HOST,
+					runId: remoteLogger?.runId ?? undefined,
+					source: "agent",
+					command: "spike",
+					message: errorMessage,
+					stack: error instanceof Error ? error.stack : undefined,
+					severity: "error",
+					timestamp: new Date().toISOString(),
+				},
+			);
 		}
 
 		process.exit(1);
