@@ -95,6 +95,7 @@ async function handleContinuation(
 
 			if (actuallyDone) {
 				await updateVM(continueVmName, { spikeStatus: "completed" });
+				vm.spikeStatus = "completed";
 				if (!options.json) {
 					log.info("Spike completed — updating status and continuing.");
 				}
@@ -121,6 +122,7 @@ async function handleContinuation(
 
 				if (actuallyDone) {
 					await updateVM(continueVmName, { spikeStatus: "completed" });
+					vm.spikeStatus = "completed";
 					if (!options.json) {
 						log.info("Spike completed — updating status and continuing.");
 					}
