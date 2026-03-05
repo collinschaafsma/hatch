@@ -55,15 +55,17 @@ Run \`pnpm harness:pre-pr\` before opening a pull request to validate all checks
 
 ## Evidence Capture
 
-When UI files are changed (\`apps/web/app/**/*.tsx\`, \`apps/web/components/**/*.tsx\`), capture visual evidence:
+When UI files are changed (\`apps/web/app/**/*.tsx\`, \`apps/web/components/**/*.tsx\`), capture and post visual evidence as part of the PR workflow:
 
-1. Start the dev server: \`pnpm dev\`
-2. Run \`pnpm harness:ui:capture-browser-evidence\` — uses \`agent-browser\` to screenshot affected routes
-3. Screenshots are saved to \`.harness/evidence/\` (gitignored)
-4. Run \`pnpm harness:ui:verify-browser-evidence\` to check coverage
-5. Run \`pnpm harness:ui:post-evidence\` to commit screenshots and post them as a PR comment
+1. Run \`pnpm harness:pre-pr\` — full validation (build + lint + typecheck + test + risk-tier)
+2. Start the dev server: \`pnpm dev\`
+3. Run \`pnpm harness:ui:capture-browser-evidence\` — screenshots affected routes via agent-browser
+4. Stop the dev server
+5. Commit and push changes
+6. Create the PR: \`gh pr create ...\`
+7. Run \`pnpm harness:ui:post-evidence\` — uploads screenshots to a gist and posts them as a PR comment (requires the PR to exist first)
 
-Set \`DEV_URL\` env var to override the default \`http://localhost:3000\`.
+Screenshots are saved to \`.harness/evidence/\` (gitignored). Set \`DEV_URL\` env var to override \`http://localhost:3000\`.
 
 ## Conventions
 
