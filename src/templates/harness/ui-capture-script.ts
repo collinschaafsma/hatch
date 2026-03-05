@@ -151,9 +151,15 @@ function findShallowChildPage(layoutDir) {
   }
 }
 
+const agentBrowserEnv = { ...process.env, PATH: \`\${process.env.HOME}/.local/share/pnpm:\${process.env.PATH}\` };
+
 function hasAgentBrowser() {
   try {
-    execSync("which agent-browser", { stdio: ["pipe", "pipe", "pipe"] });
+    execSync("which agent-browser || ls ~/.local/share/pnpm/agent-browser", {
+      stdio: ["pipe", "pipe", "pipe"],
+      shell: "/bin/bash",
+      env: agentBrowserEnv,
+    });
     return true;
   } catch {
     return false;
@@ -166,6 +172,7 @@ function isErrorPage() {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
       timeout: 10000,
+      env: agentBrowserEnv,
     }).trim();
 
     const errorTitles = ["Build Error", "Runtime Error", "Application error"];
@@ -175,6 +182,7 @@ function isErrorPage() {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
       timeout: 10000,
+      env: agentBrowserEnv,
     });
 
     const errorTexts = [
@@ -255,6 +263,7 @@ function authenticateAgentBrowser(devUrl) {
     execSync("agent-browser cookies set better-auth.session_token " + JSON.stringify(token) + " --url " + JSON.stringify(devUrl), {
       stdio: ["pipe", "pipe", "pipe"],
       timeout: 10000,
+      env: agentBrowserEnv,
     });
 
     console.log("Dev auth: authenticated as dev@test.local");
@@ -361,6 +370,7 @@ for (const route of routes) {
   const url = devUrl + route;
   const screenshotName = "screenshot-" + route.replace(/\\//g, "-").replace(/^-/, "") + ".png";
   const screenshotPath = join(evidenceDir, screenshotName);
+  const absScreenshotPath = join(process.cwd(), screenshotPath);
 
   console.log("  " + route + " -> " + screenshotName);
 
@@ -369,24 +379,28 @@ for (const route of routes) {
     execSync("agent-browser open " + JSON.stringify(url), {
       stdio: ["pipe", "pipe", "pipe"],
       timeout: 30000,
+      env: agentBrowserEnv,
     });
 
     // Set tall viewport to capture full scrollable content
     execSync("agent-browser set viewport 1280 2400", {
       stdio: ["pipe", "pipe", "pipe"],
       timeout: 10000,
+      env: agentBrowserEnv,
     });
 
     // Wait for layout reflow
     execSync("agent-browser wait 2000", {
       stdio: ["pipe", "pipe", "pipe"],
       timeout: 10000,
+      env: agentBrowserEnv,
     });
 
     // Take full page screenshot
-    execSync("agent-browser screenshot --full " + JSON.stringify(screenshotPath), {
+    execSync("agent-browser screenshot --full " + JSON.stringify(absScreenshotPath), {
       stdio: ["pipe", "pipe", "pipe"],
       timeout: 15000,
+      env: agentBrowserEnv,
     });
 
     // Check if page shows an error
@@ -399,18 +413,22 @@ for (const route of routes) {
           execSync("agent-browser open " + JSON.stringify(url), {
             stdio: ["pipe", "pipe", "pipe"],
             timeout: 30000,
+            env: agentBrowserEnv,
           });
           execSync("agent-browser set viewport 1280 2400", {
             stdio: ["pipe", "pipe", "pipe"],
             timeout: 10000,
+            env: agentBrowserEnv,
           });
           execSync("agent-browser wait 2000", {
             stdio: ["pipe", "pipe", "pipe"],
             timeout: 10000,
+            env: agentBrowserEnv,
           });
-          execSync("agent-browser screenshot --full " + JSON.stringify(screenshotPath), {
+          execSync("agent-browser screenshot --full " + JSON.stringify(absScreenshotPath), {
             stdio: ["pipe", "pipe", "pipe"],
             timeout: 15000,
+            env: agentBrowserEnv,
           });
 
           if (isErrorPage()) {
