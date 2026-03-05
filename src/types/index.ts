@@ -256,6 +256,7 @@ export interface SpikeResult {
 		tailLog: string;
 		tailProgress: string;
 		checkDone: string;
+		bgLog?: string;
 	};
 	prUrl?: string;
 	cost?: SpikeCost;

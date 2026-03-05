@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, openSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,7 +26,13 @@ import { addVM, getVM, updateVM } from "../utils/vm-store.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const packageRoot = path.resolve(__dirname, "../..");
+// In dev: __dirname = src/commands/ → up 2 = project root
+// In dist: __dirname = dist/ → up 1 = project root
+const packageRoot = existsSync(
+	path.join(path.resolve(__dirname, ".."), "package.json"),
+)
+	? path.resolve(__dirname, "..")
+	: path.resolve(__dirname, "../..");
 
 interface BgSetupState {
 	vmName: string;
@@ -865,10 +871,22 @@ export const spikeCommand = new Command()
 		if (options.BgSetup) {
 			let state: BgSetupState | undefined;
 			try {
+				console.error(
+					`[${new Date().toISOString()}] Background setup started (stateFile=${options.BgSetup})`,
+				);
 				state = await fs.readJson(options.BgSetup);
 				await fs.remove(options.BgSetup);
+				console.error(
+					`[${new Date().toISOString()}] State loaded for VM ${state.vmName}, running setup...`,
+				);
 				await runSpikeSetup(state);
-			} catch {
+				console.error(
+					`[${new Date().toISOString()}] Setup completed successfully`,
+				);
+			} catch (err) {
+				const msg =
+					err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
+				console.error(`[${new Date().toISOString()}] FATAL: ${msg}`);
 				if (state) {
 					try {
 						await updateVM(state.vmName, { spikeStatus: "setup-failed" });
@@ -881,6 +899,7 @@ export const spikeCommand = new Command()
 						// Best effort cleanup
 					}
 				}
+				process.exit(1);
 			}
 			return;
 		}
@@ -1126,8 +1145,13 @@ export const spikeCommand = new Command()
 				await fs.writeJson(stateFile, bgState);
 
 				// Spawn detached background process
+				const logDir = path.join(os.homedir(), ".hatch", "logs");
+				await fs.ensureDir(logDir);
+				const logFile = path.join(logDir, `bg-setup-${vmName}.log`);
+				const logFd = openSync(logFile, "a");
+
 				const distEntry = path.join(packageRoot, "dist", "index.js");
-				const isDev = !existsSync(distEntry);
+				const isDev = __filename.endsWith(".ts");
 				const spawnArgs = [
 					"spike",
 					featureName,
@@ -1140,11 +1164,11 @@ export const spikeCommand = new Command()
 					? spawn("pnpm", ["dev", ...spawnArgs], {
 							cwd: packageRoot,
 							detached: true,
-							stdio: "ignore",
+							stdio: ["ignore", logFd, logFd],
 						})
 					: spawn(process.execPath, [distEntry, ...spawnArgs], {
 							detached: true,
-							stdio: "ignore",
+							stdio: ["ignore", logFd, logFd],
 						});
 				child.unref();
 
@@ -1159,6 +1183,7 @@ export const spikeCommand = new Command()
 						tailLog: `ssh ${sshHost} 'tail -f ~/spike.log'`,
 						tailProgress: `ssh ${sshHost} 'tail -f ~/spike-progress.jsonl'`,
 						checkDone: `ssh ${sshHost} 'test -f ~/spike-done && cat ~/spike-result.json'`,
+						bgLog: `~/.hatch/logs/bg-setup-${vmName}.log`,
 					},
 				};
 				outputJson(result);
@@ -1176,6 +1201,7 @@ export const spikeCommand = new Command()
 					log.info("Monitor progress:");
 					log.step(`Status:        hatch status --project ${project.name}`);
 					log.step(`Tail log:      ${result.monitor?.tailLog}`);
+					log.step(`Background log: ~/.hatch/logs/bg-setup-${vmName}.log`);
 					log.blank();
 				}
 				return;
