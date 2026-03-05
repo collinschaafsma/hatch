@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1125,19 +1126,26 @@ export const spikeCommand = new Command()
 				await fs.writeJson(stateFile, bgState);
 
 				// Spawn detached background process
-				const child = spawn(
-					process.execPath,
-					[
-						path.join(packageRoot, "dist", "index.js"),
-						"spike",
-						featureName,
-						"--project",
-						project.name,
-						"--_bg-setup",
-						stateFile,
-					],
-					{ detached: true, stdio: "ignore" },
-				);
+				const distEntry = path.join(packageRoot, "dist", "index.js");
+				const isDev = !existsSync(distEntry);
+				const spawnArgs = [
+					"spike",
+					featureName,
+					"--project",
+					project.name,
+					"--_bg-setup",
+					stateFile,
+				];
+				const child = isDev
+					? spawn("pnpm", ["dev", ...spawnArgs], {
+							cwd: packageRoot,
+							detached: true,
+							stdio: "ignore",
+						})
+					: spawn(process.execPath, [distEntry, ...spawnArgs], {
+							detached: true,
+							stdio: "ignore",
+						});
 				child.unref();
 
 				// Output result and return
