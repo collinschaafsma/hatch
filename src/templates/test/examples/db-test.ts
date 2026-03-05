@@ -11,7 +11,7 @@ describe("Convex Function Integration Tests", () => {
 			// Example: call a public query
 			// Replace with your own query once you have one
 			try {
-				await t.query(api.functions.list, {});
+				await t.query(api.functions.hello, {});
 			} catch (error) {
 				// Expected if the query requires auth — that's fine,
 				// this verifies the in-memory backend is running.
