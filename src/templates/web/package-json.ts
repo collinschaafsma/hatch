@@ -58,7 +58,7 @@ export function generateWebPackageJson(): string {
 		dotenv: "^17.3.1",
 		jsdom: "^28.1.0",
 		postcss: "^8.5.6",
-		shadcn: "^2.5.0",
+		shadcn: "^3.8.5",
 		tailwindcss: "^4.1.18",
 		typescript: "^5.9.3",
 		"vite-tsconfig-paths": "^6.1.1",
