@@ -256,6 +256,18 @@ export const newCommand = new Command()
 				`Start a feature: hatch feature <feature-name> --project ${projectName}`,
 			);
 			log.blank();
+
+			log.warn("Action required before running spikes:");
+			log.step(
+				`Set a Convex preview deploy key in Vercel → ${projectName} → Settings → Environment Variables`,
+			);
+			log.step(
+				"Add CONVEX_DEPLOY_KEY with a preview: key (starts with 'preview:') for the Development environment",
+			);
+			log.step(
+				"Get a preview deploy key from: https://dashboard.convex.dev → project → Settings → URL & Deploy Key",
+			);
+			log.blank();
 		} catch (error) {
 			reportError(
 				{
