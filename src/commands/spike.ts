@@ -1,6 +1,8 @@
+import { spawn } from "node:child_process";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import fs from "fs-extra";
 import { parseConvexDeployUrl } from "../headless/convex.js";
 import type { SpikeResult, VMRecord } from "../types/index.js";
@@ -25,6 +27,242 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const packageRoot = path.resolve(__dirname, "../..");
 
+interface BgSetupState {
+	vmName: string;
+	sshHost: string;
+	featureName: string;
+	projectName: string;
+	project: {
+		name: string;
+		github: { url: string; owner: string; repo: string };
+		vercel: { url: string; projectId: string };
+	};
+	configPath: string;
+	effectivePrompt: string;
+	// biome-ignore lint/suspicious/noExplicitAny: config shape varies
+	config: any;
+}
+
+/**
+ * Run the full spike setup chain (SSH wait → install → git → Convex → agent).
+ * Used by both the inline flow and the detached --_bg-setup process.
+ */
+async function runSpikeSetup(state: BgSetupState): Promise<void> {
+	const {
+		vmName,
+		sshHost,
+		featureName,
+		project,
+		configPath,
+		effectivePrompt,
+		config,
+	} = state;
+	const vercelToken = config.vercel?.token || "";
+
+	// Wait for VM to be ready
+	await waitForVMReady(sshHost, 120000);
+
+	// Configure port forwarding
+	try {
+		await exeDevSharePort(vmName, 3000);
+	} catch {
+		// Non-fatal
+	}
+
+	// Copy config file to VM
+	await scpToRemote(configPath, sshHost, "~/.hatch.json");
+
+	// Copy and run feature install script
+	const scriptPath = path.join(packageRoot, "scripts", "feature-install.sh");
+	if (!(await fs.pathExists(scriptPath))) {
+		throw new Error("Feature install script not found");
+	}
+	await scpToRemote(scriptPath, sshHost, "~/feature-install.sh");
+	const installCommand = `chmod +x ~/feature-install.sh && ~/feature-install.sh ${project.github.url} --config ~/.hatch.json`;
+	await sshExec(sshHost, installCommand, {
+		timeoutMs: 10 * 60 * 1000,
+		streamStderr: false,
+	});
+
+	const projectPath = `~/${project.github.repo}`;
+	const envPrefix = `source ~/.profile 2>/dev/null; export PATH="$HOME/.local/bin:$HOME/.local/share/pnpm:$HOME/.claude/local/bin:$PATH" &&`;
+
+	// Create git branch
+	await sshExec(
+		sshHost,
+		`cd ${projectPath} && git fetch origin && git checkout -b ${featureName} origin/main`,
+	);
+
+	const appUrl = `https://${vmName}.exe.xyz`;
+
+	// Pull Vercel env vars
+	await sshExec(
+		sshHost,
+		`${envPrefix} cd ${projectPath}/apps/web && vercel link --yes --project ${project.vercel.projectId} --token "${vercelToken}" 2>&1 || true`,
+	);
+	await sshExec(
+		sshHost,
+		`${envPrefix} cd ${projectPath}/apps/web && vercel env pull .env.local --yes --environment=development --token "${vercelToken}" 2>&1 || true`,
+	);
+
+	// Append ALLOWED_DEV_ORIGINS
+	const exeDevOrigin = `${vmName}.exe.xyz`;
+	await sshExec(
+		sshHost,
+		`cd ${projectPath}/apps/web && echo 'ALLOWED_DEV_ORIGINS=${exeDevOrigin}' >> .env.local`,
+	);
+
+	// Deploy to Convex preview deployment
+	let convexPreviewDeployment:
+		| { deploymentUrl: string; deploymentName: string }
+		| undefined;
+	const convexDeployCmd = `DEPLOY_KEY=$(grep '^CONVEX_DEPLOY_KEY=' .env.local | cut -d= -f2- | sed 's/^"//;s/"$//'); if [ -z "$DEPLOY_KEY" ]; then echo "ERROR: No CONVEX_DEPLOY_KEY found in .env.local" >&2; exit 1; elif echo "$DEPLOY_KEY" | grep -q '^preview:'; then npx convex deploy --preview-create ${featureName} --yes 2>&1; else echo "ERROR: CONVEX_DEPLOY_KEY is a production key. Feature/spike branches must use a preview deploy key (starts with preview:). Set a preview deploy key in Vercel env vars as CONVEX_DEPLOY_KEY for the Preview environment." >&2; exit 1; fi`;
+	const { stdout: deployOutput } = await sshExec(
+		sshHost,
+		`${envPrefix} cd ${projectPath}/apps/web && ${convexDeployCmd}`,
+	);
+	convexPreviewDeployment = parseConvexDeployUrl(deployOutput);
+
+	// Update .env.local with preview deployment URL and app URLs
+	if (convexPreviewDeployment) {
+		const siteUrl = convexPreviewDeployment.deploymentUrl.replace(
+			".convex.cloud",
+			".convex.site",
+		);
+		await sshExec(
+			sshHost,
+			`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_CONVEX_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_CONVEX_URL=.*|NEXT_PUBLIC_CONVEX_URL=${convexPreviewDeployment.deploymentUrl}|' .env.local || echo 'NEXT_PUBLIC_CONVEX_URL=${convexPreviewDeployment.deploymentUrl}' >> .env.local)`,
+		);
+		await sshExec(
+			sshHost,
+			`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_CONVEX_SITE_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_CONVEX_SITE_URL=.*|NEXT_PUBLIC_CONVEX_SITE_URL=${siteUrl}|' .env.local || echo 'NEXT_PUBLIC_CONVEX_SITE_URL=${siteUrl}' >> .env.local)`,
+		);
+		await sshExec(
+			sshHost,
+			`cd ${projectPath}/apps/web && (grep -q '^CONVEX_DEPLOYMENT=' .env.local && sed -i 's|^CONVEX_DEPLOYMENT=.*|CONVEX_DEPLOYMENT=${convexPreviewDeployment.deploymentName}|' .env.local || echo 'CONVEX_DEPLOYMENT=${convexPreviewDeployment.deploymentName}' >> .env.local)`,
+		);
+	}
+	await sshExec(
+		sshHost,
+		`cd ${projectPath}/apps/web && (grep -q '^BETTER_AUTH_URL=' .env.local && sed -i 's|^BETTER_AUTH_URL=.*|BETTER_AUTH_URL=${appUrl}|' .env.local || echo 'BETTER_AUTH_URL=${appUrl}' >> .env.local)`,
+	);
+	await sshExec(
+		sshHost,
+		`cd ${projectPath}/apps/web && (grep -q '^NEXT_PUBLIC_APP_URL=' .env.local && sed -i 's|^NEXT_PUBLIC_APP_URL=.*|NEXT_PUBLIC_APP_URL=${appUrl}|' .env.local || echo 'NEXT_PUBLIC_APP_URL=${appUrl}' >> .env.local)`,
+	);
+
+	// Seed the preview deployment
+	const seedFunction = config.convex?.seedFunction || "seed:seedData";
+	try {
+		await sshExec(
+			sshHost,
+			`${envPrefix} cd ${projectPath}/apps/web && npx convex run --preview-name ${featureName} ${seedFunction}`,
+		);
+	} catch {
+		// Non-fatal
+	}
+
+	// Write .claude/settings.local.json with Convex MCP server config
+	try {
+		const { stdout: deployKeyFromEnv } = await sshExec(
+			sshHost,
+			`cd ${projectPath}/apps/web && grep '^CONVEX_DEPLOY_KEY=' .env.local | cut -d= -f2- | sed 's/^"//;s/"$//'`,
+		);
+		const deployKey = deployKeyFromEnv.trim();
+		const deploymentName = convexPreviewDeployment?.deploymentName || "";
+		const mcpConfig = JSON.stringify(
+			{
+				mcpServers: {
+					"convex-mcp": {
+						command: "npx",
+						args: ["-y", "@convex-dev/mcp-server"],
+						env: {
+							CONVEX_DEPLOYMENT: deploymentName,
+							CONVEX_DEPLOY_KEY: deployKey,
+						},
+					},
+				},
+			},
+			null,
+			2,
+		);
+		await sshExec(
+			sshHost,
+			`mkdir -p ${projectPath}/.claude && cat > ${projectPath}/.claude/settings.local.json << 'MCPEOF'\n${mcpConfig}\nMCPEOF`,
+		);
+	} catch {
+		// Non-fatal
+	}
+
+	// Install Claude Agent SDK and tsx
+	await sshExec(
+		sshHost,
+		`${envPrefix} cd ${projectPath} && pnpm add -wD @anthropic-ai/claude-agent-sdk tsx`,
+	);
+
+	// Copy agent runner script to VM
+	const agentRunnerPath = path.join(packageRoot, "scripts", "agent-runner.ts");
+	if (!(await fs.pathExists(agentRunnerPath))) {
+		throw new Error("Agent runner script not found");
+	}
+	await scpToRemote(agentRunnerPath, sshHost, `${projectPath}/agent-runner.ts`);
+	await sshExec(
+		sshHost,
+		`cd ${projectPath} && grep -q '^agent-runner.ts$' .gitignore 2>/dev/null || echo 'agent-runner.ts' >> .gitignore`,
+	);
+
+	// Push branch to origin
+	await sshExec(
+		sshHost,
+		`cd ${projectPath} && git push -u origin ${featureName}`,
+	);
+
+	// Update VM record with convex preview info and status
+	await updateVM(vmName, {
+		spikeStatus: "running",
+		convexPreviewDeployment,
+	});
+
+	// Start agent in background
+	const escapedPrompt = effectivePrompt
+		.replace(/\\/g, "\\\\")
+		.replace(/"/g, '\\"')
+		.replace(/\$/g, "\\$")
+		.replace(/`/g, "\\`");
+
+	const convexDeployKeyExport = `export CONVEX_AGENT_MODE=anonymous && export CONVEX_DEPLOY_KEY="$(grep '^CONVEX_DEPLOY_KEY=' ${projectPath}/apps/web/.env.local | cut -d= -f2- | sed 's/^"//;s/"$//')" &&`;
+	const anthropicKeyExport = `export ANTHROPIC_API_KEY="${config.anthropicApiKey}" &&`;
+	const ghTokenExport = config.github?.token
+		? `export GH_TOKEN="${config.github.token}" &&`
+		: "";
+	const planEnv = `export HATCH_PLAN=true && export HATCH_SPIKE_NAME="${featureName}" && `;
+
+	let monitorEnv = "";
+	if (config.monitor) {
+		monitorEnv = `${[
+			`export HATCH_MONITOR_URL="${config.monitor.convexSiteUrl}"`,
+			`export HATCH_MONITOR_TOKEN="${config.monitor.token}"`,
+			`export HATCH_VM_NAME="${vmName}"`,
+			`export HATCH_SSH_HOST="${sshHost}"`,
+			`export HATCH_GITHUB_REPO_URL="${project.github.url}"`,
+			`export HATCH_GITHUB_OWNER="${project.github.owner}"`,
+			`export HATCH_GITHUB_REPO="${project.github.repo}"`,
+			`export HATCH_VERCEL_URL="${project.vercel.url}"`,
+			convexPreviewDeployment
+				? `export HATCH_CONVEX_PREVIEW_URL="${convexPreviewDeployment.deploymentUrl}"`
+				: "",
+			convexPreviewDeployment
+				? `export HATCH_CONVEX_PREVIEW_NAME="${convexPreviewDeployment.deploymentName}"`
+				: "",
+		]
+			.filter(Boolean)
+			.join(" && ")} && `;
+	}
+
+	const agentCommand = `${envPrefix} ${convexDeployKeyExport} ${anthropicKeyExport} ${ghTokenExport} ${planEnv}${monitorEnv}cd ${projectPath} && (nohup pnpm tsx ./agent-runner.ts --prompt "${escapedPrompt}" --project-path ${projectPath} --feature ${featureName} --project ${project.name} > /dev/null 2>&1 < /dev/null &)`;
+	await sshExec(sshHost, agentCommand);
+}
+
 interface SpikeCommandOptions {
 	project: string;
 	prompt?: string;
@@ -36,6 +274,7 @@ interface SpikeCommandOptions {
 	force?: boolean;
 	dryRun?: boolean;
 	confirm?: string;
+	BgSetup?: string;
 }
 
 /**
@@ -608,6 +847,7 @@ export const spikeCommand = new Command()
 	.option("-f, --force", "Skip confirmation (interactive terminal only)")
 	.option("--dry-run", "Show what will be created and get a confirmation token")
 	.option("--confirm <token>", "Confirm with a token from --dry-run")
+	.addOption(new Option("--_bg-setup <stateFile>", "hidden").hideHelp())
 	.action(async (featureName: string, options: SpikeCommandOptions) => {
 		let vmName: string | undefined;
 		let sshHost: string | undefined;
@@ -619,6 +859,30 @@ export const spikeCommand = new Command()
 				console.log(JSON.stringify(result, null, 2));
 			}
 		};
+
+		// Handle background setup mode (internal, spawned by --confirm)
+		if (options.BgSetup) {
+			let state: BgSetupState | undefined;
+			try {
+				state = await fs.readJson(options.BgSetup);
+				await fs.remove(options.BgSetup);
+				await runSpikeSetup(state);
+			} catch {
+				if (state) {
+					try {
+						await updateVM(state.vmName, { spikeStatus: "setup-failed" });
+					} catch {
+						// Best effort
+					}
+					try {
+						await exeDevRm(state.vmName);
+					} catch {
+						// Best effort cleanup
+					}
+				}
+			}
+			return;
+		}
 
 		// Handle continuation mode
 		if (options.continue) {
@@ -822,6 +1086,92 @@ export const spikeCommand = new Command()
 			vmName = vm.name;
 			sshHost = vm.sshHost;
 			vmSpinner?.succeed(`VM created: ${vmName}`);
+
+			// --confirm without --wait: return immediately, run setup in background
+			if (options.confirm && !options.wait) {
+				// Write VM record immediately as "provisioning"
+				const vmRecord: VMRecord = {
+					name: vmName,
+					sshHost,
+					project: project.name,
+					feature: featureName,
+					createdAt: new Date().toISOString(),
+					githubBranch: featureName,
+					spikeStatus: "provisioning",
+					spikeIterations: 1,
+					originalPrompt: effectivePrompt,
+				};
+				await addVM(vmRecord);
+
+				// Write state file for background process
+				const bgState: BgSetupState = {
+					vmName,
+					sshHost,
+					featureName,
+					projectName: project.name,
+					project: {
+						name: project.name,
+						github: project.github,
+						vercel: project.vercel,
+					},
+					configPath,
+					effectivePrompt,
+					config,
+				};
+				const stateFile = path.join(
+					os.tmpdir(),
+					`hatch-bg-setup-${vmName}-${Date.now()}.json`,
+				);
+				await fs.writeJson(stateFile, bgState);
+
+				// Spawn detached background process
+				const child = spawn(
+					process.execPath,
+					[
+						path.join(packageRoot, "dist", "index.js"),
+						"spike",
+						featureName,
+						"--project",
+						project.name,
+						"--_bg-setup",
+						stateFile,
+					],
+					{ detached: true, stdio: "ignore" },
+				);
+				child.unref();
+
+				// Output result and return
+				const result: SpikeResult = {
+					status: "started",
+					vmName,
+					sshHost,
+					feature: featureName,
+					project: project.name,
+					monitor: {
+						tailLog: `ssh ${sshHost} 'tail -f ~/spike.log'`,
+						tailProgress: `ssh ${sshHost} 'tail -f ~/spike-progress.jsonl'`,
+						checkDone: `ssh ${sshHost} 'test -f ~/spike-done && cat ~/spike-result.json'`,
+					},
+				};
+				outputJson(result);
+
+				if (!options.json) {
+					log.blank();
+					log.success("Spike started (setup running in background)!");
+					log.blank();
+					log.info("Spike details:");
+					log.step(`VM:      ${vmName}`);
+					log.step(`SSH:     ${sshHost}`);
+					log.step(`Feature: ${featureName}`);
+					log.step(`Project: ${project.name}`);
+					log.blank();
+					log.info("Monitor progress:");
+					log.step(`Status:        hatch status --project ${project.name}`);
+					log.step(`Tail log:      ${result.monitor?.tailLog}`);
+					log.blank();
+				}
+				return;
+			}
 
 			// Step 4: Wait for VM to be ready
 			const readySpinner = options.json

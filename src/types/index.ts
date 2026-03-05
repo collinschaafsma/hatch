@@ -153,7 +153,12 @@ export interface VMRecord {
 	};
 	// Spike-specific fields (optional for feature VMs)
 	agentSessionId?: string; // For session resume
-	spikeStatus?: "running" | "completed" | "failed";
+	spikeStatus?:
+		| "provisioning"
+		| "running"
+		| "completed"
+		| "failed"
+		| "setup-failed";
 	// Iteration fields (for spike continuations)
 	spikeIterations?: number; // Count: 1 = original, 2+ = continued
 	originalPrompt?: string; // First prompt for context
@@ -201,7 +206,12 @@ export interface VMStatus {
 	githubBranch: string;
 	vmReachable: boolean;
 	spike: {
-		status: "running" | "completed" | "failed";
+		status:
+			| "provisioning"
+			| "running"
+			| "completed"
+			| "failed"
+			| "setup-failed";
 		iterations: number;
 		originalPrompt: string | null;
 		cumulativeCost: SpikeCost | null;

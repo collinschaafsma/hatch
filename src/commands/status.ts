@@ -1,6 +1,11 @@
 import { Command } from "commander";
 import { execa } from "execa";
-import type { PRStatus, StatusResult, VMStatus } from "../types/index.js";
+import type {
+	PRStatus,
+	StatusResult,
+	VMRecord,
+	VMStatus,
+} from "../types/index.js";
 import { log } from "../utils/logger.js";
 import { listProjects } from "../utils/project-store.js";
 import { checkPlanProgress } from "../utils/spike-progress.js";
@@ -85,7 +90,7 @@ async function fetchPRStatus(prUrl: string): Promise<PRStatus | null> {
 
 async function checkVMLiveness(
 	sshHost: string,
-	spikeStatus?: "running" | "completed" | "failed",
+	spikeStatus?: VMRecord["spikeStatus"],
 ): Promise<{ reachable: boolean; spikeActuallyDone: boolean | null }> {
 	const reachable = await checkSSHConnection(sshHost);
 
