@@ -8,151 +8,84 @@ A CLI tool that scaffolds production-ready Turborepo monorepos with Next.js, aut
 
 A modern stack (Next.js 16, React 19, Tailwind 4, shadcn/ui) with auth, AI, workflows, and testing already wired up. Powered by **Convex** (real-time database + serverless functions) with **Better Auth** for authentication. Skip the boilerplate and start building.
 
-## Why Hatch
+## Quickstart (Remote Server + OpenClaw)
 
-Most AI coding tools generate throwaway prototypes. The code works in a demo but falls apart when you try to ship it: wrong versions, missing auth, no database migrations, no CI, no deployment pipeline. You end up rewriting everything to make it production-grade.
+The primary way to use Hatch is on a remote Linux server via [OpenClaw](https://openclaw.ai). Your local machine only needs to run `pnpm dev config` and `config-push` once.
 
-Hatch takes the opposite approach. Every project starts with a production-ready architecture that you can deploy on day one.
+### 1. Install Hatch on your Linux server
 
-**Current dependencies, every time.** Next.js 16, React 19, Tailwind 4, Turborepo 2.7+. No outdated starter templates. Every `hatch new` pulls the latest stable versions so you're never starting behind.
+```bash
+curl -fsSL https://raw.githubusercontent.com/collinschaafsma/hatch/main/scripts/master-install.sh | bash
+```
 
-**Real authentication.** Email OTP via Better Auth and Resend. Not a mock login screen—actual auth flows with session management and database-backed user records. Better Auth runs inside Convex as a component via `@convex-dev/better-auth`.
+This installs Node.js, pnpm, and the hatch CLI to `~/.hatch-cli`.
 
-**Real database.** Convex provides a real-time database with serverless functions. Feature branches get their own Convex project for full isolation.
+### 2. Transfer config from your local machine
 
-**AI and workflows built in.** Vercel AI SDK with Vercel AI Gateway, plus durable workflows with SSE streaming. Not bolted on after the fact—wired into the monorepo from the start.
-
-**UI ready to go.** Tailwind 4 with shadcn/ui components pre-configured in a shared package. Start building interfaces immediately instead of spending time on design system setup.
-
-**Testing and linting from the start.** Vitest configured with example tests and factories so you have working patterns to follow. Biome handles linting and formatting with zero config. CI runs both on every PR.
-
-**Deployed to your infrastructure.** GitHub repo in your org, Vercel project on your team, backend in your organization. All environment variables, CI/CD, and preview deployments are configured automatically. Push to main and you're live.
-
-**All env setup handled.** Hatch extracts tokens from your logged-in CLIs, copies them to VMs, authenticates every tool, and pulls environment variables into your project. No manual `.env` wrangling or secrets management.
-
-**Loaded with Claude Code skills.** Every generated project ships with curated skills for React performance, AI SDK patterns, auth best practices, component design, and more. Claude Code is productive in your codebase from the first session.
-
-**Isolated dev environments.** Each feature gets its own VM, git branch, and isolated Convex project. Run multiple features in parallel with zero conflicts. When you're done, `hatch clean` tears it all down.
-
-**Built for teams.** The generated monorepo follows conventions that professional engineering teams expect: typed schemas, a services layer, proper project structure, CI checks, and preview deployments per PR. A new engineer can clone the repo and understand where things go.
-
-**Primed for coding agents.** Every project includes a `CLAUDE.md` with full codebase context, pre-installed skills, and `hatch spike` can run Claude autonomously on its own VM to implement features and open PRs. The architecture is consistent and well-documented—exactly what agents need to be effective.
-
-**No graduation step.** The codebase you build features in is the codebase you ship. Same stack in development and production. There's no "rewrite it properly" phase because the architecture is already proper.
-
-## Requirements
-
-**macOS** is required (Claude credential extraction uses Keychain).
-
-**Accounts:**
-- [exe.dev](https://exe.dev) - Cloud VMs for development
-- [Convex](https://www.convex.dev/) - Real-time database + serverless functions
-- [Vercel](https://vercel.com) - Deployment platform
-- [GitHub](https://github.com) - Repository hosting
-- [Claude Code](https://claude.ai/code) - AI coding assistant (subscription required)
-
-**CLI tools (installed and logged in):**
-- `gh` - GitHub CLI
-- `vercel` - Vercel CLI
-- `claude` - Claude Code
-
-**SSH key** registered with exe.dev for VM access.
-
-## Quickstart
-
-### 1. Configure Hatch
-
-Clone the repo and generate your config file:
+On your local machine (macOS), generate and push your config:
 
 ```bash
 git clone https://github.com/collinschaafsma/hatch.git
-cd hatch
-pnpm install
+cd hatch && pnpm install
 pnpm dev config
+pnpm dev config-push user@remote-server
 ```
 
-This creates `~/.hatch.json` with tokens from your logged-in CLIs (GitHub, Convex, Claude) and prompts you to paste your Vercel dashboard token.
+### 3. Authenticate Claude Code (one-time)
 
-### 2. Create a Project
+On the remote server:
 
 ```bash
-pnpm dev new my-app
+claude
 ```
 
-This provisions a temporary exe.dev VM, sets up a complete project (GitHub, Vercel, and Convex), then deletes the VM. The project details are saved locally.
+Complete the interactive OAuth login. This only needs to be done once per server.
 
-### 3. Start Feature Work
-
-You have two options for feature development:
-
-#### Option A: Interactive with `hatch feature`
-
-Create a feature VM and drive development yourself:
+### 4. Install the OpenClaw skill
 
 ```bash
-pnpm dev feature add-auth --project my-app
+mkdir -p ~/.openclaw/skills
+cp -r ~/.hatch-cli/skills/hatch ~/.openclaw/skills/
 ```
 
-Then connect and start building:
+Tell your OpenClaw assistant to "refresh skills".
+
+### 5. Verify
+
+Tell your assistant:
+
+- "Create a new hatch project called my-app"
+- "Add a contact form feature to my-app"
+- "Spike a user settings page for my-app"
+
+### Updating
+
+From your local machine:
 
 ```bash
-ssh <vm-name>              # Direct SSH
-cd my-app
-claude                     # Start Claude Code
+pnpm dev update user@remote-server
 ```
 
-Or connect your IDE for a full development experience:
+Or on the server itself:
 
 ```bash
-# VS Code
-code --remote ssh-remote+<vm-name> ~/my-app
-
-# Cursor
-cursor --remote ssh-remote+<vm-name> ~/my-app
+cd ~/.hatch-cli && pnpm dev update
 ```
 
-Access your app at `https://<vm-name>.exe.xyz` once the dev server is running on port 3000.
+## What You Can Do
 
-#### Option B: Autonomous with `hatch spike`
-
-Let Claude implement the feature and create a PR automatically:
-
-```bash
-pnpm dev spike fix-nav --project my-app --prompt "The mobile nav menu doesn't close after clicking a link"
-```
-
-Monitor progress while it runs:
-
-```bash
-ssh <vm-name>.exe.xyz 'tail -f ~/spike.log'
-```
-
-When complete, you'll get a PR URL. Review it and merge.
-
-### 4. Clean Up
-
-When done with a feature, delete the VM and backend resources:
-
-```bash
-pnpm dev clean add-auth --project my-app
-```
-
-The project (GitHub, Vercel, and main Convex backend) is preserved—only the VM and feature-specific Convex project are deleted.
-
-## Workflow Concepts
-
-### Projects vs VMs
-
-| Concept | Lifecycle | Contains |
-|---------|-----------|----------|
-| **Project** | Permanent | GitHub repo, Vercel project, Convex backend |
-| **Feature VM** | Ephemeral | VM, git branch, isolated Convex project |
-
-Projects are created once and persist. Feature VMs are spun up for each piece of work and deleted when done.
+| Command | Description |
+|---------|-------------|
+| `pnpm dev new <project>` | Scaffold a full-stack project (GitHub, Vercel, Convex) via ephemeral VM |
+| `pnpm dev feature <name> --project <project>` | Create a feature VM with isolated backend for interactive development |
+| `pnpm dev spike <name> --project <project> --prompt "..."` | Run Claude autonomously to implement a feature and open a PR |
+| `pnpm dev add <project>` | Onboard an existing project for feature VMs and spikes |
+| `pnpm dev clean <name> --project <project>` | Delete a feature VM and its isolated backend |
+| `pnpm dev status` | Dashboard of VM liveness, spike progress, and PR status |
 
 ### Feature vs Spike
 
-| Aspect | `hatch feature` | `hatch spike` |
+| Aspect | `pnpm dev feature` | `pnpm dev spike` |
 |--------|-----------------|---------------|
 | **Best for** | Complex features, exploration, learning | Well-defined tasks, simple features |
 | **How it works** | SSH in, run `claude` interactively | Agent SDK runs autonomously |
@@ -163,55 +96,35 @@ Projects are created once and persist. Feature VMs are spun up for each piece of
 
 Use `feature` when you want to explore, learn the codebase, or tackle complex multi-step work. Use `spike` for straightforward tasks where you can describe what you want in a prompt.
 
-### Parallel Development
+## Requirements
 
-Run Claude Code on multiple VMs simultaneously, each with complete isolation:
+**Accounts:**
+- [exe.dev](https://exe.dev) — Cloud VMs for development
+- [Convex](https://www.convex.dev/) — Real-time database + serverless functions
+- [Vercel](https://vercel.com) — Deployment platform
+- [GitHub](https://github.com) — Repository hosting
+- [Claude Code](https://claude.ai/code) — AI coding assistant (subscription required)
 
-```
-VM: peaceful-duckling → branch: add-auth → https://peaceful-duckling.exe.xyz
-VM: fortune-sprite   → branch: payments → https://fortune-sprite.exe.xyz
-```
+**CLI tools (installed and logged in on your local machine):**
+- `gh` — GitHub CLI
+- `vercel` — Vercel CLI
+- `claude` — Claude Code
 
-Each VM has its own git branch, isolated Convex project, and public web URL. No conflicts, no shared state.
+**SSH key** registered with exe.dev for VM access.
 
-## What You Get
+## Configuration
 
-Hatch generates a complete full-stack monorepo with:
+### Config File
 
-- **[Turborepo](https://turbo.build/repo)** - High-performance build system
-- **[Next.js 16](https://nextjs.org/)** - React 19 with App Router and Turbopack
-- **[Convex](https://www.convex.dev/)** - Real-time database with serverless functions
-- **[Better Auth](https://www.better-auth.com/)** - Email OTP authentication via `@convex-dev/better-auth`
-- **[Vercel AI SDK](https://sdk.vercel.ai/)** - AI/LLM integration with OpenAI
-- **[Vercel Workflows](https://useworkflow.dev/)** - Durable workflow execution
-- **[Tailwind CSS 4](https://tailwindcss.com/)** + **[shadcn/ui](https://ui.shadcn.com/)** - Modern styling
-- **[Vitest](https://vitest.dev/)** - Fast unit and integration testing
-- **[Biome](https://biomejs.dev/)** - Lightning-fast linting and formatting
-- **[PostHog](https://posthog.com/)** - Product analytics
-- **GitHub Actions** - CI/CD
+Running `pnpm dev config` creates `~/.hatch.json` containing tokens from your logged-in CLIs (GitHub, Convex, Claude) and prompts for your Vercel dashboard token. This file is copied to VMs during setup so all CLIs authenticate automatically.
 
-## How It Works
+### Per-Project Configs
 
-### The Configuration File
-
-Running `hatch config` creates `~/.hatch.json` containing:
-
-- **GitHub token** - From `gh` CLI config
-- **Vercel token** - From Vercel dashboard token (https://vercel.com/account/settings/tokens)
-- **Convex access token** - From Convex CLI config
-- **Claude Code credentials** - OAuth tokens from macOS Keychain
-
-This file is copied to VMs during setup so all CLIs authenticate automatically.
-
-### Per-Project Configuration
-
-For managing multiple projects with different credentials, create per-project configs:
+For multiple projects with different credentials:
 
 ```bash
-pnpm dev config --project my-app
+pnpm dev config --project my-app    # Creates ~/.hatch/configs/my-app.json
 ```
-
-This writes to `~/.hatch/configs/my-app.json` instead of the global `~/.hatch.json`. Commands with `--project` auto-resolve the right config.
 
 **Config resolution order** (first match wins):
 1. `--config <path>` (explicit path)
@@ -222,296 +135,54 @@ This writes to `~/.hatch/configs/my-app.json` instead of the global `~/.hatch.js
 Discover and validate configs:
 
 ```bash
-pnpm dev config list --json           # List all project configs
-pnpm dev config check --project my-app --json  # Validate tokens
-```
-
-When pushing to a remote VM, `config-push` copies the resolved config to `~/.hatch.json` on the VM (each VM serves one project):
-
-```bash
-pnpm dev config-push user@remote-server --project my-app
+pnpm dev config list --json              # List all project configs
+pnpm dev config check --project my-app   # Validate tokens
 ```
 
 ### Custom Environment Variables
 
-You can add custom environment variables (like `RESEND_API_KEY`, `AI_GATEWAY_API_KEY`, or `EMAIL_FROM`) during `hatch config`. These get stored in `~/.hatch.json` and are automatically added to Vercel during project setup.
-
-**Required for production:** To have your production deployment work end-to-end out of the box, you'll need to set:
-- `RESEND_API_KEY` - For sending authentication emails
-- `AI_GATEWAY_API_KEY` - For AI/LLM functionality
-- `EMAIL_FROM` - The sender address for auth emails (e.g., `noreply@yourdomain.com`)
-
-When running `hatch config`, you'll be prompted:
-
-```
-? Would you like to add custom environment variables? Yes
-? Environment variable name: AI_GATEWAY_API_KEY
-? Value for AI_GATEWAY_API_KEY: ********
-? Which environments should this variable be set in?
-  ◉ Production
-  ◉ Preview
-  ◉ Development
-✔ Added AI_GATEWAY_API_KEY
-? Add another environment variable? Yes
-? Environment variable name: EMAIL_FROM
-? Value for EMAIL_FROM: noreply@example.com
-...
-```
-
-The variables are stored in `hatch.json`:
-
-```json
-{
-  "github": { ... },
-  "vercel": { ... },
-  "convex": { ... },
-  "envVars": [
-    {
-      "key": "AI_GATEWAY_API_KEY",
-      "value": "sk-...",
-      "environments": ["production", "preview", "development"]
-    }
-  ]
-}
-```
-
-During `hatch new` or feature VM setup, these variables are automatically added to your Vercel project and pulled to `.env.local` via `vercel env pull`.
-
-### What `hatch new` Does
-
-1. **Provisions temp VM** - Creates an exe.dev VM
-2. **Copies config** - Transfers `~/.hatch.json` to the VM
-3. **Runs install script** - Sets up the complete environment and creates project
-4. **Captures results** - Gets GitHub/Vercel/backend details from headless output
-5. **Deletes VM** - The VM is ephemeral, removed after setup
-6. **Saves project** - Stores project info in `~/.hatch/projects.json`
-
-The install script creates a Convex project, deploys the schema, and sets up Better Auth inside Convex.
-
-### What `hatch feature` Does
-
-1. **Looks up project** - Gets GitHub URL from `~/.hatch/projects.json`
-2. **Creates new VM** - Provisions exe.dev VM for this feature
-3. **Configures web preview** - Forwards port 3000 to `https://{vm-name}.exe.xyz`
-4. **Sets up environment** - Installs CLIs, authenticates, clones repo
-5. **Creates isolated backend** - Separate Convex project via API + deploy
-6. **Configures app URLs** - Sets `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` for the VM
-7. **Saves VM info** - Stores in `~/.hatch/vms.json` for easy access
-
-### What `hatch spike` Does
-
-1. **Same setup as feature** - VM, isolated backend, environment (steps 1-7 above)
-2. **Installs Claude Agent SDK** - Adds `@anthropic-ai/claude-agent-sdk` to the project
-3. **Starts agent with your prompt** - Runs autonomously in background
-4. **Agent implements the feature** - Writes code, runs tests, commits changes
-5. **Creates PR automatically** - Pushes branch and opens pull request
-6. **Writes result files** - Cost tracking and status information
-
-**Output files on the VM:**
-- `~/spike.log` - Human-readable progress log
-- `~/spike-progress.jsonl` - Structured tool use events (JSON lines)
-- `~/spike-result.json` - Final status, cost breakdown, session ID
-- `~/pr-url.txt` - The created PR URL
-
-**Monitoring commands:**
-```bash
-ssh <vm>.exe.xyz 'tail -f ~/spike.log'            # Watch progress
-ssh <vm>.exe.xyz 'tail -f ~/spike-progress.jsonl' # Structured events
-ssh <vm>.exe.xyz 'cat ~/spike-result.json'        # Final result + cost
-ssh <vm>.exe.xyz 'cat ~/pr-url.txt'               # Get PR URL
-```
-
-**Cost tracking:** The result file includes token usage and USD cost:
-```json
-{
-  "status": "completed",
-  "sessionId": "session_abc123",
-  "cost": {
-    "inputTokens": 45000,
-    "outputTokens": 12000,
-    "totalUsd": 0.0234
-  }
-}
-```
-
-**Remote monitoring:** Spikes can push real-time events to an HTTP endpoint for a future dashboard. See [Remote Spike Monitoring](#remote-spike-monitoring) for setup.
-
-### Adding Existing Projects
-
-Have a project already set up with GitHub, Vercel, and Convex? `hatch add` onboards it by creating a branch, scaffolding the agent harness, and opening a PR — so you just review and merge.
-
-#### Requirements
-
-Your existing project must have:
-
-- **GitHub repository** — The repo name should match the project name you pass to `hatch add`. If your repo lives under an org, set `github.org` in your config so Hatch looks up `<org>/<project-name>` automatically.
-- **Convex backend** — You'll need the project slug (e.g. `my-app`), deployment URL, and ideally a deploy key. The deploy key is used by feature VMs to deploy schema and functions to isolated Convex projects.
-- **Vercel project** — The Vercel project name should match the repo name. Hatch uses the Vercel CLI to look it up, so make sure `vercel` is installed and authenticated.
-- **`gh` CLI** — Used to create the PR automatically.
-
-Optional but recommended:
-- **Per-project config** (`~/.hatch/configs/<name>.json`) — If you manage multiple projects with different credentials, create a per-project config first with `hatch config --project <name>`. The `add` command will auto-detect it.
-
-#### What `hatch add` Does
-
-1. Looks up your GitHub, Convex, and Vercel resources (prompts for anything it can't find)
-2. Saves the project record to `~/.hatch/projects.json`
-3. Clones the repo (or uses your existing checkout via `--path`)
-4. Creates an `add-hatch` branch (resets it if it already exists from a previous run)
-5. Scaffolds the agent harness (`harness.json`, `AGENTS.md`, scripts, and doc stubs in `docs/`)
-6. Optionally runs Claude to populate doc stubs with project-specific content
-7. Installs the `agent-browser` skill for Claude Code and Codex
-8. Commits, pushes, and opens a PR
-9. Applies branch protection rules
-
-The working tree stays on the `add-hatch` branch so you can make further edits before the PR is merged.
-
-#### Step-by-Step
-
-1. **(Optional) Create a per-project config** if you have project-specific tokens:
-
-   ```bash
-   pnpm dev config --project my-existing-app
-   ```
-
-2. **Run `hatch add`** — Hatch clones the repo automatically:
-
-   ```bash
-   pnpm dev add my-existing-app
-   ```
-
-   Or point to an existing local checkout:
-
-   ```bash
-   pnpm dev add my-existing-app --path ~/dev/my-existing-app
-   ```
-
-3. **Hatch looks up your resources** automatically:
-   - Queries GitHub for the repo (via `gh repo view`)
-   - Searches Vercel for a matching project (via `vercel project ls`)
-   - Prompts you for Convex project details (slug, deployment URL, deploy key)
-
-   If any resource isn't found automatically, you'll be prompted to enter it manually.
-
-4. **Review the PR** — Hatch opens a PR with the harness files on the `add-hatch` branch. Review it on GitHub and merge to onboard.
-
-5. **Start using feature VMs:**
-
-   ```bash
-   pnpm dev feature add-auth --project my-existing-app
-   ```
-
-#### Example: Full Flow
-
-```bash
-# Set up project-specific credentials
-pnpm dev config --project my-existing-app
-
-# Add the project — clones, branches, scaffolds, and opens a PR
-pnpm dev add my-existing-app
-
-# Or use an existing checkout
-pnpm dev add my-existing-app --path ~/dev/my-existing-app
-
-# Review and merge the PR on GitHub, then start feature work
-pnpm dev feature payments --project my-existing-app
-
-# Or run an autonomous spike
-pnpm dev spike fix-nav --project my-existing-app --prompt "Fix mobile nav menu"
-```
-
-### Backend Isolation
-
-Each feature gets a fully isolated Convex backend. Separate projects provide full isolation:
-
-| Environment | Backend | Purpose |
-|-------------|---------|---------|
-| Production | Main Convex project | Live application (deployed via Vercel build) |
-| Development | Dev deployment | Local development (`npx convex dev`) |
-| Feature | `{slug}-{feature}` project | Isolated per-feature (created/deleted via API) |
-
-### Why Separate Convex Projects for Features
-
-Convex has native [preview deployments](https://docs.convex.dev/production/hosting/preview-deployments) for branch-level isolation, but they require a preview deploy key that can only be generated manually from the Convex Dashboard—there's no Management API support for creating them programmatically. Since Hatch requires full automation (no manual steps), we create a separate Convex project per feature branch instead. When Convex adds API support for preview deploy keys, we can migrate to native preview deployments.
-
-## CLI Reference
-
-### Configuration
-
-| Command | Description |
-|---------|-------------|
-| `hatch config` | Create ~/.hatch.json (default) |
-| `hatch config -o <path>` | Create config at custom path |
-| `hatch config --project <name>` | Create per-project config at `~/.hatch/configs/<name>.json` |
-| `hatch config --refresh` | Refresh tokens without re-prompting for orgs/teams |
-| `hatch config --refresh-claude` | Refresh only Claude credentials (preserves other tokens) |
-| `hatch config check` | Validate tokens are still valid |
-| `hatch config check --json` | Validate tokens and output as JSON |
-| `hatch config check --project <name>` | Validate a specific project's tokens |
-| `hatch config list` | List all project-specific configs |
-| `hatch config list --json` | List configs as JSON (for automation) |
-| `hatch config-push <ssh-host>` | Push ~/.hatch.json to a remote server |
-| `hatch config-push <ssh-host> -c <path>` | Push custom config file to a remote server |
-| `hatch config-push <ssh-host> --project <name>` | Sync project config and record to remote |
-
-The config command prompts to add custom environment variables that will be automatically set in Vercel during project setup.
-
-### Project Management
-
-| Command | Description |
-|---------|-------------|
-| `hatch new <project>` | Create new project (ephemeral VM setup) |
-| `hatch add <project>` | Add existing project to track for feature VMs |
-| `hatch list --projects` | List all projects |
-
-### Feature VM Management
-
-| Command | Description |
-|---------|-------------|
-| `hatch feature <name> --project <project>` | Create feature VM with branches |
-| `hatch spike <name> --project <project> --prompt "<instructions>"` | Create VM and run Claude Agent SDK autonomously |
-| `hatch status [--json] [--project <name>]` | Dashboard of VM liveness, spike progress, and PR status |
-| `hatch progress <feature> --project <project> [--json]` | Detailed spike progress with plan steps and recent logs |
-| `hatch connect [feature] --project <project>` | Show connection info |
-| `hatch list` | List projects with feature VMs |
-| `hatch clean <feature> --project <project>` | Delete feature VM and branches |
-
-### Hardening
-
-| Command | Description |
-|---------|-------------|
-| `hatch harden` | Apply branch protection from harness.json merge policy |
-| `hatch harden --dry-run` | Preview protection config without applying |
-| `hatch harden --strict` | Enforce on admins too (team mode) |
-| `hatch harden --project <name>` | Look up repo from project store |
-| `hatch harden --branch <branch>` | Target branch (default: main) |
-
-### Remote Management
-
-| Command | Description |
-|---------|-------------|
-| `hatch update <ssh-host>` | Update hatch on a remote server via SSH |
-| `hatch update` | Update local hatch installation (run on remote server) |
-| `hatch update --skip-install` | Update without reinstalling dependencies |
-
-### Spike Options
-
-| Flag | Description |
-|------|-------------|
-| `--prompt "<instructions>"` | Required. Instructions for Claude to implement |
-| `--wait` | Wait for spike to complete instead of returning immediately |
-| `--timeout <minutes>` | Max time in minutes when using `--wait` (default: 60) |
-| `--json` | Output result as JSON (useful for automation) |
-
-### General Options
-
-| Flag | Description |
-|------|-------------|
-| `--project <name>` | Specify project name |
-| `--force` | Skip confirmation for clean command |
-| `--json` | Output as JSON |
-
-## Generated Project Structure
+During `pnpm dev config`, you can add environment variables (like `RESEND_API_KEY`, `AI_GATEWAY_API_KEY`, `EMAIL_FROM`) that are automatically set in Vercel during project setup. These are stored in the `envVars` array in your config file.
+
+**Required for production:**
+- `RESEND_API_KEY` — For sending authentication emails
+- `AI_GATEWAY_API_KEY` — For AI/LLM functionality
+- `EMAIL_FROM` — Sender address for auth emails
+
+## What Hatch Creates
+
+### Generated Stack
+
+- **[Turborepo](https://turbo.build/repo)** — High-performance build system
+- **[Next.js 16](https://nextjs.org/)** — React 19 with App Router and Turbopack
+- **[Convex](https://www.convex.dev/)** — Real-time database with serverless functions
+- **[Better Auth](https://www.better-auth.com/)** — Email OTP authentication via `@convex-dev/better-auth`
+- **[Vercel AI SDK](https://sdk.vercel.ai/)** — AI/LLM integration with OpenAI
+- **[Vercel Workflows](https://useworkflow.dev/)** — Durable workflow execution
+- **[Tailwind CSS 4](https://tailwindcss.com/)** + **[shadcn/ui](https://ui.shadcn.com/)** — Modern styling
+- **[Vitest](https://vitest.dev/)** — Fast unit and integration testing
+- **[Biome](https://biomejs.dev/)** — Lightning-fast linting and formatting
+- **[PostHog](https://posthog.com/)** — Product analytics
+- **GitHub Actions** — CI/CD (`checks.yml` for lint/typecheck, `test.yml` for tests)
+
+### Claude Code Skills
+
+Generated projects ship with pre-installed [Claude Code skills](https://docs.anthropic.com/en/docs/claude-code/skills):
+
+| Skill | Description |
+|-------|-------------|
+| `vercel-react-best-practices` | React/Next.js performance patterns from Vercel |
+| `web-design-guidelines` | UI/UX design principles |
+| `vercel-composition-patterns` | Component composition patterns |
+| `find-skills` | Discover and install additional skills |
+| `better-auth-best-practices` | Better Auth implementation guidance |
+| `frontend-design` | Frontend design principles |
+| `ai-sdk` | Vercel AI SDK usage patterns |
+| `agentation` | Agent-based development patterns |
+| `next-cache-components` | Next.js caching strategies |
+| `next-best-practices` | Next.js application patterns |
+| `agent-browser` | Browser automation for testing |
+
+### Generated Project Structure
 
 ```
 my-app/
@@ -538,209 +209,115 @@ my-app/
 └── README.md                 # Generated project documentation
 ```
 
-## Authentication
+## How It Works
 
-Better Auth provides email OTP authentication via Resend:
-- Passwordless login flow
-- Session management
-- User/session database tables
+### `pnpm dev new`
 
-Better Auth runs inside Convex as a component via `@convex-dev/better-auth`. Next.js proxies auth requests to Convex's HTTP actions endpoint.
+Provisions a temporary VM, copies your config, runs the install script to create a complete project (GitHub repo, Convex backend, Vercel deployment), captures the results, deletes the VM, and saves the project record to `~/.hatch/projects.json`.
 
-## GitHub Actions
+### `pnpm dev feature`
 
-The generated project includes:
+Looks up the project, creates a new VM, forwards port 3000 to a public URL, clones the repo, creates an isolated Convex project, and configures the environment. The VM info is saved to `~/.hatch/vms.json`.
 
-| Workflow | Description |
-|----------|-------------|
-| `checks.yml` | Lint and typecheck on PRs |
-| `test.yml` | Run tests |
+### `pnpm dev spike`
 
-## Agent Harness
+Same setup as `feature`, plus installs the Claude Agent SDK and starts an autonomous agent with your prompt. The agent implements the feature, runs tests, creates a PR, and writes result files with cost tracking.
 
-Every generated project includes an agent harness that provides risk-aware merge policies, documentation drift detection, browser evidence capture, and branch protection. The harness is defined in `harness.json` at the project root and enforced via scripts and CI workflows.
+### Adding Existing Projects
 
-### What's Included
-
-- **`harness.json`** — Risk contract defining which files are high/medium/low risk and the corresponding merge policies
-- **`AGENTS.md`** — Constraints and guidelines for AI agents working in the codebase
-- **`scripts/harness/`** — Evidence capture and validation scripts
-- **`docs/`** — Architecture and design documentation
-- **CI workflows** — Automated checks that run harness validation on PRs
-
-### Risk Tiers
-
-Changes are classified by the files they touch:
-
-| Tier | Files | Merge Policy |
-|------|-------|--------------|
-| **High** | Schema, auth, security config | Human review required + all checks pass |
-| **Medium** | Services, API routes | Auto-merge with all checks passing |
-| **Low** | Everything else | Checks pass |
-
-### Auto-Hardening
-
-When `hatch new` creates a project, it automatically applies non-strict branch protection to the `main` branch after creating the GitHub repo. This requires PR reviews and status checks but allows admins to bypass (suitable for solo development). Use `hatch harden --strict` to enforce on admins too (recommended for teams).
-
-### Manual Hardening
-
-Use `hatch harden` to apply or update branch protection at any time:
+`pnpm dev add` onboards an existing project (GitHub + Vercel + Convex) by creating a branch, scaffolding the agent harness, and opening a PR. Review and merge to start using feature VMs and spikes.
 
 ```bash
-hatch harden                    # Apply from harness.json
-hatch harden --dry-run          # Preview without applying
-hatch harden --strict           # Enforce on admins (team mode)
-hatch harden --project my-app   # Look up repo from project store
+pnpm dev add my-existing-app                            # Clone and scaffold
+pnpm dev add my-existing-app --path ~/dev/my-existing-app  # Use existing checkout
 ```
 
-### Testing the Harness
+### Backend Isolation
 
-Test the full harness flow using a VM-based workflow:
+Each feature gets a fully isolated Convex backend:
 
-1. **Create a project with the harness:**
-   ```bash
-   pnpm dev new test-harness
-   ```
+| Environment | Backend | Purpose |
+|-------------|---------|---------|
+| Production | Main Convex project | Live application (deployed via Vercel build) |
+| Development | Dev deployment | Local development (`npx convex dev`) |
+| Feature | `{slug}-{feature}` project | Isolated per-feature (created/deleted via API) |
 
-2. **SSH into the VM and verify files exist:**
-   ```bash
-   ls harness.json AGENTS.md scripts/harness/ docs/
-   ```
+Separate Convex projects are used instead of native preview deployments because preview deploy keys can't be created programmatically via the Management API.
 
-3. **Check risk tier (no changes = low):**
-   ```bash
-   pnpm harness:risk-tier
-   pnpm harness:risk-tier --json    # Machine-readable output
-   ```
+## CLI Reference
 
-4. **Make a high-risk change and re-check:**
-   ```bash
-   # Edit a schema or auth file, then:
-   pnpm harness:risk-tier           # Should show "high"
-   ```
+### Configuration
 
-5. **Check documentation drift:**
-   ```bash
-   pnpm harness:docs-drift
-   ```
+| Command | Description |
+|---------|-------------|
+| `pnpm dev config` | Create ~/.hatch.json (default) |
+| `pnpm dev config -o <path>` | Create config at custom path |
+| `pnpm dev config --project <name>` | Create per-project config at `~/.hatch/configs/<name>.json` |
+| `pnpm dev config --refresh` | Refresh tokens without re-prompting for orgs/teams |
+| `pnpm dev config --refresh-claude` | Refresh only Claude credentials (preserves other tokens) |
+| `pnpm dev config check` | Validate tokens are still valid |
+| `pnpm dev config check --json` | Validate tokens and output as JSON |
+| `pnpm dev config check --project <name>` | Validate a specific project's tokens |
+| `pnpm dev config list` | List all project-specific configs |
+| `pnpm dev config list --json` | List configs as JSON (for automation) |
+| `pnpm dev config-push <ssh-host>` | Push ~/.hatch.json to a remote server |
+| `pnpm dev config-push <ssh-host> -c <path>` | Push custom config file to a remote server |
+| `pnpm dev config-push <ssh-host> --project <name>` | Sync project config and record to remote |
 
-6. **Run full pre-PR validation:**
-   ```bash
-   pnpm harness:pre-pr
-   ```
+### Project Management
 
-7. **Test browser evidence capture (graceful fallback without agent-browser):**
-   ```bash
-   pnpm harness:ui:capture-browser-evidence
-   pnpm harness:ui:verify-browser-evidence
-   ```
+| Command | Description |
+|---------|-------------|
+| `pnpm dev new <project>` | Create new project (ephemeral VM setup) |
+| `pnpm dev add <project>` | Add existing project to track for feature VMs |
+| `pnpm dev list --projects` | List all projects |
 
-8. **Verify branch protection was auto-applied:**
-   ```bash
-   gh api /repos/{owner}/{repo}/branches/main/protection
-   ```
+### Feature VM Management
 
-9. **Preview and upgrade protection:**
-   ```bash
-   hatch harden --dry-run           # Preview current config
-   hatch harden --strict            # Upgrade to team mode
-   ```
+| Command | Description |
+|---------|-------------|
+| `pnpm dev feature <name> --project <project>` | Create feature VM with branches |
+| `pnpm dev spike <name> --project <project> --prompt "<instructions>"` | Create VM and run Claude Agent SDK autonomously |
+| `pnpm dev status [--json] [--project <name>]` | Dashboard of VM liveness, spike progress, and PR status |
+| `pnpm dev progress <feature> --project <project> [--json]` | Detailed spike progress with plan steps and recent logs |
+| `pnpm dev connect [feature] --project <project>` | Show connection info |
+| `pnpm dev list` | List projects with feature VMs |
+| `pnpm dev clean <feature> --project <project>` | Delete feature VM and branches |
 
-10. **Clean up:**
-    ```bash
-    pnpm dev clean test-harness --project test-harness
-    ```
+### Hardening
 
-## Claude Code Skills
+| Command | Description |
+|---------|-------------|
+| `pnpm dev harden` | Apply branch protection from harness.json merge policy |
+| `pnpm dev harden --dry-run` | Preview protection config without applying |
+| `pnpm dev harden --strict` | Enforce on admins too (team mode) |
+| `pnpm dev harden --project <name>` | Look up repo from project store |
+| `pnpm dev harden --branch <branch>` | Target branch (default: main) |
 
-Generated projects come with pre-installed [Claude Code skills](https://docs.anthropic.com/en/docs/claude-code/skills) that enhance AI-assisted development. These are committed to the repo and available on all VMs.
+### Remote Management
 
-| Skill | Description |
-|-------|-------------|
-| `vercel-react-best-practices` | React/Next.js performance patterns from Vercel |
-| `web-design-guidelines` | UI/UX design principles |
-| `vercel-composition-patterns` | Component composition patterns |
-| `find-skills` | Discover and install additional skills |
-| `better-auth-best-practices` | Better Auth implementation guidance |
-| `frontend-design` | Frontend design principles |
-| `ai-sdk` | Vercel AI SDK usage patterns |
-| `agentation` | Agent-based development patterns |
-| `next-cache-components` | Next.js caching strategies |
-| `next-best-practices` | Next.js application patterns |
-| `agent-browser` | Browser automation for testing |
+| Command | Description |
+|---------|-------------|
+| `pnpm dev update <ssh-host>` | Update hatch on a remote server via SSH |
+| `pnpm dev update` | Update local hatch installation (run on remote server) |
+| `pnpm dev update --skip-install` | Update without reinstalling dependencies |
 
-Skills are installed from public GitHub repos during project creation. Use `/skills` in Claude Code to see available skills or `/find-skills` to discover more.
+### Spike Options
 
----
+| Flag | Description |
+|------|-------------|
+| `--prompt "<instructions>"` | Required. Instructions for Claude to implement |
+| `--wait` | Wait for spike to complete instead of returning immediately |
+| `--timeout <minutes>` | Max time in minutes when using `--wait` (default: 60) |
+| `--json` | Output result as JSON (useful for automation) |
 
-## Remote Server Installation
+### General Options
 
-Hatch can be installed on any Linux server (not just macOS) for automation or AI-assisted workflows.
-
-### Install on a Remote Server
-
-1. **Install hatch CLI**:
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/collinschaafsma/hatch/main/scripts/master-install.sh | bash
-   ```
-
-   This installs Node.js, pnpm, and the hatch CLI to `~/.hatch-cli`.
-
-2. **Transfer your config** from your local machine:
-   ```bash
-   # On your local machine (after running `hatch config`)
-   pnpm dev config-push user@remote-server
-
-   # Or push a specific project's config
-   pnpm dev config-push user@remote-server --project my-app
-   ```
-
-3. **Authenticate Claude Code** on the remote server:
-   ```bash
-   claude
-   ```
-
-   Complete the interactive OAuth login. This creates `~/.claude/.credentials.json` which hatch uses for Claude token refresh. You only need to do this once per server.
-
-4. **Verify installation**:
-   ```bash
-   cd ~/.hatch-cli
-   pnpm dev list --json
-   ```
-
-### OpenClaw Integration
-
-For [OpenClaw](https://openclaw.ai) users, install the hatch skill:
-
-```bash
-mkdir -p ~/.openclaw/skills
-cp -r ~/.hatch-cli/skills/hatch ~/.openclaw/skills/
-```
-
-Then tell your OpenClaw assistant to "refresh skills".
-
-### Update on a Remote Server
-
-From your local machine, update hatch on a remote server:
-
-```bash
-pnpm dev update user@remote-server
-```
-
-Or update locally on the server itself:
-
-```bash
-cd ~/.hatch-cli && pnpm dev update
-```
-
-This pulls the latest code, reinstalls dependencies, rebuilds, and updates the OpenClaw skill if installed.
-
-Now you can tell your assistant things like:
-- "Create a new hatch project called my-app"
-- "Add a contact form feature to my-app"
-- "Spike a user settings page for my-app"
-
----
+| Flag | Description |
+|------|-------------|
+| `--project <name>` | Specify project name |
+| `--force` | Skip confirmation for clean command |
+| `--json` | Output as JSON |
 
 ## Remote Spike Monitoring
 
@@ -748,24 +325,10 @@ Spikes run on remote VMs, and by default you monitor them by SSHing in and taili
 
 ### Enabling Remote Monitoring
 
-Add a `monitor` block to your hatch config. This works in both the global config and per-project configs:
-
-```bash
-# Global — applies to all projects
-pnpm dev config
-# Then add "monitor" to ~/.hatch.json
-
-# Per-project — only applies to spikes for this project
-pnpm dev config --project my-app
-# Then add "monitor" to ~/.hatch/configs/my-app.json
-```
+Add a `monitor` block to your hatch config (global or per-project):
 
 ```json
 {
-  "github": { ... },
-  "vercel": { ... },
-  "convex": { ... },
-  "anthropicApiKey": "sk-ant-...",
   "monitor": {
     "convexSiteUrl": "https://your-dashboard.convex.site",
     "token": "your-bearer-token"
@@ -778,30 +341,39 @@ pnpm dev config --project my-app
 | `convexSiteUrl` | The HTTP endpoint that receives spike events |
 | `token` | Bearer token sent in the `Authorization` header |
 
-The `monitor` block follows the same [config resolution order](#per-project-configuration) as everything else — per-project configs override the global config. This means you can enable monitoring globally or only for specific projects.
+When `monitor` is set, `pnpm dev spike` passes additional environment variables to the VM so the agent-runner knows where to push events. Without it, everything works as before—local logs only.
 
-When `monitor` is set, `hatch spike` passes additional environment variables to the VM so the agent-runner knows where to push events. Without it, everything works exactly as before — local logs only.
-
-For the full endpoint specifications (request/response schemas, error handling, and dashboard data mapping), see the [Monitor API Contract](docs/monitor-api.md).
+For the full endpoint specifications, see the [Monitor API Contract](docs/monitor-api.md).
 
 ### What Gets Pushed
 
-The agent-runner makes three types of HTTP calls:
+**`POST /api/runs/start`** — Registers the run with project metadata. Returns a `runId`.
 
-**`POST /api/runs/start`** — Called once at startup. Registers the run with project metadata (VM name, GitHub repo, Vercel URL, Convex preview deployment, prompt, iteration count). Returns a `runId` used in subsequent calls.
+**`POST /api/runs/events`** — Sent periodically (every 3s or when buffer hits 20 events). Includes sequence number, event type, description, and cumulative cost.
 
-**`POST /api/runs/events`** — Called periodically (every 3s, or when the buffer hits 20 events, or immediately on errors). Each event includes a sequence number, event type (`tool_start`, `tool_end`, `message`, `error`), a human-readable description, and a cumulative cost snapshot.
+**`POST /api/runs/complete`** — Final cost, duration, session ID, plan progress, and PR metadata.
 
-**`POST /api/runs/complete`** — Called once when the agent finishes. Includes final cost, duration, session ID, plan progress (parsed from the markdown plan), and GitHub PR metadata (fetched via `gh pr view` on the VM).
+### Spike Output Files
+
+| File | Content |
+|------|---------|
+| `~/spike.log` | Human-readable progress log |
+| `~/spike-progress.jsonl` | Structured tool use events (JSON lines) |
+| `~/spike-result.json` | Final status, cost breakdown, session ID |
+| `~/pr-url.txt` | The created PR URL |
+
+```bash
+ssh <vm>.exe.xyz 'tail -f ~/spike.log'            # Watch progress
+ssh <vm>.exe.xyz 'cat ~/spike-result.json'         # Final result + cost
+```
 
 ### Resilience
 
-Remote monitoring is designed to never interfere with the spike itself:
-
-- If the endpoint is unreachable at startup, monitoring is silently disabled
-- Failed event pushes are retried by re-buffering; after 3 consecutive failures, monitoring is disabled
-- Each HTTP request has a 10-second timeout
-- All warnings are logged to `spike.log` so you can see if monitoring degraded
+Remote monitoring never interferes with the spike itself:
+- Unreachable endpoint at startup → monitoring silently disabled
+- Failed event pushes retried; after 3 consecutive failures, monitoring disabled
+- 10-second timeout per HTTP request
+- Warnings logged to `spike.log`
 
 ### Environment Variables
 
@@ -820,7 +392,74 @@ When `config.monitor` is set, these env vars are passed to the VM:
 | `HATCH_CONVEX_PREVIEW_URL` | Convex preview deployment URL (if applicable) |
 | `HATCH_CONVEX_PREVIEW_NAME` | Convex preview deployment name (if applicable) |
 
----
+## Agent Harness
+
+Every generated project includes an agent harness for risk-aware merge policies, documentation drift detection, browser evidence capture, and branch protection. Defined in `harness.json` at the project root.
+
+**What's included:**
+- **`harness.json`** — Risk contract defining file risk tiers and merge policies
+- **`AGENTS.md`** — Constraints and guidelines for AI agents
+- **`scripts/harness/`** — Evidence capture and validation scripts
+- **`docs/`** — Architecture and design documentation
+- **CI workflows** — Automated harness validation on PRs
+
+### Risk Tiers
+
+| Tier | Files | Merge Policy |
+|------|-------|--------------|
+| **High** | Schema, auth, security config | Human review required + all checks pass |
+| **Medium** | Services, API routes | Auto-merge with all checks passing |
+| **Low** | Everything else | Checks pass |
+
+### Branch Protection
+
+`pnpm dev new` auto-applies non-strict branch protection (requires PRs and status checks, admins can bypass). Use `pnpm dev harden --strict` for team mode.
+
+## Local Development (macOS)
+
+For local development without a remote server, you can run Hatch directly on macOS. **macOS is required** for this path because Claude credential extraction uses Keychain.
+
+### Setup
+
+```bash
+git clone https://github.com/collinschaafsma/hatch.git
+cd hatch
+pnpm install
+pnpm dev config
+```
+
+### Create and Work on Projects
+
+```bash
+pnpm dev new my-app                                # Create project
+pnpm dev feature add-auth --project my-app         # Create feature VM
+```
+
+Connect to your VM:
+
+```bash
+ssh <vm-name>                                       # Direct SSH
+cd my-app && claude                                 # Start Claude Code
+
+# Or connect your IDE
+code --remote ssh-remote+<vm-name> ~/my-app         # VS Code
+cursor --remote ssh-remote+<vm-name> ~/my-app       # Cursor
+```
+
+Access your app at `https://<vm-name>.exe.xyz` once the dev server is running on port 3000.
+
+### Run a Spike
+
+```bash
+pnpm dev spike fix-nav --project my-app --prompt "The mobile nav menu doesn't close after clicking a link"
+ssh <vm-name>.exe.xyz 'tail -f ~/spike.log'        # Monitor progress
+```
+
+### Clean Up
+
+```bash
+pnpm dev clean add-auth --project my-app
+```
 
 ## Development (Contributing to Hatch)
 
