@@ -29,7 +29,7 @@ Returns dashboard with VM liveness, spike progress, and PR review/CI status.
 - `--json` - Output as JSON (recommended for agents)
 - `--project <name>` - Filter to a specific project
 
-Use after starting a spike to check progress, PR review status, and CI checks.
+Only run when the user explicitly asks for status on a specific VM or project. Do not proactively poll.
 Automatically detects if a "running" spike has actually completed.
 
 ### Create new project
@@ -66,8 +66,6 @@ cd ~/.hatch-cli && pnpm dev spike <name> --project <project> --prompt "<instruct
 Creates VM, runs Claude Agent SDK autonomously, creates PR when done.
 
 **Options:**
-- `--wait` - Block until spike completes (default: return immediately)
-- `--timeout <minutes>` - Max time when using `--wait` (default: 240)
 - `--json` - Output result as JSON
 - `--dry-run` - Show what will be created and get a confirmation token
 - `--confirm <token>` - Execute with a token from `--dry-run`
@@ -218,7 +216,6 @@ cd ~/.hatch-cli && pnpm dev spike <feature> --project <project> --continue <vm-n
 
 **Options:**
 - `--continue <vm-name>` - Continue an existing spike on the specified VM
-- `--wait` - Block until iteration completes
 - `--json` - Output result as JSON
 
 ### What Happens on Continuation
@@ -244,24 +241,7 @@ When the user's request relates to a recently completed spike:
 
 ## Monitoring Spike Progress
 
-After starting a spike, monitor with these SSH commands:
-
-```bash
-# Human-readable log (best for following along)
-ssh <vm>.exe.xyz 'tail -f ~/spike.log'
-
-# Structured progress events (JSON lines)
-ssh <vm>.exe.xyz 'tail -f ~/spike-progress.jsonl'
-
-# Check if done
-ssh <vm>.exe.xyz 'test -f ~/spike-done && echo "Done" || echo "Running"'
-
-# Get final result (includes cost)
-ssh <vm>.exe.xyz 'cat ~/spike-result.json'
-
-# Get PR URL
-ssh <vm>.exe.xyz 'cat ~/pr-url.txt'
-```
+SSH monitoring is available if the user asks, but should not be done proactively.
 
 ## Spike Output Files
 
@@ -408,70 +388,15 @@ cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "Add cont
 # 5. After the human approves the prompt, confirm with the token:
 cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "<final approved prompt>" --confirm <token>
 
-# 6. Check status (VM liveness, spike progress, PR review/CI)
-cd ~/.hatch-cli && pnpm dev status --project my-app --json
+# 6. Report the VM name and feature to the user, then move on.
+#    Do NOT poll status, tail logs, or SSH into the VM unless the user explicitly asks.
+#    The user monitors spike progress via their own dashboard.
 
-# 7. Optionally monitor progress
-ssh <vm>.exe.xyz 'tail -f ~/spike.log'
-
-# 8. Check for completion
-ssh <vm>.exe.xyz 'test -f ~/spike-done && cat ~/spike-result.json'
-
-# 9. Clean up after PR is merged (dry-run first, then confirm)
+# 7. Clean up after PR is merged (dry-run first, then confirm)
 cd ~/.hatch-cli && pnpm dev clean my-feature --project my-app --dry-run
 cd ~/.hatch-cli && pnpm dev clean my-feature --project my-app --confirm <token>
 ```
 Share PR URL when complete.
-
-### Blocking spike (wait for completion)
-```bash
-cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "Add contact form" --wait --json
-```
-Returns full result including PR URL and cost when done.
-
-## Non-Blocking Execution (Sub-Agent Pattern)
-
-Long-running commands (`spike`, `feature`, `clean`) can block the main session for minutes. Use `sessions_spawn` to delegate execution to a sub-agent so the main session stays responsive.
-
-### Pattern
-
-1. **Main session**: Run `--dry-run`, show the plan to the human, get approval
-2. **Main session**: Spawn a sub-agent with `sessions_spawn` to run the `--confirm <token>` command
-3. **Sub-agent**: Executes the command, monitors until completion, then announces the result (PR URL, cost, etc.)
-4. **Main session**: Stays free to handle other requests while the sub-agent works
-
-### Example: Non-blocking spike
-
-```bash
-# 1. Main session: dry-run + human approval (same as before)
-cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "Add contact form" --dry-run
-# Show plan to human, iterate on prompt, get approval...
-
-# 2. Main session: spawn sub-agent to run the confirmed command
-```
-
-After the human approves, use `sessions_spawn` with a task like:
-
-```
-Run this hatch spike command and monitor it to completion:
-
-cd ~/.hatch-cli && pnpm dev spike my-feature --project my-app --prompt "<approved prompt>" --confirm <token>
-
-After the command finishes:
-1. Parse the JSON output for the PR URL, cost, and status
-2. Announce the results to the user: PR URL, total cost, and whether it succeeded
-3. If it failed, include the error details so the user can decide next steps
-```
-
-### Applies to all long-running commands
-
-| Command | Dry-run | Confirm | What to announce |
-|---------|---------|---------|-----------------|
-| `spike` | `--dry-run` | `--confirm <token>` | PR URL, cost, status |
-| `feature` | `--dry-run` | `--confirm <token>` | SSH host, branch name |
-| `clean` | `--dry-run` | `--confirm <token>` | Cleaned resources |
-
-The `--dry-run` step is always fast and should stay in the main session. Only delegate the `--confirm` step to the sub-agent.
 
 ## Anthropic API Key
 
